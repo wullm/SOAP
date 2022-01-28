@@ -100,7 +100,7 @@ class SWIFTCellGrid:
 
         return reads
 
-    def read_masked_cells(self, property_names, mask):
+    def read_masked_cells(self, property_names, mask, verbose=False):
         """
         Read the requested properties from the cells where mask=True.
 
@@ -147,15 +147,21 @@ class SWIFTCellGrid:
             # Open this file
             filename = self.filename % {"file_nr" : file_nr}
             infile = h5py.File(filename, "r", rdcc_nbytes=rdcc_nbytes)
+            if verbose:
+                print("Opened file: ", filename)
 
             # Loop over particle types to read
             for ptype in property_names:
 
                 # Check if we need to read from this file for this particle type
                 if file_nr in reads[ptype]:
+                    if verbose:
+                        print("  Particle type %s" % ptype)
 
                     # Loop over quantities to read for this particle type
                     for name in property_names[ptype]:
+                        if verbose:
+                            print("    Dataset %s" % name)
 
                         # Find the dataset
                         dataset = infile[ptype][name]
@@ -170,9 +176,9 @@ class SWIFTCellGrid:
                         # Read the chunks for this property
                         mem_offset = ptype_offset[ptype]
                         for (file_offset, count) in reads[ptype][file_nr]:
-                            source_sel = np.s_[file_offset:file_offset+count,...]
-                            dest_sel   = np.s_[mem_offset:mem_offset+count,...]
-                            dataset.read_direct(data[ptype][name], source_sel, dest_sel)
+                            if verbose:
+                                print("      count=%d, offset=%d" % (count, file_offset))
+                            data[ptype][name][mem_offset:mem_offset+count,...] = dataset[file_offset:file_offset+count,...]
                             mem_offset += count
 
                     # Increment offsets into output arrays by number of particles read from this file
@@ -193,7 +199,8 @@ class SWIFTCellGrid:
         end = time.time()
         elapsed = end - start
         rate = mb_read / elapsed
-        print("Read %.2f MB in %.2f seconds = %.2f MB/s" % (mb_read, elapsed, rate))
+        if verbose:
+            print("Read %.2f MB in %.2f seconds = %.2f MB/s" % (mb_read, elapsed, rate))
 
         return data
 
