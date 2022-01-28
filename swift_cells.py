@@ -170,7 +170,9 @@ class SWIFTCellGrid:
                         # Read the chunks for this property
                         mem_offset = ptype_offset[ptype]
                         for (file_offset, count) in reads[ptype][file_nr]:
-                            data[ptype][name][mem_offset:mem_offset+count,...] = dataset[file_offset:file_offset+count,...]
+                            source_sel = np.s_[file_offset:file_offset+count,...]
+                            dest_sel   = np.s_[mem_offset:mem_offset+count,...]
+                            dataset.read_direct(data[ptype][name], source_sel, dest_sel)
                             mem_offset += count
 
                     # Increment offsets into output arrays by number of particles read from this file
