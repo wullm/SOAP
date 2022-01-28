@@ -117,11 +117,10 @@ class SWIFTCellGrid:
 
         start = time.time()
 
-        # Dict to store the result. Initially an empty list for
-        # each quantity to read.
+        # Dict to store the result. Initially None for each quantity to read.
         data = {}
         for ptype in property_names:
-            data[ptype] = {name : [] for name in property_names[ptype]}
+            data[ptype] = {name : None for name in property_names[ptype]}
         
         # Find ranges of particles to read from each file
         reads = {ptype : self.prepare_read(ptype, mask) for ptype in property_names}
@@ -131,6 +130,16 @@ class SWIFTCellGrid:
         for ptype in property_names:
             all_file_nrs += list(reads[ptype])
         all_file_nrs = np.unique(all_file_nrs)
+
+        # Find number of particles of each type to be read
+        nr_parts = {ptype : 0 for ptype in property_names}
+        for ptype in property_names:
+            for file_nr in reads[ptype]:
+                for offset, count in reads[ptype][file_nr]:
+                    nr_parts[ptype] += count
+
+        # Will need to store offset into output arrays for each type
+        ptype_offset = {ptype : 0 for ptype in property_names}
 
         # Loop over files to read
         for file_nr in all_file_nrs:
@@ -148,18 +157,28 @@ class SWIFTCellGrid:
                     # Loop over quantities to read for this particle type
                     for name in property_names[ptype]:
 
-                        # Read the chunks for this property
+                        # Find the dataset
                         dataset = infile[ptype][name]
-                        for (offset, count) in reads[ptype][file_nr]:
-                            data[ptype][name].append(dataset[offset:offset+count,...])
+
+                        # Allocate the output array if necessary
+                        if data[ptype][name] is None:
+                            dtype = dataset.dtype
+                            shape = list(dataset.shape)
+                            shape[0] = nr_parts[ptype]
+                            data[ptype][name] = np.ndarray(shape, dtype=dtype)
+
+                        # Read the chunks for this property
+                        mem_offset = ptype_offset[ptype]
+                        for (file_offset, count) in reads[ptype][file_nr]:
+                            data[ptype][name][mem_offset:mem_offset+count,...] = dataset[file_offset:file_offset+count,...]
+                            mem_offset += count
+
+                    # Increment offsets into output arrays by number of particles read from this file
+                    for (file_offset, count) in reads[ptype][file_nr]:
+                        ptype_offset[ptype] += count
 
             # Close the file
             infile.close()
-
-        # Merge chunks from all files
-        for ptype in property_names:
-            for name in property_names[ptype]:
-                data[ptype][name] = np.concatenate(data[ptype][name])
 
         # Calculate amount of data read
         nbytes = 0
