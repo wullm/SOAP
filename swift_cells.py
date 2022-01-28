@@ -2,6 +2,12 @@
 
 import numpy as np
 import h5py
+import time
+
+# HDF5 chunk cache parameters:
+# SWIFT writes datasets with large chunks so the default 1Mb may be too small
+# (e.g. one uncompressed chunk of positions is ~24Mb in FLAMINGO 2.8Gpc run)
+rdcc_nbytes = 250*1024*1024
 
 # Type to store information about a SWIFT cell for one particle type
 swift_cell_t = np.dtype([
@@ -18,7 +24,7 @@ class SWIFTCellGrid:
         self.filename = filename
 
         # Open the input file
-        with h5py.File(filename % 0, "r") as infile:
+        with h5py.File(filename % {"file_nr":0}, "r") as infile:
             
             # Read cell meta data
             self.ptypes = []
@@ -66,7 +72,8 @@ class SWIFTCellGrid:
         cells_to_read = cells_to_read[cells_to_read["count"] > 0]
 
         # Sort the selected cells by file, and then by offset within the file
-        cells_to_read = np.lexsort((cells_to_read["offset"], cells_to_read["file"]))
+        idx = np.lexsort((cells_to_read["offset"], cells_to_read["file"]))
+        cells_to_read = cells_to_read[idx]
 
         # Merge adjacent cells
         nr_to_read = len(cells_to_read)
@@ -93,7 +100,7 @@ class SWIFTCellGrid:
 
         return reads
 
-    def read(self, property_names, mask):
+    def read_masked_cells(self, property_names, mask):
         """
         Read the requested properties from the cells where mask=True.
 
@@ -108,6 +115,8 @@ class SWIFTCellGrid:
         for particle type ptype.
         """
 
+        start = time.time()
+
         # Dict to store the result. Initially an empty list for
         # each quantity to read.
         data = {}
@@ -121,14 +130,14 @@ class SWIFTCellGrid:
         all_file_nrs = []
         for ptype in property_names:
             all_file_nrs += list(reads[ptype])
-        all_file_nrs = np.unique(all_files)
+        all_file_nrs = np.unique(all_file_nrs)
 
         # Loop over files to read
         for file_nr in all_file_nrs:
 
             # Open this file
-            filename = self.filename % file_nr
-            infile = h5py.File(filename, "r")
+            filename = self.filename % {"file_nr" : file_nr}
+            infile = h5py.File(filename, "r", rdcc_nbytes=rdcc_nbytes)
 
             # Loop over particle types to read
             for ptype in property_names:
@@ -152,4 +161,35 @@ class SWIFTCellGrid:
             for name in property_names[ptype]:
                 data[ptype][name] = np.concatenate(data[ptype][name])
 
+        # Calculate amount of data read
+        nbytes = 0
+        for ptype in property_names:
+            for name in property_names[ptype]:
+                nbytes += data[ptype][name].nbytes
+        mb_read = nbytes/(1024*1024)
+
+        # Calculate read rate
+        end = time.time()
+        elapsed = end - start
+        rate = mb_read / elapsed
+        print("Read %.2f MB in %.2f seconds = %.2f MB/s" % (mb_read, elapsed, rate))
+
         return data
+
+    def empty_mask(self):
+
+        return np.zeros(self.dimension, dtype=np.bool)
+
+    def mask_region(self, mask, pos_min, pos_max):
+
+        pos_min = np.asarray(pos_min, dtype=float)
+        pos_max = np.asarray(pos_max, dtype=float)
+        imin = np.floor(pos_min/self.cell_size).astype(int)
+        imax = np.floor(pos_max/self.cell_size).astype(int)
+        for i in range(imin[0], imax[0]+1):
+            ii = i % self.dimension[0]
+            for j in range(imin[1], imax[1]+1):
+                jj = j % self.dimension[1]
+                for k in range(imin[2], imax[2]+1):
+                    kk = k % self.dimension[2]
+                    mask[i,j,k] = True
