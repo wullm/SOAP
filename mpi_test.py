@@ -5,6 +5,7 @@ import numpy as np
 import halo_centres
 import swift_cells
 import so_tasks
+import astropy.units
 
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
@@ -18,15 +19,19 @@ swift_filename = "/cosma8/data/dp004/jch/FLAMINGO/BlackHoles/200_w_lightcone/sna
 # Rank zero reads the halo positions and generates a list of tasks
 if comm_rank == 0:
 
-    # Read the halo catalogue
-    so_cat = halo_centres.SOCatalogue(vr_basename)
-
     # Read SWIFT cells
     cellgrid = swift_cells.SWIFTCellGrid(swift_filename)
+    parsec_cgs = cellgrid.constants["parsec"]
+    solar_mass_cgs = cellgrid.constants["solar_mass"]
+    a = cellgrid.a
 
-    # Decide on search radius (snapshot length units)
-    max_halo_radius = 10.0
-    search_radius = max_halo_radius + 0.5*np.amax(cellgrid.cell_size)
+    # Read the halo catalogue
+    so_cat = halo_centres.SOCatalogue(vr_basename, a, parsec_cgs, solar_mass_cgs)
+
+    # Decide on search radius
+    mpc = astropy.units.cm * parsec_cgs
+    max_halo_radius = 10.0*mpc
+    search_radius = max_halo_radius + 0.5*np.amax(cellgrid.cell_size)*mpc
 
     # Generate task list
     task_list = so_tasks.SOTaskList(cellgrid, so_cat, search_radius=search_radius, cells_per_task=3)
@@ -41,7 +46,7 @@ if comm_rank == 0:
 
     # Rank 0 responds to requests for tasks
     next_task = 0
-    nr_tasks = len(task_list.tasks)
+    nr_tasks = 1 #len(task_list.tasks) # Only do one task for now
     nr_done = 0
     while nr_done < comm_size-1:
         request_src = comm.recv()

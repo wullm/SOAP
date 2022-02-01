@@ -1,6 +1,7 @@
 #!/bin/env python
 
 import numpy as np
+import halo_properties
 
 class SOTaskList:
     """
@@ -9,7 +10,7 @@ class SOTaskList:
     def __init__(self, cellgrid, so_cat, search_radius, cells_per_task):
                 
         # For each centre, determine integer coords in task grid
-        ipos = np.floor(so_cat.centre / cellgrid.cell_size[None,:]).astype(int) // cells_per_task
+        ipos = np.floor(so_cat.centre.value / cellgrid.cell_size[None,:]).astype(int) // cells_per_task
 
         # Generate a task ID for each halo
         nx = np.amax(ipos[:,0])
@@ -21,6 +22,7 @@ class SOTaskList:
         idx = np.argsort(task_id)
         centre  = so_cat.centre[idx,:]
         index   = so_cat.index[idx]
+        radius  = so_cat.r_size[idx]
         task_id = task_id[idx]
 
         # Find groups of halos with the same task ID
@@ -29,7 +31,8 @@ class SOTaskList:
         # Create the task list
         tasks = []
         for offset, count in zip(offsets, counts):
-            tasks.append(SOTask(index[offset:offset+count], centre[offset:offset+count,:], search_radius))
+            tasks.append(SOTask(index[offset:offset+count], centre[offset:offset+count,:],
+                                radius[offset:offset+count], search_radius))
 
         self.tasks = tasks
 
@@ -42,9 +45,10 @@ class SOTask:
     search_radius is the radius around each halo we need to read in
     indexes contains the index of each halo in the input catalogue
     """
-    def __init__(self, indexes, centres, search_radius):
+    def __init__(self, indexes, centres, radii, search_radius):
         self.indexes = indexes.copy()
         self.centres = centres.copy()
+        self.radii   = radii.copy()
         self.search_radius = search_radius
 
     def bounding_box(self):
@@ -55,5 +59,5 @@ class SOTask:
     def run(self, cellgrid):
 
         pos_min, pos_max = self.bounding_box()
-        self.result = halo_properties.compute_so_properties(self.centres, pos_min, pos_max)
+        self.result = halo_properties.compute_so_properties(cellgrid, self.centres, self.radii, pos_min, pos_max)
 

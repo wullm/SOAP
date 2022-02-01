@@ -3,6 +3,8 @@
 import numpy as np
 import h5py
 import time
+import astropy.cosmology
+import astropy.units as u
 
 # HDF5 chunk cache parameters:
 # SWIFT writes datasets with large chunks so the default 1Mb may be too small
@@ -18,6 +20,15 @@ swift_cell_t = np.dtype([
     ("order",  np.int32),      # ordering of the cells in the snapshot file(s)
 ])
 
+def units_from_attributes(dset):
+    cgs_factor = dset.attrs["Conversion factor to CGS (not including cosmological corrections)"][0]
+    U_I = dset.attrs["U_I exponent"][0]
+    U_L = dset.attrs["U_L exponent"][0]
+    U_M = dset.attrs["U_M exponent"][0]
+    U_T = dset.attrs["U_T exponent"][0]
+    U_t = dset.attrs["U_t exponent"][0]
+    return cgs_factor * (u.A**U_I) * (u.cm**U_L) * (u.g**U_M) * (u.K**U_T) * (u.s**U_t) 
+
 class SWIFTCellGrid:
     
     def __init__(self, filename):
@@ -27,6 +38,27 @@ class SWIFTCellGrid:
         # Open the input file
         with h5py.File(filename % {"file_nr":0}, "r") as infile:
             
+            # Read cosmology
+            cosmo = infile["Cosmology"].attrs
+            H0  = 100.0*cosmo["h"][0]
+            Om0 = cosmo["Omega_m"][0]
+            Omega_b = cosmo["Omega_b"][0]
+            Omega_lambda = cosmo["Omega_lambda"][0]
+            Omega_r = cosmo["Omega_r"][0]
+            Omega_m = cosmo["Omega_m"][0]
+            w_0 = cosmo["w_0"][0]
+            w_a = cosmo["w_a"][0]
+            Tcmb0 = cosmo["T_CMB_0 [K]"][0]
+            self.cosmology = astropy.cosmology.w0waCDM(H0=H0, Om0=Omega_m, Ode0=Omega_lambda,
+                                                       w0=w_0, wa=w_a, Tcmb0=Tcmb0, Ob0=Omega_b)
+            self.a = cosmo["Scale-factor"][0]
+            self.z = cosmo["Redshift"][0]
+
+            # Read constants
+            self.constants = {}
+            for name in infile["PhysicalConstants"]["CGS"].attrs:
+                self.constants[name] = infile["PhysicalConstants"]["CGS"].attrs[name][0]
+
             # Read cell meta data
             self.ptypes = []
             self.nr_cells  = infile["Cells/Meta-data"].attrs["nr_cells"]
@@ -181,7 +213,8 @@ class SWIFTCellGrid:
                             dtype = dataset.dtype
                             shape = list(dataset.shape)
                             shape[0] = nr_parts[ptype]
-                            data[ptype][name] = np.ndarray(shape, dtype=dtype)
+                            units = units_from_attributes(dataset)
+                            data[ptype][name] = astropy.units.Quantity(np.ndarray(shape, dtype=dtype), unit=units, dtype=dtype)
 
                         # Read the chunks for this property
                         mem_offset = ptype_offset[ptype]
@@ -193,7 +226,10 @@ class SWIFTCellGrid:
                                 skipped = 0
                             if verbose:
                                 print("      count=%d, offset=%d (skipped=%d)" % (count, file_offset, skipped))
-                            data[ptype][name][mem_offset:mem_offset+count,...] = dataset[file_offset:file_offset+count,...]
+                            unit = data[ptype][name].unit
+                            dtype = data[ptype][name].dtype
+                            data[ptype][name][mem_offset:mem_offset+count,...] = (
+                                astropy.units.Quantity(dataset[file_offset:file_offset+count,...], unit=unit, dtype=dtype))
                             last_offset = file_offset + count
                             mem_offset += count
 
