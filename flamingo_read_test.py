@@ -15,10 +15,10 @@ property_names = {
 }
 
 # Determine which cells to read
-pos_min=(0,0,0)
-pos_max=(100,100,100)
+pos_min=(1500,2500,1000)
+pos_max=(1600,2600,1100)
 mask = cellgrid.empty_mask()
 cellgrid.mask_region(mask, pos_min, pos_max)
 
 # Read the cells
-data = cellgrid.read_masked_cells(property_names, mask)
+data = cellgrid.read_masked_cells(property_names, mask, verbose=True)

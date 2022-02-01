@@ -34,5 +34,7 @@ class SOCatalogue:
         self.centre[:,0] = data["Xcminpot"]
         self.centre[:,1] = data["Ycminpot"]
         self.centre[:,2] = data["Zcminpot"]
+        self.index = np.arange(self.nr_halos, dtype=int)
         del data
 
+    

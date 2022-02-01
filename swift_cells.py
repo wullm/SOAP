@@ -11,10 +11,11 @@ rdcc_nbytes = 250*1024*1024
 
 # Type to store information about a SWIFT cell for one particle type
 swift_cell_t = np.dtype([
-    ("centre", np.float64, 3),
-    ("count",  np.int64),
-    ("offset", np.int64),
-    ("file",   np.int32),
+    ("centre", np.float64, 3), # coordinates of cell centre
+    ("count",  np.int64),      # number of particles in the cell
+    ("offset", np.int64),      # offset to first particle
+    ("file",   np.int32),      # file containing this cell
+    ("order",  np.int32),      # ordering of the cells in the snapshot file(s)
 ])
 
 class SWIFTCellGrid:
@@ -46,6 +47,13 @@ class SWIFTCellGrid:
                 cellgrid["count"]  = infile["Cells"]["Counts"][ptype][...]
                 cellgrid["offset"] = infile["Cells"]["OffsetsInFile"][ptype][...]
                 cellgrid["file"]   = infile["Cells"]["Files"][ptype][...]
+
+        # Determine ordering of the cells in the snapshot
+        for ptype in self.ptypes:
+            cellgrid = self.cell[ptype]
+            idx = np.lexsort((cellgrid["offset"], cellgrid["file"]))
+            for cell_order, cell_index in enumerate(idx):
+                cellgrid[cell_index]["order"] = cell_order
 
         # Reshape into a grid
         for ptype in self.ptypes:
@@ -137,6 +145,8 @@ class SWIFTCellGrid:
             for file_nr in reads[ptype]:
                 for offset, count in reads[ptype][file_nr]:
                     nr_parts[ptype] += count
+            if verbose:
+                print("Type %s: %d particles to read" % (ptype, nr_parts[ptype]))
 
         # Will need to store offset into output arrays for each type
         ptype_offset = {ptype : 0 for ptype in property_names}
@@ -175,10 +185,16 @@ class SWIFTCellGrid:
 
                         # Read the chunks for this property
                         mem_offset = ptype_offset[ptype]
+                        last_offset = None
                         for (file_offset, count) in reads[ptype][file_nr]:
+                            if last_offset is not None:
+                                skipped = file_offset - last_offset
+                            else:
+                                skipped = 0
                             if verbose:
-                                print("      count=%d, offset=%d" % (count, file_offset))
+                                print("      count=%d, offset=%d (skipped=%d)" % (count, file_offset, skipped))
                             data[ptype][name][mem_offset:mem_offset+count,...] = dataset[file_offset:file_offset+count,...]
+                            last_offset = file_offset + count
                             mem_offset += count
 
                     # Increment offsets into output arrays by number of particles read from this file
@@ -220,4 +236,16 @@ class SWIFTCellGrid:
                 jj = j % self.dimension[1]
                 for k in range(imin[2], imax[2]+1):
                     kk = k % self.dimension[2]
-                    mask[i,j,k] = True
+                    mask[ii,jj,kk] = True
+
+    def cell_order_from_coordinates(self, ptype, pos):
+        """
+        Given an array of coordinates, pos, return the order of the
+        cell for particle type ptype containing each coordinate.
+        """
+        
+        # Compute integer coordinates
+        ipos = np.floor(pos/self.cell_size[None,:]).astype(int)
+
+        # Look up cell ordering
+        return self.cell[ptype][ipos[:,0], ipos[:,1], ipos[:,2]]["order"]
