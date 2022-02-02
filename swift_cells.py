@@ -5,6 +5,7 @@ import h5py
 import time
 import astropy.cosmology
 import astropy.units as u
+import swift_units
 
 # HDF5 chunk cache parameters:
 # SWIFT writes datasets with large chunks so the default 1Mb may be too small
@@ -19,15 +20,6 @@ swift_cell_t = np.dtype([
     ("file",   np.int32),      # file containing this cell
     ("order",  np.int32),      # ordering of the cells in the snapshot file(s)
 ])
-
-def units_from_attributes(dset):
-    cgs_factor = dset.attrs["Conversion factor to CGS (not including cosmological corrections)"][0]
-    U_I = dset.attrs["U_I exponent"][0]
-    U_L = dset.attrs["U_L exponent"][0]
-    U_M = dset.attrs["U_M exponent"][0]
-    U_T = dset.attrs["U_T exponent"][0]
-    U_t = dset.attrs["U_t exponent"][0]
-    return cgs_factor * (u.A**U_I) * (u.cm**U_L) * (u.g**U_M) * (u.K**U_T) * (u.s**U_t) 
 
 class SWIFTCellGrid:
     
@@ -220,7 +212,7 @@ class SWIFTCellGrid:
                             dtype = dataset.dtype
                             shape = list(dataset.shape)
                             shape[0] = nr_parts[ptype]
-                            units = units_from_attributes(dataset)
+                            units = swift_units.units_from_attributes(dataset)
                             data[ptype][name] = u.Quantity(np.ndarray(shape, dtype=dtype), unit=units, dtype=dtype)
 
                         # Read the chunks for this property

@@ -2,11 +2,12 @@
 
 import numpy as np
 import h5py
+import astropy.units
 
 import halo_centres
 import swift_cells
 import so_tasks
-import astropy.units
+import swift_units
 
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
@@ -71,6 +72,7 @@ else:
         else:
             break
 
+# TODO: use message tags instead of barrier to prevent mix-ups!
 comm.barrier()
 
 # Combine results
@@ -103,4 +105,4 @@ else:
         for name in all_results:
             outfile[name] = all_results[name]
             if hasattr(all_results[name], "unit"):
-                outfile[name].attrs["unit"] = str(all_results[name].unit)
+                swift_units.write_unit_attributes(outfile[name], all_results[name].unit)
