@@ -9,13 +9,16 @@ class SOTaskList:
     """
     def __init__(self, cellgrid, so_cat, search_radius, cells_per_task):
                 
+        # Find size of volume associated with each task
+        task_size = cellgrid.cell_size[0]*cells_per_task
+        
         # For each centre, determine integer coords in task grid
-        ipos = np.floor(so_cat.centre / cellgrid.cell_size[None,:]).astype(int) // cells_per_task
+        ipos = np.floor(so_cat.centre / task_size).value.astype(int)
 
         # Generate a task ID for each halo
-        nx = np.amax(ipos[:,0])
-        ny = np.amax(ipos[:,1])
-        nz = np.amax(ipos[:,2])
+        nx = np.amax(ipos[:,0]) + 1
+        ny = np.amax(ipos[:,1]) + 1
+        nz = np.amax(ipos[:,2]) + 1
         task_id = ipos[:,2] * nx * ny + ipos[:,1] * nx + ipos[:,0] 
 
         # Sort halos by task ID
@@ -34,8 +37,11 @@ class SOTaskList:
             tasks.append(SOTask(index[offset:offset+count], centre[offset:offset+count,:],
                                 radius[offset:offset+count], search_radius))
 
+        # Use number of halos as a rough estimate of cost.
+        # Do tasks with the most halos first so we're not waiting for a few big jobs at the end.
+        tasks.sort(key = lambda x: -x.centres.shape[0])
         self.tasks = tasks
-
+        
 class SOTask:
     """
     Each SOTask is a set of halos in a patch of the simulation volume
@@ -55,6 +61,11 @@ class SOTask:
         pos_min = np.amin(self.centres, axis=0) - self.search_radius
         pos_max = np.amax(self.centres, axis=0) + self.search_radius
         return pos_min, pos_max
+
+    def volume(self):
+        pos_min, pos_max = self.bounding_box()
+        r = pos_max - pos_min
+        return r[0]*r[1]*r[2]
 
     def run(self, cellgrid):
         pos_min, pos_max = self.bounding_box()
