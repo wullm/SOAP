@@ -59,11 +59,18 @@ class SWIFTCellGrid:
             for name in infile["PhysicalConstants"]["CGS"].attrs:
                 self.constants[name] = infile["PhysicalConstants"]["CGS"].attrs[name][0]
 
+            # Read some snapshot units
+            self.length_unit = (infile["Units"].attrs["Unit length in cgs (U_L)"][0])*u.cm
+            self.mass_unit   = (infile["Units"].attrs["Unit mass in cgs (U_M)"][0])*u.g
+
+            # Get the box size
+            self.boxsize = u.Quantity(infile["Header"].attrs["BoxSize"][0], unit=self.length_unit)
+
             # Read cell meta data
             self.ptypes = []
             self.nr_cells  = infile["Cells/Meta-data"].attrs["nr_cells"]
             self.dimension = infile["Cells/Meta-data"].attrs["dimension"]
-            self.cell_size = infile["Cells/Meta-data"].attrs["size"]
+            self.cell_size = u.Quantity(infile["Cells/Meta-data"].attrs["size"], unit=self.length_unit)
             for name in infile["Cells/Counts"]:
                 self.ptypes.append(name)
                 
@@ -214,7 +221,7 @@ class SWIFTCellGrid:
                             shape = list(dataset.shape)
                             shape[0] = nr_parts[ptype]
                             units = units_from_attributes(dataset)
-                            data[ptype][name] = astropy.units.Quantity(np.ndarray(shape, dtype=dtype), unit=units, dtype=dtype)
+                            data[ptype][name] = u.Quantity(np.ndarray(shape, dtype=dtype), unit=units, dtype=dtype)
 
                         # Read the chunks for this property
                         mem_offset = ptype_offset[ptype]
@@ -229,7 +236,7 @@ class SWIFTCellGrid:
                             unit = data[ptype][name].unit
                             dtype = data[ptype][name].dtype
                             data[ptype][name][mem_offset:mem_offset+count,...] = (
-                                astropy.units.Quantity(dataset[file_offset:file_offset+count,...], unit=unit, dtype=dtype))
+                                u.Quantity(dataset[file_offset:file_offset+count,...], unit=unit, dtype=dtype))
                             last_offset = file_offset + count
                             mem_offset += count
 
@@ -261,11 +268,8 @@ class SWIFTCellGrid:
         return np.zeros(self.dimension, dtype=np.bool)
 
     def mask_region(self, mask, pos_min, pos_max):
-
-        pos_min = np.asarray(pos_min, dtype=float)
-        pos_max = np.asarray(pos_max, dtype=float)
-        imin = np.floor(pos_min/self.cell_size).astype(int)
-        imax = np.floor(pos_max/self.cell_size).astype(int)
+        imin = np.asarray(np.floor(pos_min/self.cell_size), dtype=int)
+        imax = np.asarray(np.floor(pos_max/self.cell_size), dtype=int)
         for i in range(imin[0], imax[0]+1):
             ii = i % self.dimension[0]
             for j in range(imin[1], imax[1]+1):
@@ -274,14 +278,3 @@ class SWIFTCellGrid:
                     kk = k % self.dimension[2]
                     mask[ii,jj,kk] = True
 
-    def cell_order_from_coordinates(self, ptype, pos):
-        """
-        Given an array of coordinates, pos, return the order of the
-        cell for particle type ptype containing each coordinate.
-        """
-        
-        # Compute integer coordinates
-        ipos = np.floor(pos/self.cell_size[None,:]).astype(int)
-
-        # Look up cell ordering
-        return self.cell[ptype][ipos[:,0], ipos[:,1], ipos[:,2]]["order"]

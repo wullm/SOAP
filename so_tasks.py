@@ -10,7 +10,7 @@ class SOTaskList:
     def __init__(self, cellgrid, so_cat, search_radius, cells_per_task):
                 
         # For each centre, determine integer coords in task grid
-        ipos = np.floor(so_cat.centre.value / cellgrid.cell_size[None,:]).astype(int) // cells_per_task
+        ipos = np.floor(so_cat.centre / cellgrid.cell_size[None,:]).astype(int) // cells_per_task
 
         # Generate a task ID for each halo
         nx = np.amax(ipos[:,0])
@@ -57,7 +57,7 @@ class SOTask:
         return pos_min, pos_max
 
     def run(self, cellgrid):
-
         pos_min, pos_max = self.bounding_box()
-        self.result = halo_properties.compute_so_properties(cellgrid, self.centres, self.radii, pos_min, pos_max)
-
+        result = halo_properties.compute_so_properties(cellgrid, self.centres, self.radii, pos_min, pos_max)
+        result["index"] = self.indexes
+        return result

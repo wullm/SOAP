@@ -46,7 +46,7 @@ class SOCatalogue:
 
         # Use SWIFT's defintions of parsec, solar mass
         mass_unit = astropy.units.g * solar_mass_cgs
-        length_unit = astropy.units.cm * parsec_cgs
+        length_unit = astropy.units.cm * 1.0e6 * parsec_cgs
 
         # Read the data
         self.nr_halos = data["Mass_tot"].shape[0]
