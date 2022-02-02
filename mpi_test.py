@@ -16,10 +16,6 @@ comm = MPI.COMM_WORLD
 comm_rank = comm.Get_rank()
 comm_size = comm.Get_size()
 
-#vr_basename = "/cosma8/data/dp004/jch/FLAMINGO/BlackHoles/200_w_lightcone/vr/catalogue_0013/vr_catalogue_0013.properties"
-#swift_filename = "/cosma8/data/dp004/jch/FLAMINGO/BlackHoles/200_w_lightcone/snapshots/flamingo_0013.hdf5"
-#outfile = "./so_props.hdf5"
-
 if __name__ == "__main__":
 
     # Read command line parameters
@@ -66,12 +62,15 @@ if __name__ == "__main__":
         while nr_done < comm_size-1:
             request_src = comm.recv()
             if next_task < nr_tasks:
-                print("Start task %d of %d" % (next_task, nr_tasks))
+                print("Starting task %d" % next_task)
                 comm.send(task_list.tasks[next_task], request_src)
                 next_task += 1
             else:
                 comm.send(None, request_src)
                 nr_done += 1
+                print("Number of ranks done with all tasks = %d" % nr_done)
+        print("All tasks done.")
+
     else:
 
         # Other ranks request and run tasks
@@ -84,8 +83,8 @@ if __name__ == "__main__":
             else:
                 break
 
-    # TODO: use message tags instead of barrier to prevent mix-up between
-    # task requests and combining results
+    # Barrier prevents mix-up between task requests and combining results
+    # (could fix with tags)
     comm.barrier()
 
     # Combine results
