@@ -62,7 +62,7 @@ if __name__ == "__main__":
         while nr_done < comm_size-1:
             request_src = comm.recv()
             if next_task < nr_tasks:
-                print("Starting task %d" % next_task)
+                print("Starting task %d of %d" % (next_task, nr_tasks))
                 comm.send(task_list.tasks[next_task], request_src)
                 next_task += 1
             else:
