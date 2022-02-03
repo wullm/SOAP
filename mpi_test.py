@@ -122,7 +122,7 @@ if __name__ == "__main__":
 
         # And write the output file
         with h5py.File(args["outfile"], "w") as outfile:
-            for name, (data, description) in all_results.iter():
+            for name, (data, description) in all_results.items():
                 outfile[name] = data
                 outfile[name].attrs["Description"] = description
                 if hasattr(data, "unit"):

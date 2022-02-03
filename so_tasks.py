@@ -7,7 +7,8 @@ class SOTaskList:
     """
     Stores a list of SOTasks to be executed.
     """
-    def __init__(self, cellgrid, so_cat, search_radius, cells_per_task):
+    def __init__(self, cellgrid, so_cat, search_radius, cells_per_task,
+                 halo_prop_list):
                 
         # Find size of volume associated with each task
         task_size = cellgrid.cell_size[0]*cells_per_task
@@ -35,7 +36,7 @@ class SOTaskList:
         tasks = []
         for offset, count in zip(offsets, counts):
             tasks.append(SOTask(index[offset:offset+count], centre[offset:offset+count,:],
-                                radius[offset:offset+count], search_radius))
+                                radius[offset:offset+count], search_radius, halo_prop_list))
 
         # Use number of halos as a rough estimate of cost.
         # Do tasks with the most halos first so we're not waiting for a few big jobs at the end.
@@ -71,8 +72,9 @@ class SOTask:
 
     def run(self, cellgrid):
         pos_min, pos_max = self.bounding_box()
-        result = halo_particles.compute_so_properties(cellgrid, self.centres, self.radii, pos_min, pos_max,
-                                                      halo_prop_list)
+        result = halo_particles.compute_so_properties(cellgrid, self.centres, self.radii,
+                                                      pos_min, pos_max,
+                                                      self.halo_prop_list)
 
         # Add an extra result array with the original index of the halo
         result["index"] = (self.indexes, "Position of the halo in the VR catalogue")

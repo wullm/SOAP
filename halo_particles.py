@@ -29,10 +29,10 @@ def compute_so_properties(cellgrid, centres, radii, pos_min, pos_max,
     # needed for each calculation.
     properties = {}
     for halo_prop in halo_prop_list:
-        for ptype in halo_prop:
+        for ptype in halo_prop.particle_properties:
             if ptype not in properties:
                 properties[ptype] = set()
-            properties[ptype] = properties[ptype].union(halo_prop[ptype])
+            properties[ptype] = properties[ptype].union(halo_prop.particle_properties[ptype])
 
     # Read in particles in the required region
     mask = cellgrid.empty_mask()
@@ -100,9 +100,9 @@ def compute_so_properties(cellgrid, centres, radii, pos_min, pos_max,
                 # Call functions to compute halo properties for this halo
                 halo_result = {}
                 for halo_prop in halo_prop_list:
-                    halo_result.update(halo_prop.calculate(cosmo, a, z, centre, data))
+                    halo_result.update(halo_prop.calculate(cosmo, a, z, centres[halo_nr,:], data))
                 # Store results
-                for name, (value, description) in halo_result.iter():
+                for name, (value, description) in halo_result.items():
                     # If this is the first time we computed this quantity, allocate a new output array
                     if name not in result_arrays:
                         arr = astropy.units.Quantity(-np.ones(nr_halos, dtype=float), unit=value.unit)

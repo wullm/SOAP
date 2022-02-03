@@ -32,8 +32,6 @@ class SOMasses(HaloProperty):
         Input particle data arrays are astropy Quantities.
         """
 
-        result = {}
-
         # Make an array of particle masses and radii
         mass = []
         radius = []
