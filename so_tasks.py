@@ -1,7 +1,7 @@
 #!/bin/env python
 
 import numpy as np
-import halo_properties
+import halo_particles
 
 class SOTaskList:
     """
@@ -51,12 +51,14 @@ class SOTask:
     search_radius is the radius around each halo we need to read in
     indexes contains the index of each halo in the input catalogue
     """
-    def __init__(self, indexes, centres, radii, search_radius):
+    def __init__(self, indexes, centres, radii, search_radius,
+                 halo_prop_list):
         self.indexes = indexes.copy()
         self.centres = centres.copy()
         self.radii   = radii.copy()
         self.search_radius = search_radius
-
+        self.halo_prop_list = halo_prop_list
+        
     def bounding_box(self):
         pos_min = np.amin(self.centres, axis=0) - self.search_radius
         pos_max = np.amax(self.centres, axis=0) + self.search_radius
@@ -69,6 +71,7 @@ class SOTask:
 
     def run(self, cellgrid):
         pos_min, pos_max = self.bounding_box()
-        result = halo_properties.compute_so_properties(cellgrid, self.centres, self.radii, pos_min, pos_max)
+        result = halo_particles.compute_so_properties(cellgrid, self.centres, self.radii, pos_min, pos_max,
+                                                      halo_prop_list)
         result["index"] = self.indexes
         return result

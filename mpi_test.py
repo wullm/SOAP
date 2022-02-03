@@ -11,6 +11,8 @@ import swift_cells
 import so_tasks
 import swift_units
 
+import halo_properties
+
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
 comm_rank = comm.Get_rank()
@@ -26,6 +28,9 @@ if __name__ == "__main__":
         args["cells_per_task"] = int(sys.argv[3]) # 1D size of each task in top level cells
         args["outfile"]        = sys.argv[4] # Name of the output file
     args = comm.bcast(args)
+
+    # Make a list of properties to calculate
+    halo_prop_list = [halo_properties.SOMasses(),]
 
     # Rank zero reads the halo positions and generates a list of tasks
     if comm_rank == 0:
@@ -46,7 +51,8 @@ if __name__ == "__main__":
 
         # Generate task list
         task_list = so_tasks.SOTaskList(cellgrid, so_cat, search_radius=search_radius,
-                                        cells_per_task=args["cells_per_task"])
+                                        cells_per_task=args["cells_per_task"],
+                                        halo_prop_list=halo_prop_list)
     else:
         cellgrid = None
 
