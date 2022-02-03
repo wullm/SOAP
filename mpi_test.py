@@ -1,4 +1,4 @@
-#!/bin/env python3
+#!/bin/env python
 
 import sys
 
@@ -107,20 +107,23 @@ if __name__ == "__main__":
         for i in range(1, comm_size):
             result += comm.recv(source=i)
 
-        # Then combine into full arrays
-        names = result[0].keys()
+        # Then combine the results into one array per quantity
         all_results = {}
-        for name in names:
-            all_results[name] = np.concatenate([r[name] for r in result])
+        for name in result[0].keys():
+            list_of_arrays = [r[name][0] for r in result]
+            output_array   = np.concatenate(list_of_arrays)
+            description    = result[0][name][1]
+            all_results[name] = [output_array, description]
 
-        # Sort by halo index
-        idx = np.argsort(all_results["index"])
+        # Sort all arrays by halo index
+        idx = np.argsort(all_results["index"][0])
         for name in all_results:
-            all_results[name] = all_results[name][idx,...]
+            all_results[name][0] = all_results[name][0][idx,...]
 
         # And write the output file
         with h5py.File(args["outfile"], "w") as outfile:
-            for name in all_results:
-                outfile[name] = all_results[name]
-                if hasattr(all_results[name], "unit"):
-                    swift_units.write_unit_attributes(outfile[name], all_results[name].unit)
+            for name, (data, description) in all_results.iter():
+                outfile[name] = data
+                outfile[name].attrs["Description"] = description
+                if hasattr(data, "unit"):
+                    swift_units.write_unit_attributes(outfile[name], data.unit)

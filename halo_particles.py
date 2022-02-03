@@ -67,8 +67,9 @@ def compute_so_properties(cellgrid, centres, radii, pos_min, pos_max,
     nr_halos = centres.shape[0]
     rsearch = radii.copy()
 
-    # Dict to store the results
-    result = {}
+    # Dict to store the results:
+    # Will eventually have one array for each quantity to calculate.
+    result_arrays = {}
 
     # Iterate until we find a radius such that the mean density is < target_density for all halos
     to_do = np.arange(nr_halos, dtype=int)
@@ -101,10 +102,13 @@ def compute_so_properties(cellgrid, centres, radii, pos_min, pos_max,
                 for halo_prop in halo_prop_list:
                     halo_result.update(halo_prop.calculate(cosmo, a, z, centre, data))
                 # Store results
-                for name in halo_result:
-                    if name not in result:
-                        result[name] = astropy.units.Quantity(-np.ones(nr_halos, dtype=float), unit=halo_result[name].unit)
-                    result[name][halo_nr] = halo_result[name]                
+                for name, (value, description) in halo_result.iter():
+                    # If this is the first time we computed this quantity, allocate a new output array
+                    if name not in result_arrays:
+                        arr = astropy.units.Quantity(-np.ones(nr_halos, dtype=float), unit=value.unit)
+                        result_arrays[name] = (arr, description)
+                    # Store the result for this halo into the output array
+                    result_arrays[name][0][halo_nr] = value
             else:
                 # Need to increase the search radius for this one and try again
                 rsearch[halo_nr] *= 1.5
@@ -114,6 +118,4 @@ def compute_so_properties(cellgrid, centres, radii, pos_min, pos_max,
         to_do = to_do[to_do>=0]
 
     # Return the halo properties from this task
-    return result
-
-
+    return result_arrays

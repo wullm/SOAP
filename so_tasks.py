@@ -73,5 +73,8 @@ class SOTask:
         pos_min, pos_max = self.bounding_box()
         result = halo_particles.compute_so_properties(cellgrid, self.centres, self.radii, pos_min, pos_max,
                                                       halo_prop_list)
-        result["index"] = self.indexes
+
+        # Add an extra result array with the original index of the halo
+        result["index"] = (self.indexes, "Position of the halo in the VR catalogue")
+
         return result

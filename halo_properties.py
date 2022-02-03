@@ -28,6 +28,8 @@ class SOMasses(HaloProperty):
         centre - coordinates of the halo centre
         data   - contains particle data. E.g. data["PartType1"]["Coordinates"]
                  has the particle coordinates for type 1
+
+        Input particle data arrays are astropy Quantities.
         """
 
         result = {}
@@ -58,5 +60,9 @@ class SOMasses(HaloProperty):
         # Find smallest radius where the density is below the threshold
         i = np.argmax(density < 200*critical_density)
 
-        return {"r_200_crit" : radius[i],
-                "m_200_crit" : cumulative_mass[i]}
+        # Return value should be a dict containing astropy Quantities (i.e. with units)
+        # and descriptions. The dict keys will be used as HDF5 dataset names in the output.
+        return {
+            "r_200_crit" : (radius[i],          "Radius within which the density is 200 times the mean"),
+            "m_200_crit" : (cumulative_mass[i], "Mass within a sphere with density 200 times the mean"),
+        }
