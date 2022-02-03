@@ -100,7 +100,7 @@ def compute_so_properties(cellgrid, centres, radii, pos_min, pos_max,
                 # Call functions to compute halo properties for this halo
                 halo_result = {}
                 for halo_prop in halo_prop_list:
-                    halo_result.update(halo_prop.calculate(cosmo, a, z, centres[halo_nr,:], data))
+                    halo_result.update(halo_prop.calculate(cosmo, a, z, centres[halo_nr,:], halo_data))
                 # Store results
                 for name, (value, description) in halo_result.items():
                     # If this is the first time we computed this quantity, allocate a new output array
