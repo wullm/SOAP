@@ -45,6 +45,18 @@ class SWIFTCellGrid:
                                                        w0=w_0, wa=w_a, Tcmb0=Tcmb0, Ob0=Omega_b)
             self.a = cosmo["Scale-factor"][0]
             self.z = cosmo["Redshift"][0]
+            self.nr_files = infile["Header"].attrs["NumFilesPerSnapshot"][0]
+            self.ptypes = [pt for pt in infile["Cells"]["Counts"]]
+
+            # Determine total number of particles of each type in the snapshot
+            nr_types = len(infile["Header"].attrs["NumPart_Total"])
+            total_nr_particles  =  infile["Header"].attrs["NumPart_Total"].astype(np.int64)
+            total_nr_particles += (infile["Header"].attrs["NumPart_Total_HighWord"].astype(np.int64) << 32)
+            self.total_nr_particles = {}
+            for i in range(nr_types):
+                ptype = "PartType%d" % i
+                if ptype in self.ptypes:
+                    self.total_nr_particles[ptype] = total_nr_particles[i]
 
             # Read constants
             self.constants = {}
@@ -89,6 +101,36 @@ class SWIFTCellGrid:
         # Reshape into a grid
         for ptype in self.ptypes:
             self.cell[ptype] = self.cell[ptype].reshape(self.dimension)
+        #
+        # Scan files to find shape and dtype for all quantities in the snapshot
+        #
+        # Make a dict to store the metadata. Aim is to be able to do
+        # shape, dtype = self.metadata[ptype][property_name].
+        #
+        self.metadata = {ptype : {} for ptype in self.ptypes}
+
+        # Make a dict of flags of which particle types we still need to find
+        to_find = {ptype : (self.total_nr_particles[ptype] > 0) for ptype in self.ptypes}
+
+        # Loop over files in the snapshot
+        for file_nr in range(self.nr_files):
+            infile = h5py.File(filename % {"file_nr":0}, "r")
+            nr_left = 0
+            for ptype in self.ptypes:
+                if to_find[ptype]:
+                    group_name = ptype
+                    if group_name in infile and infile[group_name].attrs["NumberOfParticles"][0] > 0:
+                        for name in infile[group_name]:
+                            dset = infile[group_name][name]
+                            if "a-scale exponent" in dset.attrs:
+                                units = swift_units.units_from_attributes(dset)
+                                self.metadata[ptype][name] = (dset.shape[1:], dset.dtype, units)
+                        to_find[ptype] = 0
+                    else:
+                        nr_left += 1
+            infile.close()
+            if nr_left == 0:
+                break
 
     def prepare_read(self, ptype, mask):
         """
@@ -155,11 +197,6 @@ class SWIFTCellGrid:
         """
 
         start = time.time()
-
-        # Dict to store the result. Initially None for each quantity to read.
-        data = {}
-        for ptype in property_names:
-            data[ptype] = {name : None for name in property_names[ptype]}
         
         # Find ranges of particles to read from each file
         reads = {ptype : self.prepare_read(ptype, mask) for ptype in property_names}
@@ -181,6 +218,15 @@ class SWIFTCellGrid:
 
         # Will need to store offset into output arrays for each type
         ptype_offset = {ptype : 0 for ptype in property_names}
+
+        # Allocate output arrays
+        data = {}
+        for ptype in property_names:
+            data[ptype] = {}
+            for name in property_names[ptype]:
+                shape, dtype, units = self.metadata[ptype][name]
+                shape = (nr_parts[ptype],)+shape
+                data[ptype][name] = u.Quantity(np.ndarray(shape, dtype=dtype), unit=units, dtype=dtype)
 
         # Loop over files to read
         for file_nr in all_file_nrs:
@@ -206,14 +252,6 @@ class SWIFTCellGrid:
 
                         # Find the dataset
                         dataset = infile[ptype][name]
-
-                        # Allocate the output array if necessary
-                        if data[ptype][name] is None:
-                            dtype = dataset.dtype
-                            shape = list(dataset.shape)
-                            shape[0] = nr_parts[ptype]
-                            units = swift_units.units_from_attributes(dataset)
-                            data[ptype][name] = u.Quantity(np.ndarray(shape, dtype=dtype), unit=units, dtype=dtype)
 
                         # Read the chunks for this property
                         mem_offset = ptype_offset[ptype]
