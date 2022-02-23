@@ -1,6 +1,8 @@
 #!/bin/env python
 
 import sys
+import threading
+import time
 
 import numpy as np
 import h5py
@@ -13,10 +15,58 @@ import swift_units
 
 import halo_properties
 
+# Initialize mpi4py with thread support
+import mpi4py
+mpi4py.rc.threads=True
 from mpi4py import MPI
+
 comm = MPI.COMM_WORLD
 comm_rank = comm.Get_rank()
 comm_size = comm.Get_size()
+
+# Message tags required to prevent mix-ups!
+REQUEST_TASK_TAG=1
+ASSIGN_TASK_TAG=2
+RETURN_RESULT_TAG=3
+
+
+def sleepy_recv(tag):
+    """
+    Wait for a message without keeping a core spinning so that we leave
+    the core available to run jobs and release the GIL. Checks for
+    incoming messages at exponentially increasing intervals starting
+    at 1.0e-6s up to a limit of ~1s. Sleeps between checks.
+    """
+    request = comm.irecv(tag=tag)
+    delay = 1.0e-6
+    while True:
+        completed, message = request.test()
+        if completed:
+            return message
+        if delay < 1.0:
+            delay *= 2.0
+        time.sleep(delay)
+
+
+def distribute_tasks(task_list):
+    """
+    Listen for and respond to requests for tasks to do
+    """
+    next_task = 0
+    nr_tasks = len(task_list.tasks)
+    nr_done = 0
+    while nr_done < comm_size:
+        request_src = sleepy_recv(tag=REQUEST_TASK_TAG)
+        if next_task < nr_tasks:
+            print("Starting task %d of %d" % (next_task, nr_tasks))
+            comm.send(task_list.tasks[next_task], request_src, tag=ASSIGN_TASK_TAG)
+            next_task += 1
+        else:
+            comm.send(None, request_src, tag=ASSIGN_TASK_TAG)
+            nr_done += 1
+            print("Number of ranks done with all tasks = %d" % nr_done)
+    print("All tasks done.")
+
 
 if __name__ == "__main__":
 
@@ -59,45 +109,30 @@ if __name__ == "__main__":
     # Make sure all ranks have a copy of the cell grid
     cellgrid = comm.bcast(cellgrid)
 
+    # Rank 0 starts a new thread which is going to hand out tasks
     if comm_rank == 0:
+        task_queue_thread = threading.Thread(target=distribute_tasks, args=(task_list,))
+        task_queue_thread.start()
 
-        # Rank 0 responds to requests for tasks
-        next_task = 0
-        nr_tasks = len(task_list.tasks)
-        nr_done = 0
-        while nr_done < comm_size-1:
-            request_src = comm.recv()
-            if next_task < nr_tasks:
-                print("Starting task %d of %d" % (next_task, nr_tasks))
-                comm.send(task_list.tasks[next_task], request_src)
-                next_task += 1
-            else:
-                comm.send(None, request_src)
-                nr_done += 1
-                print("Number of ranks done with all tasks = %d" % nr_done)
-        print("All tasks done.")
+    # All ranks request and run tasks
+    result = []
+    while True:
+        comm.send(comm_rank, 0, tag=REQUEST_TASK_TAG)
+        task = comm.recv(tag=ASSIGN_TASK_TAG) # Must receive from other thread, not self!
+        if task is not None:
+            result.append(task.run(cellgrid))
+        else:
+            break
 
-    else:
-
-        # Other ranks request and run tasks
-        result = []
-        while True:
-            comm.send(comm_rank, 0)
-            task = comm.recv()
-            if task is not None:
-                result.append(task.run(cellgrid))
-            else:
-                break
-
-    # Barrier prevents mix-up between task requests and combining results
-    # (could fix with tags)
-    comm.barrier()
+    # Wait for task distributing thread to finish
+    if comm_rank == 0:
+        task_queue_thread.join()
 
     # Combine results
     if comm_rank > 0:
 
         # Ranks >0 send their lists of results to rank 0
-        comm.send(result, 0)
+        comm.send(result, 0, tag=RETURN_RESULT_TAG)
 
     else:
 
@@ -105,7 +140,7 @@ if __name__ == "__main__":
         # First, receive list of results from each other task
         result = []
         for i in range(1, comm_size):
-            result += comm.recv(source=i)
+            result += comm.recv(source=i, tag=RETURN_RESULT_TAG)
 
         # Then combine the results into one array per quantity
         all_results = {}
