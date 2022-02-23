@@ -70,13 +70,16 @@ class SOTask:
         r = pos_max - pos_min
         return r[0]*r[1]*r[2]
 
-    def run(self, cellgrid):
-        pos_min, pos_max = self.bounding_box()
-        result = halo_particles.compute_so_properties(cellgrid, self.centres, self.radii,
-                                                      pos_min, pos_max,
-                                                      self.halo_prop_list)
+    def run(self, cellgrid, comm):
 
-        # Add an extra result array with the original index of the halo
-        result["index"] = (self.indexes, "Position of the halo in the VR catalogue")
-
-        return result
+        # Temporary hack: only first rank in comm executes the job
+        if comm.Get_rank() == 0:
+            pos_min, pos_max = self.bounding_box()
+            result = halo_particles.compute_so_properties(cellgrid, self.centres, self.radii,
+                                                          pos_min, pos_max,
+                                                          self.halo_prop_list)
+            # Add an extra result array with the original index of the halo
+            result["index"] = (self.indexes, "Position of the halo in the VR catalogue")
+            return result
+        else:
+            return None
