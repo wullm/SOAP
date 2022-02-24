@@ -114,7 +114,7 @@ class SWIFTCellGrid:
 
         # Loop over files in the snapshot
         for file_nr in range(self.nr_files):
-            infile = h5py.File(filename % {"file_nr":0}, "r")
+            infile = h5py.File(filename % {"file_nr":file_nr}, "r")
             nr_left = 0
             for ptype in self.ptypes:
                 if to_find[ptype]:
@@ -125,7 +125,7 @@ class SWIFTCellGrid:
                             if "a-scale exponent" in dset.attrs:
                                 units = swift_units.units_from_attributes(dset)
                                 self.metadata[ptype][name] = (dset.shape[1:], dset.dtype, units)
-                        to_find[ptype] = 0
+                        to_find[ptype] = False
                     else:
                         nr_left += 1
             infile.close()

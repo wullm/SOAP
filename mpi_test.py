@@ -1,9 +1,13 @@
 #!/bin/env python
 
-import sys
-import threading
-import time
+# Initialize mpi4py with thread support
+import mpi4py
+mpi4py.rc.threads=True
+from mpi4py import MPI
+comm_world = MPI.COMM_WORLD
+comm_world_rank = comm_world.Get_rank()
 
+import sys
 import numpy as np
 import h5py
 import astropy.units
@@ -12,22 +16,8 @@ import halo_centres
 import swift_cells
 import so_tasks
 import swift_units
-
 import halo_properties
-
-# Initialize mpi4py with thread support
-import mpi4py
-mpi4py.rc.threads=True
-from mpi4py import MPI
-
-comm_world = MPI.COMM_WORLD
-comm_world_rank = comm_world.Get_rank()
-
-# Message tags required to prevent mix-ups!
-REQUEST_TASK_TAG=1
-ASSIGN_TASK_TAG=2
-RETURN_RESULT_TAG=3
-
+import task_queue
 
 def split_comm_world():
 
@@ -40,54 +30,13 @@ def split_comm_world():
     colour = 0 if comm_intra_node_rank==0 else MPI.UNDEFINED
     key = MPI.COMM_WORLD.Get_rank()
     comm_inter_node = MPI.COMM_WORLD.Split(colour, key)
-
     return comm_intra_node, comm_inter_node
-
 
 def get_rank_and_size(comm):
     if comm == MPI.COMM_NULL:
         return (-1, -1)
     else:
         return (comm.Get_rank(), comm.Get_size())
-
-
-def sleepy_recv(comm, tag):
-    """
-    Wait for a message without keeping a core spinning so that we leave
-    the core available to run jobs and release the GIL. Checks for
-    incoming messages at exponentially increasing intervals starting
-    at 1.0e-6s up to a limit of ~1s. Sleeps between checks.
-    """
-    request = comm.irecv(tag=tag)
-    delay = 1.0e-6
-    while True:
-        completed, message = request.test()
-        if completed:
-            return message
-        if delay < 1.0:
-            delay *= 2.0
-        time.sleep(delay)
-
-
-def distribute_tasks(task_list, comm):
-    """
-    Listen for and respond to requests for tasks to do
-    """
-    comm_size = comm.Get_size()
-    next_task = 0
-    nr_tasks = len(task_list.tasks)
-    nr_done = 0
-    while nr_done < comm_size:
-        request_src = sleepy_recv(comm, REQUEST_TASK_TAG)
-        if next_task < nr_tasks:
-            print("Starting task %d of %d on node %d" % (next_task, nr_tasks, request_src))
-            comm.send(task_list.tasks[next_task], request_src, tag=ASSIGN_TASK_TAG)
-            next_task += 1
-        else:
-            comm.send(None, request_src, tag=ASSIGN_TASK_TAG)
-            nr_done += 1
-            print("Number of ranks done with all tasks = %d" % nr_done)
-    print("All tasks done.")
 
 
 if __name__ == "__main__":
@@ -125,10 +74,12 @@ if __name__ == "__main__":
         task_list = so_tasks.SOTaskList(cellgrid, so_cat, search_radius=search_radius,
                                         cells_per_task=args["cells_per_task"],
                                         halo_prop_list=halo_prop_list)
+        tasks = task_list.tasks
     else:
         cellgrid = None
+        tasks = None
 
-    # Make sure all ranks have a copy of the cell grid
+    # All ranks will need the cell grid
     cellgrid = comm_world.bcast(cellgrid)
 
     # Split MPI ranks according to which node they are on.
@@ -138,38 +89,15 @@ if __name__ == "__main__":
     intra_node_rank, intra_node_size = get_rank_and_size(comm_intra_node)
     inter_node_rank, inter_node_size = get_rank_and_size(comm_inter_node)
 
-    # Node 0's first rank starts a new thread which is going to hand out tasks to each node
-    if inter_node_rank == 0:
-        task_queue_thread = threading.Thread(target=distribute_tasks, args=(task_list, comm_inter_node))
-        task_queue_thread.start()
-
-    # Request and run tasks until there are none left
-    result = []
-    while True:
-
-        # The first rank on the node requests a task and broadcasts it to all ranks on the node
-        if intra_node_rank == 0:
-            comm_inter_node.send(inter_node_rank, 0, tag=REQUEST_TASK_TAG)
-            task = comm_inter_node.recv(tag=ASSIGN_TASK_TAG)
-        else:
-            task = None
-        task = comm_intra_node.bcast(task)
-
-        # All ranks on this node execute the task as a collective operation
-        if task is not None:
-            result.append(task.run(cellgrid, comm_intra_node)) # Result only returned by intra_node_rank==0?
-        else:
-            break
-
-    # Wait for task distributing thread to finish
-    if inter_node_rank == 0:
-        task_queue_thread.join()
-
+    # Execute the tasks
+    result = task_queue.execute_tasks(tasks, args=(cellgrid, comm_intra_node),
+                                      comm_master=comm_inter_node,
+                                      comm_workers=comm_intra_node)
     # Combine results
     if inter_node_rank > 0:
 
         # Nodes>0 send their lists of results to node 0
-        comm_inter_node.send(result, 0, tag=RETURN_RESULT_TAG)
+        comm_inter_node.send(result, 0)
 
     elif inter_node_rank == 0:
 
@@ -177,7 +105,7 @@ if __name__ == "__main__":
         # First, receive list of results from each other task
         result = []
         for i in range(1, inter_node_size):
-            result += comm_inter_node.recv(source=i, tag=RETURN_RESULT_TAG)
+            result += comm_inter_node.recv(source=i)
 
         # Then combine the results into one array per quantity
         all_results = {}

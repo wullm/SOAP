@@ -70,7 +70,7 @@ class SOTask:
         r = pos_max - pos_min
         return r[0]*r[1]*r[2]
 
-    def run(self, cellgrid, comm):
+    def __call__(self, cellgrid, comm):
 
         # Temporary hack: only first rank in comm executes the job
         if comm.Get_rank() == 0:
