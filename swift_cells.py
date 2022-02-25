@@ -1,11 +1,15 @@
 #!/bin/env python
 
+import collections
 import numpy as np
 import h5py
 import time
 import astropy.cosmology
 import astropy.units as u
 import swift_units
+import task_queue
+import shared_array
+from mpi4py import MPI
 
 # HDF5 chunk cache parameters:
 # SWIFT writes datasets with large chunks so the default 1Mb may be too small
@@ -20,6 +24,67 @@ swift_cell_t = np.dtype([
     ("file",   np.int32),      # file containing this cell
     ("order",  np.int32),      # ordering of the cells in the snapshot file(s)
 ])
+
+
+class DatasetCache:
+    """
+    Class to allow h5py File and Dataset objects to persist
+    between ReadTask invocations.
+    """
+    def __init__(self):
+
+        file_name    = None
+        infile       = None
+        dataset_name = None
+        dataset      = None
+        
+    def open_dataset(self, file_name, dataset_name):
+
+        if file_name != self.file_name:
+            self.infile = h5py.File(file_name, "r")
+            self.file_name = file_name
+            self.dataset_name = None
+            self.dataset = None
+
+        if dataset_name != self.dataset_name:
+            self.dataset = self.infile[dataset_name]
+            self.dataset_name = dataset_name
+            
+        return self.dataset
+
+    def close(self):
+        self.dataset = None
+        self.dataset_name = None
+        if self.infile is not None:
+            self.infile.close()
+        self.file_name = None
+
+class ReadTask:
+    """
+    Class to execute a read of a single contiguous chunk of an array
+    """
+    def __init__(self, file_name, ptype, dataset, file_offset, mem_offset, count):
+
+        self.file_name   = file_name
+        self.ptype       = ptype
+        self.dataset     = dataset
+        self.file_offset = file_offset
+        self.mem_offset  = mem_offset
+        self.count       = count
+
+    def __call__(self, data, cache):
+     
+        # Find the dataset
+        dataset_name = self.ptype+"/"+self.dataset
+        dataset = cache.open_dataset(self.file_name, dataset_name)
+
+        # Read the data
+        mem_start = self.mem_offset
+        mem_end   = self.mem_offset + self.count
+        file_start = self.file_offset
+        file_end   = self.file_offset + self.count
+        data[self.ptype][self.dataset].full[mem_start:mem_end,...] = infile[dataset_name][file_start:file_end,...]
+
 
 class SWIFTCellGrid:
     
@@ -278,4 +343,69 @@ class SWIFTCellGrid:
                 for k in range(imin[2], imax[2]+1):
                     kk = k % self.dimension[2]
                     mask[ii,jj,kk] = True
+
+    def read_masked_cells_mpi(self, property_names, mask, comm):
+        """
+        Read in the specified properties for the cells with mask=True
+        """
+        
+        comm_size = comm.Get_size()
+        comm_rank = comm.Get_rank()
+
+        # Make a list of all reads to execute for each particle type
+        reads_for_type = {}
+        for ptype in property_names:
+            reads_for_type[ptype] = self.prepare_read(ptype, mask)
+            
+        # Find union of file numbers to read for all particle types
+        all_file_nrs = []
+        for ptype in property_names:
+            all_file_nrs += list(reads_for_type[ptype])
+        all_file_nrs = np.unique(all_file_nrs)
+        
+        # Create read tasks in the required order:
+        # By file, then by particle type, then by dataset, then by offset in the file
+        all_tasks = collections.deque()
+        nr_parts = {ptype : 0 for ptype in property_names}
+        for file_nr in all_file_nrs:
+            filename = self.filename % {"file_nr" : file_nr}
+            for ptype in property_names:
+                for dataset in property_names[ptype]:
+                    for (file_offset, mem_offset, count) in reads_for_type[ptype][file_nr]:
+                        all_tasks.append(ReadTask(filename, ptype, dataset, file_offset, mem_offset, count))
+                        nr_parts[ptype] += count
+
+        # Make one task queue per MPI rank
+        task_queue = [collections.deque() for _ in range(comm_size)]
+
+        # Share tasks over the task queues roughly equally by number
+        nr_tasks = len(all_tasks)
+        tasks_per_rank = nr_tasks // comm_size
+        for rank in range(comm_size):
+            for _ in range(tasks_per_rank):
+                task_queue[rank].append(all_tasks.popleft())
+            if rank < nr_tasks % comm_size:
+                task_queue[rank].append(all_tasks.popleft())
+        assert len(all_tasks) == 0
+
+        # Allocate shared storage for the particle data
+        data = {}
+        for ptype in property_names:
+            data[ptype] = {}
+            for name in property_names[ptype]:
+                shape, dtype, units = self.metadata[ptype][name]
+                if comm_rank == 0:
+                    shape = (nr_parts[ptype],)+shape
+                else:
+                    shape = (0,)+shape
+                data[ptype][name] = shared_array.SharedArray(shape, dtype, comm, units)
+        
+        # Execute the tasks
+        cache = DatasetCache()
+        task_queue.execute_tasks(task_queue, args=(data, cache),
+                                 comm_master=comm, comm_workers=MPI.COMM_SELF,
+                                 queue_per_rank=True)
+        cache.close()
+
+        return data
 

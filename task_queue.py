@@ -60,13 +60,15 @@ def distribute_tasks_with_queue_per_rank(tasks, comm):
     while nr_done < comm_size:
         request_src = sleepy_recv(comm, REQUEST_TASK_TAG)
         if next_task < nr_tasks:
-            if len(tasks[comm_rank] > 0):
-                # Take a task from this ranks task list
-                task = tasks[comm_rank].popleft()
-            else:
-                # No tasks left for this rank, so steal from longest remaining list
+            # If we have no tasks left for this rank, steal some!
+            if len(tasks[comm_rank] == 0):
                 i = np.argmax([len(t) for t in tasks])
-                task = tasks[i].popleft()
+                nr_steal = max(len(tasks[i])//2, 1)
+                for _ in range(nr_steal):
+                    tasks[comm_rank].appendleft(tasks[i].pop())
+            # Get the next task for this rank
+            task = tasks[comm_rank].popleft()
+            # Send back the task
             print("Starting task %d of %d on node %d" % (next_task, nr_tasks, request_src))
             comm.send(task, request_src, tag=ASSIGN_TASK_TAG)
             next_task += 1
