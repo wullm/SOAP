@@ -3,6 +3,7 @@
 import threading
 import time
 from mpi4py import MPI
+import collections
 
 REQUEST_TASK_TAG=1
 ASSIGN_TASK_TAG=2
@@ -24,7 +25,6 @@ def sleepy_recv(comm, tag):
             delay *= 2.0
         time.sleep(delay)
 
-
 def distribute_tasks(tasks, comm):
     """
     Listen for and respond to requests for tasks to do
@@ -45,8 +45,38 @@ def distribute_tasks(tasks, comm):
             print("Number of ranks done with all tasks = %d" % nr_done)
     print("All tasks done.")
 
+def distribute_tasks_with_queue_per_rank(tasks, comm):
+    """
+    Listen for and respond to requests for tasks to do.
+    In this case tasks is a sequence of comm_size task lists.
+    Each rank will preferentially do tasks from it's own
+    task list, but will do other tasks if it runs out.
+    """
+    comm_size = comm.Get_size()
+    next_task = 0
+    nr_tasks = sum([len(t) for t in tasks])
+    tasks = [collections.deque(t) for t in tasks]
+    nr_done = 0
+    while nr_done < comm_size:
+        request_src = sleepy_recv(comm, REQUEST_TASK_TAG)
+        if next_task < nr_tasks:
+            if len(tasks[comm_rank] > 0):
+                # Take a task from this ranks task list
+                task = tasks[comm_rank].popleft()
+            else:
+                # No tasks left for this rank, so steal from longest remaining list
+                i = np.argmax([len(t) for t in tasks])
+                task = tasks[i].popleft()
+            print("Starting task %d of %d on node %d" % (next_task, nr_tasks, request_src))
+            comm.send(task, request_src, tag=ASSIGN_TASK_TAG)
+            next_task += 1
+        else:
+            comm.send(None, request_src, tag=ASSIGN_TASK_TAG)
+            nr_done += 1
+            print("Number of ranks done with all tasks = %d" % nr_done)
+    print("All tasks done.")
 
-def execute_tasks(tasks, args, comm_master, comm_workers):
+def execute_tasks(tasks, args, comm_master, comm_workers, queue_per_rank=False):
     """
     Execute the tasks in tasks, which should be a sequence of
     callables which each return a result. Task objects are
@@ -87,7 +117,12 @@ def execute_tasks(tasks, args, comm_master, comm_workers):
 
     # First rank in comm_master starts a thread to hand out tasks
     if master_rank == 0:
-        task_queue_thread = threading.Thread(target=distribute_tasks, args=(tasks, comm_master_local))
+        if queue_per_rank:
+            task_queue_thread = threading.Thread(target=distribute_tasks_with_queue_per_rank,
+                                                 args=(tasks, comm_master_local))
+        else:
+            task_queue_thread = threading.Thread(target=distribute_tasks,
+                                                 args=(tasks, comm_master_local))
         task_queue_thread.start()
 
     # Request and run tasks until there are none left
