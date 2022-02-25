@@ -143,7 +143,7 @@ class SWIFTCellGrid:
                 cell is to be read and false otherwise
 
         Returns a dict where the keys are the unique file numbers to read
-        and the values are lists of (offset, count) tuples.
+        and the values are lists of (offset_in_file, offset_in_memory, count) tuples.
         """
         
         # Make an array of the selected cells
@@ -174,14 +174,16 @@ class SWIFTCellGrid:
         unique_file_nrs = np.unique(cells_to_read["file"])
 
         # Make a list of reads for each file:
-        # reads[file_nr] is a list of (offset, count) tuples for file file_nr.
+        # reads[file_nr] is a list of (file_offset, memory_offset, count) tuples for file file_nr.
+        mem_offset = 0
         reads = {file_nr : [] for file_nr in unique_file_nrs}
         for cell in cells_to_read:
-            reads[cell["file"]].append((cell["offset"], cell["count"]))
+            reads[cell["file"]].append((cell["offset"], mem_offset, cell["count"]))
+            mem_offset += cell["count"]
 
         return reads
 
-    def read_masked_cells(self, property_names, mask, verbose=False):
+    def read_masked_cells(self, property_names, mask):
         """
         Read the requested properties from the cells where mask=True.
 
@@ -195,8 +197,6 @@ class SWIFTCellGrid:
         data[ptype][property_name] contains property property_name
         for particle type ptype.
         """
-
-        start = time.time()
         
         # Find ranges of particles to read from each file
         reads = {ptype : self.prepare_read(ptype, mask) for ptype in property_names}
@@ -211,13 +211,8 @@ class SWIFTCellGrid:
         nr_parts = {ptype : 0 for ptype in property_names}
         for ptype in property_names:
             for file_nr in reads[ptype]:
-                for offset, count in reads[ptype][file_nr]:
+                for file_offset, mem_offset, count in reads[ptype][file_nr]:
                     nr_parts[ptype] += count
-            if verbose:
-                print("Type %s: %d particles to read" % (ptype, nr_parts[ptype]))
-
-        # Will need to store offset into output arrays for each type
-        ptype_offset = {ptype : 0 for ptype in property_names}
 
         # Allocate output arrays
         data = {}
@@ -234,45 +229,28 @@ class SWIFTCellGrid:
             # Open this file
             filename = self.filename % {"file_nr" : file_nr}
             infile = h5py.File(filename, "r", rdcc_nbytes=rdcc_nbytes)
-            if verbose:
-                print("Opened file: ", filename)
 
             # Loop over particle types to read
             for ptype in property_names:
 
                 # Check if we need to read from this file for this particle type
                 if file_nr in reads[ptype]:
-                    if verbose:
-                        print("  Particle type %s" % ptype)
 
                     # Loop over quantities to read for this particle type
                     for name in property_names[ptype]:
-                        if verbose:
-                            print("    Dataset %s" % name)
 
                         # Find the dataset
                         dataset = infile[ptype][name]
 
                         # Read the chunks for this property
-                        mem_offset = ptype_offset[ptype]
                         last_offset = None
-                        for (file_offset, count) in reads[ptype][file_nr]:
-                            if last_offset is not None:
-                                skipped = file_offset - last_offset
-                            else:
-                                skipped = 0
-                            if verbose:
-                                print("      count=%d, offset=%d (skipped=%d)" % (count, file_offset, skipped))
+                        for (file_offset, mem_offset, count) in reads[ptype][file_nr]:
                             unit = data[ptype][name].unit
                             dtype = data[ptype][name].dtype
                             data[ptype][name][mem_offset:mem_offset+count,...] = (
                                 u.Quantity(dataset[file_offset:file_offset+count,...], unit=unit, dtype=dtype))
                             last_offset = file_offset + count
                             mem_offset += count
-
-                    # Increment offsets into output arrays by number of particles read from this file
-                    for (file_offset, count) in reads[ptype][file_nr]:
-                        ptype_offset[ptype] += count
 
             # Close the file
             infile.close()
@@ -283,13 +261,6 @@ class SWIFTCellGrid:
             for name in property_names[ptype]:
                 nbytes += data[ptype][name].nbytes
         mb_read = nbytes/(1024*1024)
-
-        # Calculate read rate
-        end = time.time()
-        elapsed = end - start
-        rate = mb_read / elapsed
-        if verbose:
-            print("Read %.2f MB in %.2f seconds = %.2f MB/s" % (mb_read, elapsed, rate))
 
         return data
 
