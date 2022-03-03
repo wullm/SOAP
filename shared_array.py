@@ -47,8 +47,6 @@ class SharedArray:
 
     def sync(self):
         self.win.Sync()
-        self.comm.barrier()
-        self.win.Sync()
 
     def free(self):
         if self.win is not None:

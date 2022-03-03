@@ -41,7 +41,7 @@ class DatasetCache:
     def open_dataset(self, file_name, dataset_name):
 
         if file_name != self.file_name:
-            self.infile = h5py.File(file_name, "r")
+            self.infile = h5py.File(file_name, "r", rdcc_nbytes=rdcc_nbytes)
             self.file_name = file_name
             self.dataset_name = None
             self.dataset = None
@@ -225,11 +225,12 @@ class SWIFTCellGrid:
         cells_to_read = cells_to_read[idx]
 
         # Merge adjacent cells
+        max_size = 20*1024**2
         nr_to_read = len(cells_to_read)
         for cell_nr in range(nr_to_read-1):
             cell1 = cells_to_read[cell_nr]
             cell2 = cells_to_read[cell_nr+1]
-            if (cell1["file"] == cell2["file"] and cell1["offset"]+cell1["count"] == cell2["offset"]):
+            if (cell1["file"] == cell2["file"] and cell1["offset"]+cell1["count"] == cell2["offset"] and (cell1["count"]+cell2["count"]) <= max_size):
                 # Merge cells: put the particles in cell2 and empty cell1
                 cell2["count"] += cell1["count"]
                 cell2["offset"] = cell1["offset"]
@@ -414,9 +415,11 @@ class SWIFTCellGrid:
         cache.close()
         
         # Ensure all arrays have been fully written
+        comm.barrier()
         for ptype in property_names:
             for name in property_names[ptype]:
                 data[ptype][name].sync()
-        
+        comm.barrier()
+
         return data
 
