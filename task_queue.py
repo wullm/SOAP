@@ -4,6 +4,7 @@ import threading
 import time
 from mpi4py import MPI
 import collections
+import numpy as np
 
 REQUEST_TASK_TAG=1
 ASSIGN_TASK_TAG=2
@@ -61,13 +62,14 @@ def distribute_tasks_with_queue_per_rank(tasks, comm):
         request_src = sleepy_recv(comm, REQUEST_TASK_TAG)
         if next_task < nr_tasks:
             # If we have no tasks left for this rank, steal some!
-            if len(tasks[comm_rank] == 0):
+            # Take the second half of the largest remaining task queue.
+            if len(tasks[request_src]) == 0:
                 i = np.argmax([len(t) for t in tasks])
                 nr_steal = max(len(tasks[i])//2, 1)
                 for _ in range(nr_steal):
-                    tasks[comm_rank].appendleft(tasks[i].pop())
+                    tasks[request_src].appendleft(tasks[i].pop())
             # Get the next task for this rank
-            task = tasks[comm_rank].popleft()
+            task = tasks[request_src].popleft()
             # Send back the task
             print("Starting task %d of %d on node %d" % (next_task, nr_tasks, request_src))
             comm.send(task, request_src, tag=ASSIGN_TASK_TAG)

@@ -2,7 +2,7 @@
 
 from mpi4py import MPI 
 import numpy as np 
-import unyt.array
+import astropy.units as u
 
 
 class SharedArray:
@@ -34,16 +34,16 @@ class SharedArray:
         buf, itemsize = self.win.Shared_query(0)
         nbytes_all = full_elements*itemsize
         buf = MPI.memory.fromaddress(buf.address, nbytes_all)
-        self.full = np.ndarray(buffer=buf, dtype=self.dtype, shape=full_elements) 
+        self.full = np.ndarray(buffer=buf, dtype=self.dtype, shape=full_shape)
 
         # Make a numpy array to access the local part of the array
         buf, itemsize = self.win.Shared_query(comm.Get_rank())
-        self.local = np.ndarray(buffer=buf, dtype=self.dtype, shape=local_elements) 
+        self.local = np.ndarray(buffer=buf, dtype=self.dtype, shape=local_shape)
 
         # Add units if specified
         if units is not None:
-            self.full  = unyt.array.unyt_array(self.full, units=units)
-            self.local = unyt.array.unyt_array(self.local, units=units)
+            self.full  = u.Quantity(self.full, unit=units)
+            self.local = u.Quantity(self.local, unit=units)
 
     def sync(self):
         self.win.Sync()

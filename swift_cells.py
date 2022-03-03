@@ -33,10 +33,10 @@ class DatasetCache:
     """
     def __init__(self):
 
-        file_name    = None
-        infile       = None
-        dataset_name = None
-        dataset      = None
+        self.file_name    = None
+        self.infile       = None
+        self.dataset_name = None
+        self.dataset      = None
         
     def open_dataset(self, file_name, dataset_name):
 
@@ -83,7 +83,7 @@ class ReadTask:
         mem_end   = self.mem_offset + self.count
         file_start = self.file_offset
         file_end   = self.file_offset + self.count
-        data[self.ptype][self.dataset].full[mem_start:mem_end,...] = infile[dataset_name][file_start:file_end,...]
+        data[self.ptype][self.dataset].full.value[mem_start:mem_end,...] = dataset[file_start:file_end,...]
 
 
 class SWIFTCellGrid:
@@ -344,7 +344,7 @@ class SWIFTCellGrid:
                     kk = k % self.dimension[2]
                     mask[ii,jj,kk] = True
 
-    def read_masked_cells_mpi(self, property_names, mask, comm):
+    def read_masked_cells_to_shared_memory(self, property_names, mask, comm):
         """
         Read in the specified properties for the cells with mask=True
         """
@@ -376,19 +376,19 @@ class SWIFTCellGrid:
                         nr_parts[ptype] += count
 
         # Make one task queue per MPI rank
-        task_queue = [collections.deque() for _ in range(comm_size)]
+        tasks = [collections.deque() for _ in range(comm_size)]
 
         # Share tasks over the task queues roughly equally by number
         nr_tasks = len(all_tasks)
         tasks_per_rank = nr_tasks // comm_size
         for rank in range(comm_size):
             for _ in range(tasks_per_rank):
-                task_queue[rank].append(all_tasks.popleft())
+                tasks[rank].append(all_tasks.popleft())
             if rank < nr_tasks % comm_size:
-                task_queue[rank].append(all_tasks.popleft())
+                tasks[rank].append(all_tasks.popleft())
         assert len(all_tasks) == 0
 
-        # Allocate shared storage for the particle data
+        # Allocate MPI shared memory for the particle data
         data = {}
         for ptype in property_names:
             data[ptype] = {}
@@ -402,10 +402,15 @@ class SWIFTCellGrid:
         
         # Execute the tasks
         cache = DatasetCache()
-        task_queue.execute_tasks(task_queue, args=(data, cache),
+        task_queue.execute_tasks(tasks, args=(data, cache),
                                  comm_master=comm, comm_workers=MPI.COMM_SELF,
                                  queue_per_rank=True)
         cache.close()
-
+        
+        # Ensure all arrays have been fully written
+        for ptype in property_names:
+            for name in property_names[ptype]:
+                data[ptype][name].sync()
+        
         return data
 
