@@ -83,6 +83,9 @@ class ReadTask:
         mem_end   = self.mem_offset + self.count
         file_start = self.file_offset
         file_end   = self.file_offset + self.count
+
+        print("Dataset %s, read %d to %s" % (dataset_name, mem_start, mem_end))
+
         data[self.ptype][self.dataset].full.value[mem_start:mem_end,...] = dataset[file_start:file_end,...]
 
 
@@ -308,13 +311,11 @@ class SWIFTCellGrid:
                         dataset = infile[ptype][name]
 
                         # Read the chunks for this property
-                        last_offset = None
                         for (file_offset, mem_offset, count) in reads[ptype][file_nr]:
                             unit = data[ptype][name].unit
                             dtype = data[ptype][name].dtype
                             data[ptype][name][mem_offset:mem_offset+count,...] = (
                                 u.Quantity(dataset[file_offset:file_offset+count,...], unit=unit, dtype=dtype))
-                            last_offset = file_offset + count
                             mem_offset += count
 
             # Close the file
@@ -363,17 +364,22 @@ class SWIFTCellGrid:
             all_file_nrs += list(reads_for_type[ptype])
         all_file_nrs = np.unique(all_file_nrs)
         
+        # Count particles to read in
+        nr_parts = {ptype : 0 for ptype in property_names}
+        for file_nr in all_file_nrs:
+            for ptype in property_names:
+                for (file_offset, mem_offset, count) in reads_for_type[ptype][file_nr]:
+                    nr_parts[ptype] += count
+
         # Create read tasks in the required order:
         # By file, then by particle type, then by dataset, then by offset in the file
         all_tasks = collections.deque()
-        nr_parts = {ptype : 0 for ptype in property_names}
         for file_nr in all_file_nrs:
             filename = self.filename % {"file_nr" : file_nr}
             for ptype in property_names:
                 for dataset in property_names[ptype]:
                     for (file_offset, mem_offset, count) in reads_for_type[ptype][file_nr]:
                         all_tasks.append(ReadTask(filename, ptype, dataset, file_offset, mem_offset, count))
-                        nr_parts[ptype] += count
 
         # Make one task queue per MPI rank
         tasks = [collections.deque() for _ in range(comm_size)]
