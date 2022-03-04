@@ -14,10 +14,10 @@ def sleepy_recv(comm, tag):
     Wait for a message without keeping a core spinning so that we leave
     the core available to run jobs and release the GIL. Checks for
     incoming messages at exponentially increasing intervals starting
-    at 1.0e-6s up to a limit of ~1s. Sleeps between checks.
+    at 1.0e-8s up to a limit of ~1s. Sleeps between checks.
     """
     request = comm.irecv(tag=tag)
-    delay = 1.0e-6
+    delay = 1.0e-8
     while True:
         completed, message = request.test()
         if completed:
@@ -37,14 +37,13 @@ def distribute_tasks(tasks, comm):
     while nr_done < comm_size:
         request_src = sleepy_recv(comm, REQUEST_TASK_TAG)
         if next_task < nr_tasks:
-            print("Starting task %d of %d on node %d" % (next_task, nr_tasks, request_src))
             comm.send(tasks[next_task], request_src, tag=ASSIGN_TASK_TAG)
             next_task += 1
         else:
             comm.send(None, request_src, tag=ASSIGN_TASK_TAG)
             nr_done += 1
-            print("Number of ranks done with all tasks = %d" % nr_done)
-    print("All tasks done.")
+            #print("Number of ranks done with all tasks = %d" % nr_done)
+    #print("All tasks done.")
 
 def distribute_tasks_with_queue_per_rank(tasks, comm):
     """
@@ -62,23 +61,28 @@ def distribute_tasks_with_queue_per_rank(tasks, comm):
         request_src = sleepy_recv(comm, REQUEST_TASK_TAG)
         if next_task < nr_tasks:
             # If we have no tasks left for this rank, steal some!
-            # Take the second half of the largest remaining task queue.
             if len(tasks[request_src]) == 0:
+
+                # Take the second half of the largest remaining task queue.
+                #i = np.argmax([len(t) for t in tasks])
+                #nr_steal = max(len(tasks[i])//2, 1)
+                #for _ in range(nr_steal):
+                #    tasks[request_src].appendleft(tasks[i].pop())
+
+                # Or just take one task from the longest queue
                 i = np.argmax([len(t) for t in tasks])
-                nr_steal = max(len(tasks[i])//2, 1)
-                for _ in range(nr_steal):
-                    tasks[request_src].appendleft(tasks[i].pop())
+                tasks[request_src].append(tasks[i].popleft())
+                
             # Get the next task for this rank
             task = tasks[request_src].popleft()
             # Send back the task
-            print("Starting task %d of %d on node %d" % (next_task, nr_tasks, request_src))
             comm.send(task, request_src, tag=ASSIGN_TASK_TAG)
             next_task += 1
         else:
             comm.send(None, request_src, tag=ASSIGN_TASK_TAG)
             nr_done += 1
-            print("Number of ranks done with all tasks = %d" % nr_done)
-    print("All tasks done.")
+            #print("Number of ranks done with all tasks = %d" % nr_done)
+    #print("All tasks done.")
 
 def execute_tasks(tasks, args, comm_master, comm_workers, queue_per_rank=False):
     """
