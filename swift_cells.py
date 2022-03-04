@@ -84,9 +84,10 @@ class ReadTask:
         file_start = self.file_offset
         file_end   = self.file_offset + self.count
 
-        print("Dataset %s, read %d to %s" % (dataset_name, mem_start, mem_end))
-
-        data[self.ptype][self.dataset].full.value[mem_start:mem_end,...] = dataset[file_start:file_end,...]
+        #data[self.ptype][self.dataset].full.value[mem_start:mem_end,...] = dataset[file_start:file_end,...]
+        dataset.read_direct(data[self.ptype][self.dataset].full.value,
+                            np.s_[file_start:file_end,...],
+                            np.s_[mem_start:mem_end,...])
 
 
 class SWIFTCellGrid:
@@ -192,7 +193,8 @@ class SWIFTCellGrid:
                             dset = infile[group_name][name]
                             if "a-scale exponent" in dset.attrs:
                                 units = swift_units.units_from_attributes(dset)
-                                self.metadata[ptype][name] = (dset.shape[1:], dset.dtype, units)
+                                dtype = dset.dtype.newbyteorder("=")
+                                self.metadata[ptype][name] = (dset.shape[1:], dtype, units)
                         to_find[ptype] = False
                     else:
                         nr_left += 1
@@ -401,11 +403,15 @@ class SWIFTCellGrid:
             data[ptype] = {}
             for name in property_names[ptype]:
                 shape, dtype, units = self.metadata[ptype][name]
-                if comm_rank == 0:
-                    shape = (nr_parts[ptype],)+shape
-                else:
-                    shape = (0,)+shape
-                data[ptype][name] = shared_array.SharedArray(shape, dtype, comm, units)
+                # Determine size of local array section
+                nr_local = nr_parts[ptype] // comm_size
+                if comm_rank < (nr_parts[ptype] % comm_size):
+                    nr_local += 1
+                # Find global and local shape of the array
+                global_shape = (nr_parts[ptype],)+shape
+                local_shape  = (nr_local,)+shape
+                # Allocate storage
+                data[ptype][name] = shared_array.SharedArray(local_shape, dtype, comm, units)
         
         # Execute the tasks
         cache = DatasetCache()

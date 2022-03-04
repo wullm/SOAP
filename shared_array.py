@@ -53,6 +53,9 @@ class SharedArray:
             self.win.Free()
             self.win = None
 
+    def __del__(self):
+        self.free()
+
 
 if __name__ == "__main__":
 
