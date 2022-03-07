@@ -42,11 +42,15 @@ class SOTaskList:
         # Do tasks with the most halos first so we're not waiting for a few big jobs at the end.
         tasks.sort(key = lambda x: -x.centres.shape[0])
         self.tasks = tasks
+
         
 class SOTask:
     """
     Each SOTask is a set of halos in a patch of the simulation volume
     for which we want to evaluate spherical overdensity properties.
+
+    Each SOTask is called collectively on all of the MPI ranks in one
+    compute node.
 
     centres contains the halo centres
     search_radius is the radius around each halo we need to read in
@@ -54,32 +58,98 @@ class SOTask:
     """
     def __init__(self, indexes, centres, radii, search_radius,
                  halo_prop_list):
+
         self.indexes = indexes.copy()
         self.centres = centres.copy()
         self.radii   = radii.copy()
         self.search_radius = search_radius
         self.halo_prop_list = halo_prop_list
         
-    def bounding_box(self):
-        pos_min = np.amin(self.centres, axis=0) - self.search_radius
-        pos_max = np.amax(self.centres, axis=0) + self.search_radius
-        return pos_min, pos_max
-
-    def volume(self):
-        pos_min, pos_max = self.bounding_box()
-        r = pos_max - pos_min
-        return r[0]*r[1]*r[2]
-
     def __call__(self, cellgrid, comm):
 
-        # Temporary hack: only first rank in comm executes the job
+        pos_min = np.amin(self.centres, axis=0) - self.search_radius
+        pos_max = np.amax(self.centres, axis=0) + self.search_radius
+
+        centres = self.centres
+        radii   = self.radii
+        indexes = self.indexes
+        halo_prop_list = self.halo_prop_list
+
+        cosmo = cellgrid.cosmology
+        a = cellgrid.a
+        z = cellgrid.z
+        boxsize = cellgrid.boxsize
+        ref_pos = (pos_min+pos_max)/2
+
+        # Find all particle properties we need to read in:
+        # For each particle type this is the union of the quantities
+        # needed for each calculation.
+        properties = {}
+        for halo_prop in halo_prop_list:
+            for ptype in halo_prop.particle_properties:
+                if ptype not in properties:
+                    properties[ptype] = set()
+                properties[ptype] = properties[ptype].union(halo_prop.particle_properties[ptype])
+
+        # Read in particles in the required region
+        mask = cellgrid.empty_mask()
+        cellgrid.mask_region(mask, pos_min, pos_max)
+        data = cellgrid.read_masked_cells_to_shared_memory(comm, properties, mask, verbose=False)
+
+        # Count how many particles we read in
+        nr_parts = 0
+        for ptype in data:
+            name = mass_dataset(ptype)
+            nr_parts += data[ptype][name].shape[0]
+        if nr_parts == 0:
+            # Should be impossible: all halos have particles!
+            raise Exception("Task has zero particles?!")
+
+        # Do periodic shift of particles to copies nearest the reference point
+        for ptype in data:
+            if "Coordinates" in data[ptype]:
+                data[ptype]["Coordinates"].local[:] = box_wrap(data[ptype]["Coordinates"].local[:], ref_pos, boxsize)
+
+        # Build the mesh for each particle type
+        mesh = {}
+        for ptype in properties:
+            # Find the particle coordinates
+            pos = data[ptype]["Coordinates"].full
+            nr_parts_type = pos.shape[0]
+            # Compute mesh resolution to give ~1000 particles per cell
+            target_nr_per_cell = 1000
+            max_resolution = 256
+            resolution = int((nr_parts_type/target_nr_per_cell)**(1./3.))
+            resolution = min(max(resolution, 1), max_resolution)
+            # Build the mesh for this particle type
+            mesh[ptype] = shared_mesh.SharedMesh(comm, pos, resolution)
+
+        # Make a list of halo tasks to process, in descending order of radius
         if comm.Get_rank() == 0:
-            pos_min, pos_max = self.bounding_box()
-            result = halo_particles.compute_so_properties(cellgrid, self.centres, self.radii,
-                                                          pos_min, pos_max,
-                                                          self.halo_prop_list)
-            # Add an extra result array with the original index of the halo
-            result["index"] = (self.indexes, "Position of the halo in the VR catalogue")
-            return result
+            order = np.argsort(-radii)
+            tasks = []
+            for i in range(len(order)):
+                j = order[i]
+                tasks.append(HaloTask(indexes[j], centres[j,:], radii[j]))
         else:
-            return None
+            tasks = None
+
+        # Execute the tasks
+        result = task_queue.execute_tasks(tasks,
+                                          args=(mesh, data, halo_prop_list, a, z, cosmo),
+                                          comm_master=comm, comm_workers=MPI.COMM_SELF)
+
+        # Combine task results into arrays:
+        # Each MPI rank will have a dict of arrays with the results for the halos
+        # it processed.
+        nr_halos = len(result)
+        result_arrays = {}
+        for result in results:
+            for name, (value, description) in result.items():
+                if name not in result_arrays:
+                    arr = astropy.units.Quantity(-np.ones(nr_halos, dtype=float), unit=value.unit)
+                    result_arrays[name] = (arr, description)
+                result_arrays[name][0][halo_nr] = value
+
+        # Return the results
+        return result_array

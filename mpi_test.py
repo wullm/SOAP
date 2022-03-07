@@ -6,6 +6,7 @@ mpi4py.rc.threads=True
 from mpi4py import MPI
 comm_world = MPI.COMM_WORLD
 comm_world_rank = comm_world.Get_rank()
+comm_world_size = comm_world.Get_size()
 
 import sys
 import numpy as np
@@ -94,18 +95,18 @@ if __name__ == "__main__":
                                       comm_master=comm_inter_node,
                                       comm_workers=comm_intra_node)
     # Combine results
-    if inter_node_rank > 0:
+    if comm_world_rank > 0:
 
-        # Nodes>0 send their lists of results to node 0
-        comm_inter_node.send(result, 0)
+        # Ranks>0 send their lists of results to rank 0
+        comm_world.send(result, 0)
 
-    elif inter_node_rank == 0:
+    elif comm_world_rank == 0:
 
-        # Node 0 assembles full result set.
+        # Rank 0 assembles full result set.
         # First, receive list of results from each other task
         result = []
-        for i in range(1, inter_node_size):
-            result += comm_inter_node.recv(source=i)
+        for i in range(1, comm_world_size):
+            result += comm_world.recv(source=i)
 
         # Then combine the results into one array per quantity
         all_results = {}
