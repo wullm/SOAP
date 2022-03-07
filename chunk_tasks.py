@@ -1,11 +1,16 @@
 #!/bin/env python
 
 import numpy as np
-import halo_particles
+import halo_tasks
 
-class SOTaskList:
+def box_wrap(pos, ref_pos, boxsize):
+    shift = ref_pos[None,:] - 0.5*boxsize
+    return (pos - shift) % boxsize + shift
+
+
+class ChunkTaskList:
     """
-    Stores a list of SOTasks to be executed.
+    Stores a list of ChunkTasks to be executed.
     """
     def __init__(self, cellgrid, so_cat, search_radius, cells_per_task,
                  halo_prop_list):
@@ -35,8 +40,8 @@ class SOTaskList:
         # Create the task list
         tasks = []
         for offset, count in zip(offsets, counts):
-            tasks.append(SOTask(index[offset:offset+count], centre[offset:offset+count,:],
-                                radius[offset:offset+count], search_radius, halo_prop_list))
+            tasks.append(ChunkTask(index[offset:offset+count], centre[offset:offset+count,:],
+                                   radius[offset:offset+count], search_radius, halo_prop_list))
 
         # Use number of halos as a rough estimate of cost.
         # Do tasks with the most halos first so we're not waiting for a few big jobs at the end.
@@ -44,12 +49,12 @@ class SOTaskList:
         self.tasks = tasks
 
         
-class SOTask:
+class ChunkTask:
     """
-    Each SOTask is a set of halos in a patch of the simulation volume
+    Each ChunkTask is a set of halos in a patch of the simulation volume
     for which we want to evaluate spherical overdensity properties.
 
-    Each SOTask is called collectively on all of the MPI ranks in one
+    Each ChunkTask is called collectively on all of the MPI ranks in one
     compute node.
 
     centres contains the halo centres
@@ -67,14 +72,17 @@ class SOTask:
         
     def __call__(self, cellgrid, comm):
 
+        # Find the region we need to read in
         pos_min = np.amin(self.centres, axis=0) - self.search_radius
         pos_max = np.amax(self.centres, axis=0) + self.search_radius
 
+        # Find the halo centres, radii etc
         centres = self.centres
         radii   = self.radii
         indexes = self.indexes
         halo_prop_list = self.halo_prop_list
 
+        # Get the cosmology from the input snapshot
         cosmo = cellgrid.cosmology
         a = cellgrid.a
         z = cellgrid.z

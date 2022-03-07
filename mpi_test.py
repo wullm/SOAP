@@ -15,7 +15,7 @@ import astropy.units
 
 import halo_centres
 import swift_cells
-import so_tasks
+import chunk_tasks
 import swift_units
 import halo_properties
 import task_queue
@@ -72,9 +72,9 @@ if __name__ == "__main__":
         search_radius = max_halo_radius + 0.5*np.amax(cellgrid.cell_size)
 
         # Generate task list
-        task_list = so_tasks.SOTaskList(cellgrid, so_cat, search_radius=search_radius,
-                                        cells_per_task=args["cells_per_task"],
-                                        halo_prop_list=halo_prop_list)
+        task_list = chunk_tasks.ChunkTaskList(cellgrid, so_cat, search_radius=search_radius,
+                                              cells_per_task=args["cells_per_task"],
+                                              halo_prop_list=halo_prop_list)
         tasks = task_list.tasks
     else:
         cellgrid = None

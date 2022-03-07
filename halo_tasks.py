@@ -1,21 +1,7 @@
 #!/bin/env python
 
-import collections
-
 import numpy as np
-import scipy.spatial
-import astropy.units
-from mpi4py import MPI
-
-import matplotlib.pyplot as plt
-
 from dataset_names import mass_dataset
-import task_queue
-
-def box_wrap(pos, ref_pos, boxsize):
-    shift = ref_pos[None,:] - 0.5*boxsize
-    return (pos - shift) % boxsize + shift
-
 
 class HaloTask:
 
@@ -25,6 +11,12 @@ class HaloTask:
         self.initial_search_radius = initial_search_radius
 
     def __call__(self, mesh, data, halo_prop_list, a, z, cosmo):
+        """
+        This computes properties for one halo and runs on a single
+        MPI rank. Result is a dict of properties of the form
+
+        halo_result[property_name] = (astropy quantity, description)
+        """
 
         # Compute density threshold at this redshift in comoving units:
         # This determines the size of the sphere we use for all other SO quantities.
@@ -44,7 +36,7 @@ class HaloTask:
                 mass_total += np.sum(mass[idx[ptype]], dtype=float)
 
             # Check if we reached the density threshold
-            density = mass_total / (4./3.*np.pi*rsearch[halo_nr]**3)
+            density = mass_total / (4./3.*np.pi*search_radius**3)
             if density < target_density:
                 break
             else:
@@ -63,6 +55,6 @@ class HaloTask:
             halo_result.update(halo_prop.calculate(cosmo, a, z, centre, halo_data))
 
         # Add the halo index to the result set
-        halo_result["index"] = self.index
+        halo_result["index"] = (self.index, "Index of this halo in the input catalogue")
 
         return halo_result
