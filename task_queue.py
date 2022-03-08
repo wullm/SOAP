@@ -137,13 +137,22 @@ def execute_tasks(tasks, args, comm_master, comm_workers, queue_per_rank=False):
     result = []
     while True:
 
-        # The first rank in each group of workers requests a task and broadcasts it to the other workers
+        # The first rank in each group of workers requests a task and broadcasts it to the other workers.
+        # If the task has a get_worker_task() method we broadcast whatever it returns to the other MPI ranks
+        # and execute it. This allows having a different task object on the first rank, e.g. with extra data
+        # which doesn't need to be duplicated to all ranks.
         if worker_rank == 0:
             comm_master_local.send(master_rank, 0, tag=REQUEST_TASK_TAG)
             task = comm_master_local.recv(tag=ASSIGN_TASK_TAG)
+            if(hasattr(task, "get_worker_task")):
+                worker_task = task.get_worker_task()
+            else:
+                worker_task = task
         else:
-            task = None
-        task = comm_workers_local.bcast(task)
+            worker_task = None
+        worker_task = comm_workers_local.bcast(worker_task)
+        if worker_rank != 0:
+            task = worker_task
 
         # All workers in the group execute the task as a collective operation
         if task is not None:

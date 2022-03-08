@@ -47,8 +47,8 @@ class ChunkTaskList:
         # Create the task list
         tasks = []
         for offset, count in zip(offsets, counts):
-            tasks.append(ChunkTask(index[offset:offset+count], centre[offset:offset+count,:],
-                                   radius[offset:offset+count], search_radius, halo_prop_list))
+            tasks.append(ChunkMasterTask(index[offset:offset+count], centre[offset:offset+count,:],
+                                         radius[offset:offset+count], search_radius, halo_prop_list))
 
         # Use number of halos as a rough estimate of cost.
         # Do tasks with the most halos first so we're not waiting for a few big jobs at the end.
@@ -56,7 +56,7 @@ class ChunkTaskList:
         self.tasks = tasks
 
         
-class ChunkTask:
+class ChunkMasterTask:
     """
     Each ChunkTask is a set of halos in a patch of the simulation volume
     for which we want to evaluate spherical overdensity properties.
@@ -87,19 +87,17 @@ class ChunkTask:
                 print("Node %d: %s" % (inter_node_rank, m))
 
         # Find the region we need to read in
-        pos_min = np.amin(self.centres, axis=0) - self.search_radius
-        pos_max = np.amax(self.centres, axis=0) + self.search_radius
+        if comm_rank == 0:
+            pos_min = np.amin(self.centres, axis=0) - self.search_radius
+            pos_max = np.amax(self.centres, axis=0) + self.search_radius
+        else:
+            pos_min = None
+            pos_max = None
+        pos_min, pos_max = comm.bcast((pos_min, pos_max))
 
         message("chunk has pos_min=(%.2f,%.2f,%.2f), pos_max=(%.2f,%.2f,%.2f)" %
-                (pos_min[0].value, pos_min.value[1],
-                 pos_min.value[2], pos_max.value[0], pos_max.value[1],
-                 pos_max.value[2]))
-
-        # Find the halo centres, radii etc
-        centres = self.centres
-        radii   = self.radii
-        indexes = self.indexes
-        halo_prop_list = self.halo_prop_list
+                (pos_min[0].value, pos_min.value[1], pos_min.value[2],
+                 pos_max.value[0], pos_max.value[1], pos_max.value[2]))
 
         # Get the cosmology from the input snapshot
         cosmo = cellgrid.cosmology
@@ -113,12 +111,12 @@ class ChunkTask:
         # needed for each calculation.
         if comm_rank == 0:
             properties = {}
-            for halo_prop in halo_prop_list:
+            for halo_prop in self.halo_prop_list:
                 for ptype in halo_prop.particle_properties:
                     if ptype not in properties:
                         properties[ptype] = set()
                     properties[ptype] = properties[ptype].union(halo_prop.particle_properties[ptype])
-            for ptype in halo_prop.particle_properties:
+            for ptype in properties:
                 properties[ptype] = list(properties[ptype])
         else:
             properties = None
@@ -161,11 +159,11 @@ class ChunkTask:
 
         # Make a list of halo tasks to process, in descending order of radius
         if comm_rank == 0:
-            order = np.argsort(-radii)
+            order = np.argsort(-self.radii)
             tasks = []
             for i in range(len(order)):
                 j = order[i]
-                tasks.append(halo_tasks.HaloTask(indexes[j], centres[j,:], radii[j]))
+                tasks.append(halo_tasks.HaloTask(self.indexes[j], self.centres[j,:], self.radii[j]))
             nr_tasks = len(tasks)
         else:
             tasks = None
@@ -175,7 +173,7 @@ class ChunkTask:
 
         # Execute the tasks
         results = task_queue.execute_tasks(tasks,
-                                           args=(mesh, data, halo_prop_list, a, z, cosmo),
+                                           args=(mesh, data, self.halo_prop_list, a, z, cosmo),
                                            comm_master=comm, comm_workers=MPI.COMM_SELF)
         message("halo tasks done")
 
@@ -195,3 +193,16 @@ class ChunkTask:
 
         # Return the results
         return result_arrays
+
+    def get_worker_task(self):
+        return ChunkWorkerTask(self.halo_prop_list)
+
+
+class ChunkWorkerTask(ChunkMasterTask):
+    """
+    This is just a ChunkMasterTask without the data arrays. This is the
+    version that gets broadcast to all MPI ranks executing the task,
+    so that we don't duplicate the halo catalogue to every rank.
+    """
+    def __init__(self, halo_prop_list):
+        self.halo_prop_list = halo_prop_list
