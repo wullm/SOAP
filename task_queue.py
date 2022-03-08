@@ -15,16 +15,17 @@ def sleepy_recv(comm, tag):
     Wait for a message without keeping a core spinning so that we leave
     the core available to run jobs and release the GIL. Checks for
     incoming messages at exponentially increasing intervals starting
-    at 1.0e-8s up to a limit of ~1s. Sleeps between checks.
+    at min_delay up to a limit of max_delay. Sleeps between checks.
     """
+    min_delay = 1.0e-5
+    max_delay = 1.0
     request = comm.irecv(tag=tag)
-    delay = 1.0e-8
+    delay = min_delay
     while True:
         completed, message = request.test()
         if completed:
             return message
-        if delay < 1.0:
-            delay *= 2.0
+        delay = min(max_delay, delay*2)
         time.sleep(delay)
 
 def distribute_tasks(tasks, comm):
@@ -173,6 +174,9 @@ def execute_tasks(tasks, args, comm_all, comm_master, comm_workers,
         else:
             break
 
+    # Measure how long we spend waiting with nothing to do at the end
+    t0_out_of_work = time.time()
+
     # Wait for task distributing thread to finish
     if master_rank == 0:
         task_queue_thread.join()
@@ -180,15 +184,19 @@ def execute_tasks(tasks, args, comm_all, comm_master, comm_workers,
     # Stop the clock
     comm_all_local.barrier()
     overall_t1 = time.time()
+    t1_out_of_work = time.time()
 
-    # Compute dead time
+    # Compute dead time etc
     time_total = comm_all_local.allreduce(overall_t1-overall_t0)
     time_tasks = comm_all_local.allreduce(tasks_elapsed_time)
     dead_fraction = (time_total - time_tasks) / time_total
+    time_out_of_work = comm_all_local.allreduce(t1_out_of_work - t0_out_of_work)
+    out_of_work_fraction = time_out_of_work / time_total
 
     # Report total task time
     timing["elapsed"] = overall_t1 - overall_t0
     timing["dead_time_fraction"] = dead_fraction
+    timing["out_of_work_fraction"] = out_of_work_fraction
 
     # Free local communicators
     if comm_master_local != MPI.COMM_NULL:

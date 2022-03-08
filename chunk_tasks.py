@@ -123,6 +123,11 @@ class ChunkMasterTask:
             properties = None
         properties = comm.bcast(properties)
 
+        # Don't try to read particle types which don't exist in the snapshot
+        for ptype in list(properties.keys()):
+            if ptype not in cellgrid.ptypes:
+                del properties[ptype]
+
         # Read in particles in the required region
         comm.barrier()
         t0_read = time.time()
@@ -192,7 +197,7 @@ class ChunkMasterTask:
         results, timing = task_queue.execute_tasks(tasks, return_timing=True,
                                                    args=(mesh, data, self.halo_prop_list, a, z, cosmo),
                                                    comm_all=comm, comm_master=comm, comm_workers=MPI.COMM_SELF)
-        message("halo tasks took %.1fs, dead time fraction=%.2f" % (timing["elapsed"], timing["dead_time_fraction"]))
+        message("halo tasks took %.1fs, dead time fraction=%.2f, out of work fraction=%e" % (timing["elapsed"], timing["dead_time_fraction"], timing["out_of_work_fraction"]))
 
         # Combine task results into arrays:
         # Each MPI rank will have a dict of arrays with the results for the halos

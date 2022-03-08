@@ -10,7 +10,11 @@ class HaloProperty:
 
 class SOMasses(HaloProperty):
     
-    # Arrays which must be read in for this calculation
+    # Arrays which must be read in for this calculation.
+    # Note that if there are no particles of a given type in the
+    # snapshot, that type will not be read in and will not have
+    # an entry in the data argument to calculate(), below.
+    # (E.g. gas, star or BH particles in DMO runs)
     particle_properties = {
         "PartType0" : ["Coordinates", "Masses"],
         "PartType1" : ["Coordinates", "Masses"],
