@@ -92,6 +92,12 @@ if __name__ == "__main__":
     # All ranks will need the cell grid
     cellgrid = comm_world.bcast(cellgrid)
 
+    # Periodic boundary is only implemented for tasks smaller than the full box
+    for ptype in cellgrid.ptypes:
+        for i in range(3):
+            if args["cells_per_task"] > cellgrid.cell[ptype].shape[i]/2:
+                raise Exception("cells_per_task is too large!")
+
     # Split MPI ranks according to which node they are on.
     # Only the first rank on each node belongs to comm_inter_node.
     # Others have comm_inter_node=MPI_COMM_NULL and inter_node_rank=-1.

@@ -45,7 +45,7 @@ class HaloTask:
             if density < target_density:
                 break
             else:
-                search_radius *= 1.5
+                search_radius *= 1.2
 
         # Find particles in this halo
         halo_data = {}

@@ -201,8 +201,6 @@ class ChunkMasterTask:
                     result_arrays[name] = (arr, description)
                 result_arrays[name][0][halo_nr] = value
 
-        message("returning results")
-
         # Return the results
         return result_arrays
 

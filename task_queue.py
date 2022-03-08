@@ -43,8 +43,6 @@ def distribute_tasks(tasks, comm):
         else:
             comm.send(None, request_src, tag=ASSIGN_TASK_TAG)
             nr_done += 1
-            #print("Number of ranks done with all tasks = %d" % nr_done)
-    #print("All tasks done.")
 
 def distribute_tasks_with_queue_per_rank(tasks, comm):
     """
