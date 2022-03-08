@@ -1,5 +1,6 @@
 #!/bin/env python
 
+import time
 import numpy as np
 import astropy.units
 from mpi4py import MPI
@@ -123,9 +124,13 @@ class ChunkMasterTask:
         properties = comm.bcast(properties)
 
         # Read in particles in the required region
+        comm.barrier()
+        t0_read = time.time()
         mask = cellgrid.empty_mask()
         cellgrid.mask_region(mask, pos_min, pos_max)
         data = cellgrid.read_masked_cells_to_shared_memory(properties, mask, comm)
+        comm.barrier()
+        t1_read = time.time()
 
         # Count how many particles we read in
         nr_parts = 0
@@ -136,7 +141,14 @@ class ChunkMasterTask:
             # Should be impossible: all halos have particles!
             raise Exception("Task has zero particles?!")
 
-        message("read in %d particles" % nr_parts)
+        # Compute number of bytes read
+        nr_bytes = 0
+        for ptype in data:
+            for name in data[ptype]:
+                nr_bytes += data[ptype][name].full.nbytes
+        nr_mb = nr_bytes/(1024**2)
+        rate = nr_mb/(t1_read-t0_read)
+        message("read in %d particles in %.1fs = %.1fMB/s (uncompressed)" % (nr_parts, t1_read-t0_read, rate))
 
         # Do periodic shift of particles to copies nearest the reference point
         for ptype in data:
@@ -172,10 +184,10 @@ class ChunkMasterTask:
         message("start %d halo tasks on %d MPI ranks" % (nr_tasks, comm_size))
 
         # Execute the tasks
-        results = task_queue.execute_tasks(tasks,
-                                           args=(mesh, data, self.halo_prop_list, a, z, cosmo),
-                                           comm_master=comm, comm_workers=MPI.COMM_SELF)
-        message("halo tasks done")
+        results, timing = task_queue.execute_tasks(tasks, return_timing=True,
+                                                   args=(mesh, data, self.halo_prop_list, a, z, cosmo),
+                                                   comm_all=comm, comm_master=comm, comm_workers=MPI.COMM_SELF)
+        message("halo tasks took %.1fs, dead time fraction=%.2f" % (timing["elapsed"], timing["dead_time_fraction"]))
 
         # Combine task results into arrays:
         # Each MPI rank will have a dict of arrays with the results for the halos

@@ -1,5 +1,6 @@
 #!/bin/env python
 
+import time
 import threading
 import time
 from mpi4py import MPI
@@ -84,7 +85,8 @@ def distribute_tasks_with_queue_per_rank(tasks, comm):
             #print("Number of ranks done with all tasks = %d" % nr_done)
     #print("All tasks done.")
 
-def execute_tasks(tasks, args, comm_master, comm_workers, queue_per_rank=False):
+def execute_tasks(tasks, args, comm_all, comm_master, comm_workers,
+                  queue_per_rank=False, return_timing=False):
     """
     Execute the tasks in tasks, which should be a sequence of
     callables which each return a result. Task objects are
@@ -111,6 +113,8 @@ def execute_tasks(tasks, args, comm_master, comm_workers, queue_per_rank=False):
     to be unpredictable!
     """
 
+    timing = {}
+
     # Clone communicators to prevent message confusion:
     # In particular, tasks are likely to be using comm_workers internally.
     if comm_master != MPI.COMM_NULL:
@@ -118,6 +122,12 @@ def execute_tasks(tasks, args, comm_master, comm_workers, queue_per_rank=False):
     else:
         comm_master_local = MPI.COMM_NULL
     comm_workers_local = comm_workers.Dup()
+    comm_all_local = comm_all.Dup()
+
+    # Start the clock
+    comm_all.barrier()
+    overall_t0 = time.time()
+    tasks_elapsed_time = 0.0
 
     # Get ranks in communicators
     master_rank = -1 if comm_master_local==MPI.COMM_NULL else comm_master_local.Get_rank()
@@ -156,7 +166,12 @@ def execute_tasks(tasks, args, comm_master, comm_workers, queue_per_rank=False):
 
         # All workers in the group execute the task as a collective operation
         if task is not None:
+            comm_workers_local.barrier()
+            task_t0 = time.time()
             result.append(task(*args))
+            comm_workers_local.barrier()
+            task_t1 = time.time()
+            tasks_elapsed_time += (task_t1-task_t0)
         else:
             break
 
@@ -164,9 +179,26 @@ def execute_tasks(tasks, args, comm_master, comm_workers, queue_per_rank=False):
     if master_rank == 0:
         task_queue_thread.join()
 
+    # Stop the clock
+    comm_all_local.barrier()
+    overall_t1 = time.time()
+
+    # Compute dead time
+    time_total = comm_all_local.allreduce(overall_t1-overall_t0)
+    time_tasks = comm_all_local.allreduce(tasks_elapsed_time)
+    dead_fraction = (time_total - time_tasks) / time_total
+
+    # Report total task time
+    timing["elapsed"] = overall_t1 - overall_t0
+    timing["dead_time_fraction"] = dead_fraction
+
     # Free local communicators
     if comm_master_local != MPI.COMM_NULL:
         comm_master_local.Free()
     comm_workers_local.Free()
+    comm_all_local.Free()
 
-    return result
+    if return_timing:
+        return result, timing
+    else:
+        return result

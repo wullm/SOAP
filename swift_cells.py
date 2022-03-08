@@ -415,9 +415,8 @@ class SWIFTCellGrid:
         
         # Execute the tasks
         cache = DatasetCache()
-        task_queue.execute_tasks(tasks, args=(data, cache),
-                                 comm_master=comm, comm_workers=MPI.COMM_SELF,
-                                 queue_per_rank=True)
+        task_queue.execute_tasks(tasks, args=(data, cache), comm_all=comm, comm_master=comm,
+                                 comm_workers=MPI.COMM_SELF, queue_per_rank=True)
         cache.close()
         
         # Ensure all arrays have been fully written

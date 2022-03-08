@@ -9,6 +9,7 @@ comm_world_rank = comm_world.Get_rank()
 comm_world_size = comm_world.Get_size()
 
 import sys
+import time
 import numpy as np
 import h5py
 import astropy.units
@@ -53,6 +54,12 @@ if __name__ == "__main__":
         args["outfile"]        = sys.argv[4] # Name of the output file
     args = comm_world.bcast(args)
 
+    # Start the clock
+    comm_world.barrier()
+    t0 = time.time()
+    if comm_world_rank == 0:
+        print("Starting halo properties calculation")
+
     # Make a list of properties to calculate
     halo_prop_list = [halo_properties.SOMasses(),]
 
@@ -94,7 +101,8 @@ if __name__ == "__main__":
 
     # Execute the tasks
     result = task_queue.execute_tasks(tasks, args=(cellgrid, comm_intra_node, inter_node_rank),
-                                      comm_master=comm_inter_node, comm_workers=comm_intra_node)
+                                      comm_all=comm_world, comm_master=comm_inter_node,
+                                      comm_workers=comm_intra_node)
 
     # Combine results
     if comm_world_rank > 0:
@@ -130,3 +138,10 @@ if __name__ == "__main__":
                 outfile[name].attrs["Description"] = description
                 if hasattr(data, "unit"):
                     swift_units.write_unit_attributes(outfile[name], data.unit)
+
+    # Stop the clock
+    comm_world.barrier()
+    t1 = time.time()
+    if comm_world_rank == 0:
+        print("Total elapsed time: %.1f seconds" % (t1-t0))
+        print("Done.")
