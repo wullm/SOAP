@@ -111,12 +111,18 @@ class ChunkTask:
         # Find all particle properties we need to read in:
         # For each particle type this is the union of the quantities
         # needed for each calculation.
-        properties = {}
-        for halo_prop in halo_prop_list:
+        if comm_rank == 0:
+            properties = {}
+            for halo_prop in halo_prop_list:
+                for ptype in halo_prop.particle_properties:
+                    if ptype not in properties:
+                        properties[ptype] = set()
+                    properties[ptype] = properties[ptype].union(halo_prop.particle_properties[ptype])
             for ptype in halo_prop.particle_properties:
-                if ptype not in properties:
-                    properties[ptype] = set()
-                properties[ptype] = properties[ptype].union(halo_prop.particle_properties[ptype])
+                properties[ptype] = list(properties[ptype])
+        else:
+            properties = None
+        properties = comm.bcast(properties)
 
         # Read in particles in the required region
         mask = cellgrid.empty_mask()
@@ -145,7 +151,7 @@ class ChunkTask:
             # Find the particle coordinates
             pos = data[ptype]["Coordinates"]
             nr_parts_type = pos.full.shape[0]
-            # Compute mesh resolution to give ~1000 particles per cell
+            # Compute mesh resolution to give roughly fixed number of particles per cell
             target_nr_per_cell = 1000
             max_resolution = 256
             resolution = int((nr_parts_type/target_nr_per_cell)**(1./3.))
@@ -160,16 +166,17 @@ class ChunkTask:
             for i in range(len(order)):
                 j = order[i]
                 tasks.append(halo_tasks.HaloTask(indexes[j], centres[j,:], radii[j]))
+            nr_tasks = len(tasks)
         else:
             tasks = None
+            nr_tasks = 0
 
-        message("start %d halo tasks on %d MPI ranks" % (len(tasks), comm_size))
+        message("start %d halo tasks on %d MPI ranks" % (nr_tasks, comm_size))
 
         # Execute the tasks
         results = task_queue.execute_tasks(tasks,
                                            args=(mesh, data, halo_prop_list, a, z, cosmo),
                                            comm_master=comm, comm_workers=MPI.COMM_SELF)
-
         message("halo tasks done")
 
         # Combine task results into arrays:
