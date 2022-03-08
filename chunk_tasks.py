@@ -1,7 +1,14 @@
 #!/bin/env python
 
 import numpy as np
+import astropy.units
+from mpi4py import MPI
+
+import task_queue
+import shared_mesh
 import halo_tasks
+from dataset_names import mass_dataset
+
 
 def box_wrap(pos, ref_pos, boxsize):
     shift = ref_pos[None,:] - 0.5*boxsize
@@ -70,11 +77,23 @@ class ChunkTask:
         self.search_radius = search_radius
         self.halo_prop_list = halo_prop_list
         
-    def __call__(self, cellgrid, comm):
+    def __call__(self, cellgrid, comm, inter_node_rank):
+
+        comm_rank = comm.Get_rank()
+        comm_size = comm.Get_size()
+
+        def message(m):
+            if inter_node_rank >= 0:
+                print("Node %d: %s" % (inter_node_rank, m))
 
         # Find the region we need to read in
         pos_min = np.amin(self.centres, axis=0) - self.search_radius
         pos_max = np.amax(self.centres, axis=0) + self.search_radius
+
+        message("chunk has pos_min=(%.2f,%.2f,%.2f), pos_max=(%.2f,%.2f,%.2f)" %
+                (pos_min[0].value, pos_min.value[1],
+                 pos_min.value[2], pos_max.value[0], pos_max.value[1],
+                 pos_max.value[2]))
 
         # Find the halo centres, radii etc
         centres = self.centres
@@ -102,16 +121,18 @@ class ChunkTask:
         # Read in particles in the required region
         mask = cellgrid.empty_mask()
         cellgrid.mask_region(mask, pos_min, pos_max)
-        data = cellgrid.read_masked_cells_to_shared_memory(comm, properties, mask, verbose=False)
+        data = cellgrid.read_masked_cells_to_shared_memory(properties, mask, comm)
 
         # Count how many particles we read in
         nr_parts = 0
         for ptype in data:
             name = mass_dataset(ptype)
-            nr_parts += data[ptype][name].shape[0]
+            nr_parts += data[ptype][name].full.shape[0]
         if nr_parts == 0:
             # Should be impossible: all halos have particles!
             raise Exception("Task has zero particles?!")
+
+        message("read in %d particles" % nr_parts)
 
         # Do periodic shift of particles to copies nearest the reference point
         for ptype in data:
@@ -122,8 +143,8 @@ class ChunkTask:
         mesh = {}
         for ptype in properties:
             # Find the particle coordinates
-            pos = data[ptype]["Coordinates"].full
-            nr_parts_type = pos.shape[0]
+            pos = data[ptype]["Coordinates"]
+            nr_parts_type = pos.full.shape[0]
             # Compute mesh resolution to give ~1000 particles per cell
             target_nr_per_cell = 1000
             max_resolution = 256
@@ -133,31 +154,37 @@ class ChunkTask:
             mesh[ptype] = shared_mesh.SharedMesh(comm, pos, resolution)
 
         # Make a list of halo tasks to process, in descending order of radius
-        if comm.Get_rank() == 0:
+        if comm_rank == 0:
             order = np.argsort(-radii)
             tasks = []
             for i in range(len(order)):
                 j = order[i]
-                tasks.append(HaloTask(indexes[j], centres[j,:], radii[j]))
+                tasks.append(halo_tasks.HaloTask(indexes[j], centres[j,:], radii[j]))
         else:
             tasks = None
 
+        message("start %d halo tasks on %d MPI ranks" % (len(tasks), comm_size))
+
         # Execute the tasks
-        result = task_queue.execute_tasks(tasks,
-                                          args=(mesh, data, halo_prop_list, a, z, cosmo),
-                                          comm_master=comm, comm_workers=MPI.COMM_SELF)
+        results = task_queue.execute_tasks(tasks,
+                                           args=(mesh, data, halo_prop_list, a, z, cosmo),
+                                           comm_master=comm, comm_workers=MPI.COMM_SELF)
+
+        message("halo tasks done")
 
         # Combine task results into arrays:
         # Each MPI rank will have a dict of arrays with the results for the halos
         # it processed.
-        nr_halos = len(result)
+        nr_halos = len(results)
         result_arrays = {}
-        for result in results:
+        for halo_nr, result in enumerate(results):
             for name, (value, description) in result.items():
                 if name not in result_arrays:
                     arr = astropy.units.Quantity(-np.ones(nr_halos, dtype=float), unit=value.unit)
                     result_arrays[name] = (arr, description)
                 result_arrays[name][0][halo_nr] = value
 
+        message("returning results")
+
         # Return the results
-        return result_array
+        return result_arrays

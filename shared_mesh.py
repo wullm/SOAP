@@ -140,8 +140,8 @@ class SharedMesh:
                     count = self.cell_count.full[cell_nr]
                     if count > 0:
                         idx_in_cell = self.sort_idx.full[start:start+count]
-                        r2 = np.sum((pos[idx_in_cell, :] - centre[None,:])**2, axis=1)
-                        keep = (r <= radius*radius)
+                        r2 = np.sum((pos.full[idx_in_cell, :] - centre[None,:])**2, axis=1)
+                        keep = (r2 <= radius*radius)
                         if np.sum(keep) > 0:
                             idx.append(idx_in_cell[keep])
         

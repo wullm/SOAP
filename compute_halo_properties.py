@@ -20,6 +20,7 @@ import swift_units
 import halo_properties
 import task_queue
 
+
 def split_comm_world():
 
     # Communicator containing all ranks on this node
@@ -32,6 +33,7 @@ def split_comm_world():
     key = MPI.COMM_WORLD.Get_rank()
     comm_inter_node = MPI.COMM_WORLD.Split(colour, key)
     return comm_intra_node, comm_inter_node
+
 
 def get_rank_and_size(comm):
     if comm == MPI.COMM_NULL:
@@ -91,9 +93,9 @@ if __name__ == "__main__":
     inter_node_rank, inter_node_size = get_rank_and_size(comm_inter_node)
 
     # Execute the tasks
-    result = task_queue.execute_tasks(tasks, args=(cellgrid, comm_intra_node),
-                                      comm_master=comm_inter_node,
-                                      comm_workers=comm_intra_node)
+    result = task_queue.execute_tasks(tasks, args=(cellgrid, comm_intra_node, inter_node_rank),
+                                      comm_master=comm_inter_node, comm_workers=comm_intra_node)
+
     # Combine results
     if comm_world_rank > 0:
 

@@ -68,10 +68,16 @@ def io_test():
 
         # Use the mesh to plot a sub-region
         pos_min=np.asarray((20,20,20), dtype=float)
-        pos_max=np.asarray((40,80,40), dtype=float)
+        pos_max=np.asarray((40,40,40), dtype=float)
         idx = mesh.query(pos_min, pos_max)
         plt.plot(pos[idx,0], pos[idx,1], "r,")
         
+        # Try selecting a sphere
+        centre = np.asarray((30, 30, 30))
+        radius = 10
+        idx = mesh.query_radius(centre, radius, pos)
+        plt.plot(pos[idx,0], pos[idx,1], "g,")
+
         plt.show()
 
 
