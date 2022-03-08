@@ -46,6 +46,7 @@ class HaloTask:
                 break
             else:
                 search_radius *= 1.2
+                del idx
 
         # Find particles in this halo
         halo_data = {}

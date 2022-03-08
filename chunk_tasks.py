@@ -156,6 +156,8 @@ class ChunkMasterTask:
                 data[ptype]["Coordinates"].local[:] = box_wrap(data[ptype]["Coordinates"].local[:], ref_pos, boxsize)
 
         # Build the mesh for each particle type
+        comm.barrier()
+        t0_mesh = time.time()
         mesh = {}
         for ptype in properties:
             # Find the particle coordinates
@@ -168,6 +170,9 @@ class ChunkMasterTask:
             resolution = min(max(resolution, 1), max_resolution)
             # Build the mesh for this particle type
             mesh[ptype] = shared_mesh.SharedMesh(comm, pos, resolution)
+        comm.barrier()
+        t1_mesh = time.time()
+        message("constructing shared mesh took %.1fs" % (t1_mesh-t0_mesh))
 
         # Make a list of halo tasks to process, in descending order of radius
         if comm_rank == 0:
