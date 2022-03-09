@@ -194,10 +194,11 @@ class ChunkMasterTask:
         message("start %d halo tasks on %d MPI ranks" % (nr_tasks, comm_size))
 
         # Execute the tasks
-        results, timing = task_queue.execute_tasks(tasks, return_timing=True,
-                                                   args=(mesh, data, self.halo_prop_list, a, z, cosmo, halo_tasks.process_halo),
-                                                   comm_all=comm, comm_master=comm, comm_workers=MPI.COMM_SELF)
-        message("halo tasks took %.1fs (frac. dead time=%.2f, out of work=%.2f, wait for task=%.2f)" % (timing["elapsed"], timing["dead_time_fraction"], timing["out_of_work_fraction"], timing["wait_for_task_fraction"]))
+        results, timing = task_queue.execute_tasks_shared(tasks, return_timing=True,
+                                                          args=(mesh, data, self.halo_prop_list, a, z, cosmo, halo_tasks.process_halo),
+                                                          comm_all=comm, comm_master=comm, comm_workers=MPI.COMM_SELF)
+        message("halo tasks took %.1fs (frac. dead time=%.2f, out of work=%.2f, wait for task=%.2f)" % 
+                (timing["elapsed"], timing["dead_time_fraction"], timing["out_of_work_fraction"], timing["wait_for_task_fraction"]))
 
         # Combine task results into arrays:
         # Each MPI rank will have a dict of arrays with the results for the halos
