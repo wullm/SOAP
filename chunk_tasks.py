@@ -80,6 +80,7 @@ class ChunkTask:
         self.radii = radii
         self.search_radius = search_radius
         self.halo_prop_list = halo_prop_list
+        self.shared = False
         
     def __call__(self, cellgrid, comm, inter_node_rank):
 
@@ -183,10 +184,26 @@ class ChunkTask:
         message("constructing shared mesh took %.1fs" % (t1_mesh-t0_mesh))
 
         # Calculate the halo properties
-        #result = process_halos(comm, data, mesh, self.halo_prop_list, a, z, cosmo,
-        #                       self.indexes, self.centres, self.radii)
-        result = []
-        message("all halos in chunk processed")
+        t0_halos = time.time()
+        result = process_halos(comm, data, mesh, self.halo_prop_list, a, z, cosmo,
+                               self.indexes, self.centres, self.radii)
+        t1_halos = time.time()
+        message("processing halos in chunk took %.1fs" % (t1_halos-t0_halos))
+
+        # Free the shared particle data
+        for ptype in data:
+            for name in data[ptype]:
+                data[ptype][name].free()
+
+        # Free the shared mesh
+        for ptype in mesh:
+            mesh[ptype].free()
+
+        # Free shared halo catalogue
+        if self.shared:
+            self.indexes.free()
+            self.centres.free()
+            self.radii.free()
 
         return result
 
@@ -233,5 +250,7 @@ class ChunkTask:
         self.radii   = share_array(self.radii)
         self.search_radius = comm.bcast(self.search_radius)
         self.halo_prop_list = comm.bcast(self.halo_prop_list)
+
+        self.shared = True
 
         return self

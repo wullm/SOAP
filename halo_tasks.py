@@ -98,6 +98,9 @@ def process_halos(comm, data, mesh, halo_prop_list, a, z, cosmo,
         else:
             break
 
+    # Free the shared task counter
+    next_task.free()
+
     # Combine task results into arrays
     nr_halos = len(results)
     result_arrays = {}

@@ -73,6 +73,11 @@ class SharedMesh:
         comm.barrier()
         self.sort_idx.sync()
 
+    def free(self):
+        self.cell_count.free()
+        self.cell_offset.free()
+        self.sort_idx.free()
+
     def query(self, pos_min, pos_max):
         """
         Return indexes of particles which might be in the region defined
