@@ -185,10 +185,10 @@ class ChunkTask:
 
         # Calculate the halo properties
         t0_halos = time.time()
-        result = process_halos(comm, data, mesh, self.halo_prop_list, a, z, cosmo,
-                               self.indexes, self.centres, self.radii)
+        result, dead_time_fraction = process_halos(comm, data, mesh, self.halo_prop_list, a, z, cosmo,
+                                                   self.indexes, self.centres, self.radii)
         t1_halos = time.time()
-        message("processing halos in chunk took %.1fs" % (t1_halos-t0_halos))
+        message("processing halos in chunk took %.1fs (dead time frac.=%.2f)" % (t1_halos-t0_halos, dead_time_fraction))
 
         # Free the shared particle data
         for ptype in data:

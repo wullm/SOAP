@@ -5,6 +5,7 @@ from dataset_names import mass_dataset
 import astropy.units as u
 import shared_array
 import astropy.units
+import time
 
 
 def process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
@@ -75,11 +76,15 @@ def process_halos(comm, data, mesh, halo_prop_list, a, z, cosmo,
     if comm.Get_rank() == 0:
         next_task.full[0] = 0
     next_task.sync()
+
+    # Start the clock
     comm.barrier()
+    t0_all = time.time()
 
     # Loop until all halos are done
     results = []
     nr_halos = len(indexes.full)
+    task_time = 0.0
     while True:
 
         # Get a task by atomic incrementing the counter
@@ -92,9 +97,12 @@ def process_halos(comm, data, mesh, halo_prop_list, a, z, cosmo,
 
         # Execute the task, if there's one left
         if task_to_do < nr_halos:
+            t0_task = time.time()
             results.append(process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
                                                indexes.full[task_to_do], centres.full[task_to_do,:],
                                                radii.full[task_to_do]))
+            t1_task = time.time()
+            task_time += (t1_task-t0_task)
         else:
             break
 
@@ -111,4 +119,12 @@ def process_halos(comm, data, mesh, halo_prop_list, a, z, cosmo,
                 result_arrays[name] = (arr, description)
             result_arrays[name][0][halo_nr] = value
 
-    return result_arrays
+    # Stop the clock
+    comm.barrier()
+    t1_all = time.time()
+
+    # Measure dead time (i.e. time not doing halo calculations)
+    total_time = comm.allreduce(t1_all - t0_all)
+    dead_time  = total_time - comm.allreduce(task_time)
+    
+    return result_arrays, dead_time/total_time
