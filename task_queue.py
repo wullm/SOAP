@@ -18,7 +18,7 @@ def sleepy_recv(comm, tag):
     at min_delay up to a limit of max_delay. Sleeps between checks.
     """
     min_delay = 1.0e-5
-    max_delay = 1.0
+    max_delay = 5.0
     request = comm.irecv(tag=tag)
     delay = min_delay
     while True:
@@ -63,13 +63,7 @@ def distribute_tasks_with_queue_per_rank(tasks, comm):
             # If we have no tasks left for this rank, steal some!
             if len(tasks[request_src]) == 0:
 
-                # Take the second half of the largest remaining task queue.
-                #i = np.argmax([len(t) for t in tasks])
-                #nr_steal = max(len(tasks[i])//2, 1)
-                #for _ in range(nr_steal):
-                #    tasks[request_src].appendleft(tasks[i].pop())
-
-                # Or just take one task from the longest queue
+                # Take one task from the longest queue
                 i = np.argmax([len(t) for t in tasks])
                 tasks[request_src].append(tasks[i].popleft())
                 
@@ -81,8 +75,6 @@ def distribute_tasks_with_queue_per_rank(tasks, comm):
         else:
             comm.send(None, request_src, tag=ASSIGN_TASK_TAG)
             nr_done += 1
-            #print("Number of ranks done with all tasks = %d" % nr_done)
-    #print("All tasks done.")
 
 def execute_tasks(tasks, args, comm_all, comm_master, comm_workers,
                   queue_per_rank=False, return_timing=False):
@@ -127,6 +119,7 @@ def execute_tasks(tasks, args, comm_all, comm_master, comm_workers,
     comm_all.barrier()
     overall_t0 = time.time()
     tasks_elapsed_time = 0.0
+    tasks_wait_time = 0.0
 
     # Get ranks in communicators
     master_rank = -1 if comm_master_local==MPI.COMM_NULL else comm_master_local.Get_rank()
@@ -146,6 +139,9 @@ def execute_tasks(tasks, args, comm_all, comm_master, comm_workers,
     result = []
     while True:
 
+        # Start timer for time spent waiting to be given a task
+        wait_time_t0 = time.time()
+
         # The first rank in each group of workers requests a task and broadcasts it to the other workers.
         # If the task has a get_worker_task() method we broadcast whatever it returns to the other MPI ranks
         # and execute it. This allows having a different task object on the first rank, e.g. with extra data
@@ -163,12 +159,14 @@ def execute_tasks(tasks, args, comm_all, comm_master, comm_workers,
         if worker_rank != 0:
             task = worker_task
 
+        # Accumulate time spent waiting for a task
+        wait_time_t1 = time.time()
+        tasks_wait_time += (wait_time_t1 - wait_time_t0)
+
         # All workers in the group execute the task as a collective operation
         if task is not None:
-            comm_workers_local.barrier()
             task_t0 = time.time()
             result.append(task(*args))
-            comm_workers_local.barrier()
             task_t1 = time.time()
             tasks_elapsed_time += (task_t1-task_t0)
         else:
@@ -187,16 +185,16 @@ def execute_tasks(tasks, args, comm_all, comm_master, comm_workers,
     t1_out_of_work = time.time()
 
     # Compute dead time etc
-    time_total = comm_all_local.allreduce(overall_t1-overall_t0)
-    time_tasks = comm_all_local.allreduce(tasks_elapsed_time)
-    dead_fraction = (time_total - time_tasks) / time_total
-    time_out_of_work = comm_all_local.allreduce(t1_out_of_work - t0_out_of_work)
-    out_of_work_fraction = time_out_of_work / time_total
+    time_total         = comm_all_local.allreduce(overall_t1-overall_t0)
+    time_tasks         = comm_all_local.allreduce(tasks_elapsed_time)
+    time_out_of_work   = comm_all_local.allreduce(t1_out_of_work - t0_out_of_work)
+    time_wait_for_task = comm_all_local.allreduce(tasks_wait_time)
 
     # Report total task time
-    timing["elapsed"] = overall_t1 - overall_t0
-    timing["dead_time_fraction"] = dead_fraction
-    timing["out_of_work_fraction"] = out_of_work_fraction
+    timing["elapsed"]                = overall_t1 - overall_t0
+    timing["dead_time_fraction"]     = (time_total - time_tasks) / time_total
+    timing["out_of_work_fraction"]   = time_out_of_work / time_total
+    timing["wait_for_task_fraction"] = time_wait_for_task / time_total
 
     # Free local communicators
     if comm_master_local != MPI.COMM_NULL:
