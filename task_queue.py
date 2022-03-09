@@ -150,22 +150,29 @@ def execute_tasks(tasks, args, comm_all, comm_master, comm_workers,
         if worker_rank == 0:
             comm_master_local.send(master_rank, 0, tag=REQUEST_TASK_TAG)
             task = comm_master_local.recv(tag=ASSIGN_TASK_TAG)
-            if(hasattr(task, "get_worker_task")):
-                worker_task = task.get_worker_task()
-            else:
-                worker_task = task
         else:
-            worker_task = None
-        worker_task = comm_workers_local.bcast(worker_task)
-        if worker_rank != 0:
-            task = worker_task
+            task = None
+
+        # Broadcast the task to all workers if necessary:
+        # First they all need to know whether we have a task to do.
+        task_not_none = int(task is not None)
+        task_not_none = comm_workers_local.allreduce(task_not_none, MPI.MAX)
+        if task_not_none and comm_workers_local.Get_size() > 1:
+            if worker_rank == 0:
+                task_class = type(task)
+                instance = task
+            else:
+                task_class = None
+                instance = None
+            task_class = comm_workers_local.bcast(task_class)
+            task = task_class.bcast(comm_workers_local, instance)
 
         # Accumulate time spent waiting for a task
         wait_time_t1 = time.time()
         tasks_wait_time += (wait_time_t1 - wait_time_t0)
 
         # All workers in the group execute the task as a collective operation
-        if task is not None:
+        if task_not_none:
             task_t0 = time.time()
             result.append(task(*args))
             task_t1 = time.time()
@@ -209,124 +216,5 @@ def execute_tasks(tasks, args, comm_all, comm_master, comm_workers,
         return result
 
 
-def execute_tasks_shared(tasks, args, comm_all, comm_master, comm_workers,
-                         return_timing=False):
-    """
-    This version avoids creating an extra thread. Instead, the task list
-    is broadcast to all ranks and we keep an integer indicating the next
-    task to do in shared memory. Ranks help themselves to tasks by atomic
-    incrementing the task count.
-
-    All ranks in comm_all need to be on the same node for this to work.
-    """
-
-    # Clone communicators to prevent message confusion:
-    # In particular, tasks are likely to be using comm_workers internally.
-    if comm_master != MPI.COMM_NULL:
-        comm_master_local = comm_master.Dup()
-    else:
-        comm_master_local = MPI.COMM_NULL
-    comm_workers_local = comm_workers.Dup()
-    comm_all_local = comm_all.Dup()
-    
-    # Make sure all master ranks have a copy of the task list
-    if comm_master_local != MPI.COMM_NULL:
-        tasks = comm_master_local.bcast(tasks)
-    else:
-        tasks = None
-
-    # Start the clock
-    comm_all.barrier()
-    overall_t0 = time.time()
-
-    # Allocate shared storage for a single integer and initialize to zero
-    if comm_master_local != MPI.COMM_NULL:
-        if comm_master_local.Get_rank() == 0:
-            local_shape = (1,)
-        else:
-            local_shape = (0,)
-        next_task = shared_array.SharedArray(local_shape, np.int64, comm_master_local)
-        if comm_master_local.Get_rank() == 0:
-            next_task.full[0] = 0
-            next_task.sync()
-        comm_master_local.barrier()
-
-    tasks_elapsed_time = 0
-    tasks_wait_time = 0    
-
-    # Request and run tasks until all we run out
-    nr_tasks = len(tasks)
-    result = []
-    while True:
-
-        # Get a task by atomic incrementing the counter
-        wait_time_t0 = time.time()
-        if comm_master_local != MPI.COMM_NULL:
-            task_to_do = np.ndarray(1, dtype=np.int64)
-            one        = np.ones(1, dtype=np.int64)
-            next_task.win.Lock(0)
-            next_task.win.Fetch_and_op(one, task_to_do, 0)
-            next_task.win.Unlock(0)
-        else:
-            task_to_do = None
-        task_to_do = int(comm_workers_local.bcast(task_to_do))
-        wait_time_t1 = time.time()
-        tasks_wait_time += (wait_time_t1-wait_time_t0)
-
-        if task_to_do < nr_tasks:
-            # Run the task
-            task_t0 = time.time()
-            result.append(tasks[task_to_do](*args))
-            task_t1 = time.time()
-            tasks_elapsed_time += (task_t1-task_t0)
-        else:
-            # No more tasks left
-            t0_out_of_work = time.time()
-            break
-
-    # Stop the clock
-    comm_all_local.barrier()
-    overall_t1 = time.time()
-    t1_out_of_work = time.time()
-
-    # Compute dead time etc
-    time_total         = comm_all_local.allreduce(overall_t1-overall_t0)
-    time_tasks         = comm_all_local.allreduce(tasks_elapsed_time)
-    time_out_of_work   = comm_all_local.allreduce(t1_out_of_work - t0_out_of_work)
-    time_wait_for_task = comm_all_local.allreduce(tasks_wait_time)
-
-    # Report total task time
-    timing = {}
-    timing["elapsed"]                = overall_t1 - overall_t0
-    timing["dead_time_fraction"]     = (time_total - time_tasks) / time_total
-    timing["out_of_work_fraction"]   = time_out_of_work / time_total
-    timing["wait_for_task_fraction"] = time_wait_for_task / time_total
-
-    # Free local communicators
-    if comm_master_local != MPI.COMM_NULL:
-        comm_master_local.Free()
-    comm_workers_local.Free()
-    comm_all_local.Free()
-
-    if return_timing:
-        return result, timing
-    else:
-        return result
 
 
-if __name__ == "__main__":
-
-    from mpi4py import MPI
-
-    class TestTask:
-        def __init__(self, i):
-            self.i = i
-        def __call__(self):
-            print("Running task %d on rank %d" % (self.i, MPI.COMM_WORLD.Get_rank()))
-
-    tasks = [TestTask(i) for i in range(20)]
-
-    result, timing = execute_tasks_shared(tasks, (), MPI.COMM_WORLD, MPI.COMM_WORLD, MPI.COMM_SELF, return_timing=True)
-
-    print(timing)
-    

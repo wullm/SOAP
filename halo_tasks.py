@@ -3,10 +3,12 @@
 import numpy as np
 from dataset_names import mass_dataset
 import astropy.units as u
+import shared_array
+import astropy.units
 
 
-def process_halo(mesh, data, halo_prop_list, a, z, cosmo,
-                 index, centre, initial_search_radius):
+def process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
+                        index, centre, initial_search_radius):
     """
     This computes properties for one halo and runs on a single
     MPI rank. Result is a dict of properties of the form
@@ -61,13 +63,49 @@ def process_halo(mesh, data, halo_prop_list, a, z, cosmo,
     return halo_result
 
 
-class HaloTask:
+def process_halos(comm, data, mesh, halo_prop_list, a, z, cosmo,
+                  indexes, centres, radii):
+    
+    # Allocate shared storage for a single integer and initialize to zero
+    if comm.Get_rank() == 0:
+        local_shape = (1,)
+    else:
+        local_shape = (0,)
+    next_task = shared_array.SharedArray(local_shape, np.int64, comm)
+    if comm.Get_rank() == 0:
+        next_task.full[0] = 0
+    next_task.sync()
+    comm.barrier()
 
-    def __init__(self, index, centre, initial_search_radius):
-        self.index = index
-        self.centre = centre
-        self.initial_search_radius = initial_search_radius
+    # Loop until all halos are done
+    results = []
+    nr_halos = len(indexes.full)
+    while True:
 
-    def __call__(self, mesh, data, halo_prop_list, a, z, cosmo, func):
-        return func(mesh, data, halo_prop_list, a, z, cosmo,
-                    self.index, self.centre, self.initial_search_radius)
+        # Get a task by atomic incrementing the counter
+        task_to_do = np.ndarray(1, dtype=np.int64)
+        one = np.ones(1, dtype=np.int64)
+        next_task.win.Lock(0)
+        next_task.win.Fetch_and_op(one, task_to_do, 0)
+        next_task.win.Unlock(0)
+        task_to_do = int(task_to_do)
+
+        # Execute the task, if there's one left
+        if task_to_do < nr_halos:
+            results.append(process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
+                                               indexes.full[task_to_do], centres.full[task_to_do,:],
+                                               radii.full[task_to_do]))
+        else:
+            break
+
+    # Combine task results into arrays
+    nr_halos = len(results)
+    result_arrays = {}
+    for halo_nr, result in enumerate(results):
+        for name, (value, description) in result.items():
+            if name not in result_arrays:
+                arr = astropy.units.Quantity(-np.ones(nr_halos, dtype=float), unit=value.unit)
+                result_arrays[name] = (arr, description)
+            result_arrays[name][0][halo_nr] = value
+
+    return result_arrays

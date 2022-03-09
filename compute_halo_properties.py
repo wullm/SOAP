@@ -96,7 +96,7 @@ if __name__ == "__main__":
     comm_world.barrier()
     t1 = time.time()
     if comm_world_rank == 0:
-        print("Reading VR catalogue and setting up tasks took %.1fs" % (t1-t0))
+        print("Reading VR catalogue and setting up chunks took %.1fs" % (t1-t0))
 
     # Periodic boundary is only implemented for tasks smaller than the full box
     for ptype in cellgrid.ptypes:

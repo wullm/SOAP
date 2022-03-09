@@ -7,14 +7,17 @@ from mpi4py import MPI
 
 import task_queue
 import shared_mesh
+import shared_array
 import halo_tasks
 from dataset_names import mass_dataset
+from halo_tasks import process_halos
 
 
 def box_wrap(pos, ref_pos, boxsize):
     shift = ref_pos[None,:] - 0.5*boxsize
     return (pos - shift) % boxsize + shift
 
+time_start = time.time()
 
 class ChunkTaskList:
     """
@@ -48,8 +51,8 @@ class ChunkTaskList:
         # Create the task list
         tasks = []
         for offset, count in zip(offsets, counts):
-            tasks.append(ChunkMasterTask(index[offset:offset+count], centre[offset:offset+count,:],
-                                         radius[offset:offset+count], search_radius, halo_prop_list))
+            tasks.append(ChunkTask(index[offset:offset+count], centre[offset:offset+count,:],
+                                   radius[offset:offset+count], search_radius, halo_prop_list))
 
         # Use number of halos as a rough estimate of cost.
         # Do tasks with the most halos first so we're not waiting for a few big jobs at the end.
@@ -57,7 +60,7 @@ class ChunkTaskList:
         self.tasks = tasks
 
         
-class ChunkMasterTask:
+class ChunkTask:
     """
     Each ChunkTask is a set of halos in a patch of the simulation volume
     for which we want to evaluate spherical overdensity properties.
@@ -69,12 +72,12 @@ class ChunkMasterTask:
     search_radius is the radius around each halo we need to read in
     indexes contains the index of each halo in the input catalogue
     """
-    def __init__(self, indexes, centres, radii, search_radius,
-                 halo_prop_list):
+    def __init__(self, indexes=None, centres=None, radii=None,
+                 search_radius=None, halo_prop_list=None):
 
-        self.indexes = indexes.copy()
-        self.centres = centres.copy()
-        self.radii   = radii.copy()
+        self.indexes = indexes
+        self.centres = centres
+        self.radii = radii
         self.search_radius = search_radius
         self.halo_prop_list = halo_prop_list
         
@@ -82,15 +85,15 @@ class ChunkMasterTask:
 
         comm_rank = comm.Get_rank()
         comm_size = comm.Get_size()
-
+        
         def message(m):
             if inter_node_rank >= 0:
-                print("Node %d: %s" % (inter_node_rank, m))
+                print("[%8.1fs] %d: %s" % (time.time()-time_start, inter_node_rank, m))
 
         # Find the region we need to read in
         if comm_rank == 0:
-            pos_min = np.amin(self.centres, axis=0) - self.search_radius
-            pos_max = np.amax(self.centres, axis=0) + self.search_radius
+            pos_min = np.amin(self.centres.full, axis=0) - self.search_radius
+            pos_max = np.amax(self.centres.full, axis=0) + self.search_radius
         else:
             pos_min = None
             pos_max = None
@@ -179,51 +182,56 @@ class ChunkMasterTask:
         t1_mesh = time.time()
         message("constructing shared mesh took %.1fs" % (t1_mesh-t0_mesh))
 
-        # Make a list of halo tasks to process, in descending order of radius
+        # Calculate the halo properties
+        #result = process_halos(comm, data, mesh, self.halo_prop_list, a, z, cosmo,
+        #                       self.indexes, self.centres, self.radii)
+        result = []
+        message("all halos in chunk processed")
+
+        return result
+
+    @classmethod
+    def bcast(cls, comm, instance):
+        """
+        Broadcast a class instance over communicator comm.
+        instance is only significant on rank 0. Other ranks
+        don't have an instance yet, so this is a class method.
+        """
+
+        comm_rank = comm.Get_rank()
+
+        # Create a class instance on ranks which don't have one
         if comm_rank == 0:
-            order = np.argsort(-self.radii)
-            tasks = []
-            for i in range(len(order)):
-                j = order[i]
-                tasks.append(halo_tasks.HaloTask(self.indexes[j], self.centres[j,:], self.radii[j]))
-            nr_tasks = len(tasks)
+            self = instance
         else:
-            tasks = None
-            nr_tasks = 0
+            self = cls()
 
-        message("start %d halo tasks on %d MPI ranks" % (nr_tasks, comm_size))
+        # Share the data arrays
+        def share_array(arr):
+            if comm_rank == 0:
+                shape = list(arr.shape)
+                dtype = arr.dtype
+                if hasattr(arr, "unit"):
+                    unit = arr.unit
+                else:
+                    unit = None
+            else:
+                shape = None
+                dtype = None
+                unit = None
+            shape, dtype, unit = comm.bcast((shape, dtype, unit))
+            if comm_rank > 0:
+                shape[0] = 0
+            shared_arr = shared_array.SharedArray(shape, dtype, comm, unit)
+            if comm_rank == 0:
+                shared_arr.full[...] = arr[...]
+            shared_arr.sync()
+            return shared_arr
 
-        # Execute the tasks
-        results, timing = task_queue.execute_tasks_shared(tasks, return_timing=True,
-                                                          args=(mesh, data, self.halo_prop_list, a, z, cosmo, halo_tasks.process_halo),
-                                                          comm_all=comm, comm_master=comm, comm_workers=MPI.COMM_SELF)
-        message("halo tasks took %.1fs (frac. dead time=%.2f, out of work=%.2f, wait for task=%.2f)" % 
-                (timing["elapsed"], timing["dead_time_fraction"], timing["out_of_work_fraction"], timing["wait_for_task_fraction"]))
+        self.indexes = share_array(self.indexes)
+        self.centres = share_array(self.centres)
+        self.radii   = share_array(self.radii)
+        self.search_radius = comm.bcast(self.search_radius)
+        self.halo_prop_list = comm.bcast(self.halo_prop_list)
 
-        # Combine task results into arrays:
-        # Each MPI rank will have a dict of arrays with the results for the halos
-        # it processed.
-        nr_halos = len(results)
-        result_arrays = {}
-        for halo_nr, result in enumerate(results):
-            for name, (value, description) in result.items():
-                if name not in result_arrays:
-                    arr = astropy.units.Quantity(-np.ones(nr_halos, dtype=float), unit=value.unit)
-                    result_arrays[name] = (arr, description)
-                result_arrays[name][0][halo_nr] = value
-
-        # Return the results
-        return result_arrays
-
-    def get_worker_task(self):
-        return ChunkWorkerTask(self.halo_prop_list)
-
-
-class ChunkWorkerTask(ChunkMasterTask):
-    """
-    This is just a ChunkMasterTask without the data arrays. This is the
-    version that gets broadcast to all MPI ranks executing the task,
-    so that we don't duplicate the halo catalogue to every rank.
-    """
-    def __init__(self, halo_prop_list):
-        self.halo_prop_list = halo_prop_list
+        return self

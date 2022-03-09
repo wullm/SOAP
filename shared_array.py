@@ -11,10 +11,11 @@ class SharedArray:
         
         self.comm = comm
         self.dtype = np.dtype(dtype)
+        self.win = None
 
         # Find the full size of the array
         n = comm.allreduce(local_shape[0])
-        full_shape = (n,)+local_shape[1:]
+        full_shape = (n,)+tuple(local_shape[1:])
 
         # Find amount of memory to allocate on this rank
         local_elements = 1
