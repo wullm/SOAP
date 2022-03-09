@@ -14,6 +14,9 @@ import numpy as np
 import h5py
 import astropy.units
 
+import virgo.mpi.parallel_hdf5 as phdf5
+import virgo.mpi.parallel_sort as ps
+
 import halo_centres
 import swift_cells
 import chunk_tasks
@@ -58,7 +61,7 @@ if __name__ == "__main__":
     comm_world.barrier()
     t0 = time.time()
     if comm_world_rank == 0:
-        print("Starting halo properties calculation")
+        print("Starting halo properties calculation on %d MPI ranks" % comm_world_size)
 
     # Make a list of properties to calculate
     halo_prop_list = [halo_properties.SOMasses(),]
@@ -96,7 +99,7 @@ if __name__ == "__main__":
     comm_world.barrier()
     t1 = time.time()
     if comm_world_rank == 0:
-        print("Reading VR catalogue and setting up chunks took %.1fs" % (t1-t0))
+        print("Reading VR catalogue and setting up %d chunks took %.1fs" % (len(tasks), t1-t0))
 
     # Periodic boundary is only implemented for tasks smaller than the full box
     for ptype in cellgrid.ptypes:
@@ -111,45 +114,65 @@ if __name__ == "__main__":
     intra_node_rank, intra_node_size = get_rank_and_size(comm_intra_node)
     inter_node_rank, inter_node_size = get_rank_and_size(comm_inter_node)
 
-    # Execute the tasks
+    # Execute the chunk tasks:
     result = task_queue.execute_tasks(tasks, args=(cellgrid, comm_intra_node, inter_node_rank),
                                       comm_all=comm_world, comm_master=comm_inter_node,
                                       comm_workers=comm_intra_node)
 
-    # Combine results
-    if comm_world_rank > 0:
+    # Make a communicator which only contains tasks which have results
+    colour = 0 if len(result) > 0 else 1
+    comm_have_results = MPI.COMM_WORLD.Split(colour, comm_world_rank)
+    
+    # Only tasks with results are involved in writing the output file
+    if len(result) > 0:
 
-        # Ranks>0 send their lists of results to rank 0
-        comm_world.send(result, 0)
-
-    elif comm_world_rank == 0:
-
-        # Rank 0 assembles full result set.
-        # First, receive list of results from each other task
-        result = []
-        for i in range(1, comm_world_size):
-            result += comm_world.recv(source=i)
-
-        # Then combine the results into one array per quantity
-        all_results = {}
+        # Combine results on this MPI rank so that we have one array per quantity calculated.
+        local_results = {}
         for name in result[0].keys():
             list_of_arrays = [r[name][0] for r in result]
             output_array   = np.concatenate(list_of_arrays)
             description    = result[0][name][1]
-            all_results[name] = [output_array, description]
+            local_results[name] = [output_array, description]
+        
+        # Get the full list of property names, in consistent order between ranks
+        if comm_have_results.Get_rank() == 0:
+            names = list(local_results.keys())
+        else:
+            names = None
+        names = comm_have_results.bcast(names)
 
         # Sort all arrays by halo index
-        idx = np.argsort(all_results["index"][0])
-        for name in all_results:
-            all_results[name][0] = all_results[name][0][idx,...]
+        comm_have_results.barrier()
+        t0_sort = time.time()
+        idx = ps.parallel_sort(local_results["index"][0], comm=comm_have_results, return_index=True)
+        for name in names:
+            if name != "index":
+                local_results[name][0] = ps.fetch_elements(local_results[name][0], idx, comm=comm_have_results)
+        del idx
+        comm_have_results.barrier()
+        t1_sort = time.time()
+        if comm_have_results.Get_rank() == 0:
+            print("Sorting output arrays took %.2fs" % (t1_sort-t0_sort))
 
-        # And write the output file
-        with h5py.File(args["outfile"], "w") as outfile:
-            for name, (data, description) in all_results.items():
-                outfile[name] = data
-                outfile[name].attrs["Description"] = description
-                if hasattr(data, "unit"):
-                    swift_units.write_unit_attributes(outfile[name], data.unit)
+        # Open the output file in collective mode
+        comm_have_results.barrier()
+        t0_write = time.time()
+        outfile = h5py.File(args["outfile"], "w", driver="mpio", comm=comm_have_results)
+
+        # Loop over output quantities
+        for name in names:
+            data, description = local_results[name]
+            phdf5.collective_write(outfile, name, data, comm_have_results)
+            if hasattr(data, "unit"):
+                swift_units.write_unit_attributes(outfile[name], data.unit)
+            outfile[name].attrs["Description"] = description
+            
+        # Finished writing the output
+        outfile.close()
+        comm_have_results.barrier()
+        t1_write = time.time()
+        if comm_have_results.Get_rank() == 0:
+            print("Writing output took %.2fs" % (t1_write-t0_write))
 
     # Stop the clock
     comm_world.barrier()
