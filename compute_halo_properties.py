@@ -121,7 +121,7 @@ if __name__ == "__main__":
 
     # Make a communicator which only contains tasks which have results
     colour = 0 if len(result) > 0 else 1
-    comm_have_results = MPI.COMM_WORLD.Split(colour, comm_world_rank)
+    comm_have_results = comm_world.Split(colour, comm_world_rank)
     
     # Only tasks with results are involved in writing the output file
     if len(result) > 0:
