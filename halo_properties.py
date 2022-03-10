@@ -22,6 +22,12 @@ class SOMasses(HaloProperty):
         "PartType5" : ["Coordinates", "DynamicalMasses"]
     }
 
+    # This specifies how large a sphere is read in:
+    # Will ensure we have a sphere with a mean density less than
+    # or equal to the minimum of these densities.
+    mean_density_multiple     = 200.0
+    critical_density_multiple = 200.0
+
     def calculate(self, cosmo, a, z, centre, data):
         """
         Compute spherical masses and overdensities for a halo

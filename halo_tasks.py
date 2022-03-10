@@ -23,7 +23,21 @@ def process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
     
     # Compute density threshold at this redshift in comoving units:
     # This determines the size of the sphere we use for all other SO quantities.
-    target_density = 50*cosmo.critical_density(z)*(a**3.0)
+    # We need to find the minimum density required for any of the halo property
+    # calculations
+    target_density = None
+    critical_density = cosmo.critical_density(z)*(a**3.0)
+    mean_density = critical_density * cosmo.Om(z)
+    for halo_prop in halo_prop_list:
+        # Ensure target density is no greater than mean density multiple
+        density = halo_prop.mean_density_multiple*mean_density
+        if target_density is None or density < target_density:
+            target_density = density
+        # Ensure target density is no greater than critical density multiple
+        density = halo_prop.critical_density_multiple*critical_density
+        if target_density is None or density < target_density:
+            target_density = density
+    assert target_density is not None
 
     # Loop until search radius is large enough
     search_radius = initial_search_radius
