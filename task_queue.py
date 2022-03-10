@@ -168,7 +168,7 @@ def execute_tasks(tasks, args, comm_all, comm_master, comm_workers,
             if hasattr(task_class, "bcast"):
                 # Task implements it's own broadcast
                 task = task_class.bcast(comm_workers_local, instance)
-            else:
+            elif comm_workers_local.Get_size() > 1:
                 # Use generic mpi4py broadcast
                 task = comm_workers_local.bcast(task)
 
