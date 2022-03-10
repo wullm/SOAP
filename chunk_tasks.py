@@ -26,14 +26,12 @@ class ChunkTaskList:
     def __init__(self, cellgrid, so_cat, search_radius, chunks_per_dimension,
                  halo_prop_list):
 
-        # Determine size of a task. Must be at least one top level cell.
-        cells_per_task = max(1, cellgrid.dimension[0] // chunks_per_dimension)
-
         # Find size of volume associated with each task
-        task_size = cellgrid.cell_size[0]*cells_per_task
+        task_size = cellgrid.boxsize / chunks_per_dimension
         
         # For each centre, determine integer coords in task grid
         ipos = np.floor(so_cat.centre / task_size).to(1).value.astype(int)
+        ipos = np.clip(ipos, 0, chunks_per_dimension-1)
 
         # Generate a task ID for each halo
         nx = np.amax(ipos[:,0]) + 1
@@ -259,3 +257,42 @@ class ChunkTask:
         self.shared = True
 
         return self
+
+    def send(self, comm, dest, tag):
+
+        # Send small parameters via pickling
+        comm.send(len(self.indexes), dest, tag)
+        comm.send(self.search_radius, dest, tag)
+        comm.send(self.halo_prop_list, dest, tag)
+        comm.send((self.indexes.dtype, self.centres.dtype, self.radii.dtype), dest, tag)
+        comm.send((self.centres.unit, self.radii.unit), dest, tag)
+
+        # Send large data arrays using buffer method
+        comm.Send(self.indexes, dest, tag)
+        comm.Send(self.centres, dest, tag)
+        comm.Send(self.radii,   dest, tag)
+        
+    @classmethod
+    def recv(cls, comm, src, tag):
+        
+        # Receive small parameters
+        nr_halos = comm.recv(source=src, tag=tag)
+        if nr_halos is None:
+            return None
+        search_radius = comm.recv(source=src, tag=tag)
+        halo_prop_list = comm.recv(source=src, tag=tag)        
+        index_dtype, centre_dtype, radius_dtype = comm.recv(source=src, tag=tag)
+        centre_unit, radius_unit = comm.recv(source=src, tag=tag)
+
+        # Allocate arrays
+        indexes = np.ndarray(nr_halos, dtype=index_dtype)
+        centres = astropy.units.Quantity(np.ndarray((nr_halos, 3), dtype=centre_dtype), unit=centre_unit)
+        radii   = astropy.units.Quantity(np.ndarray(nr_halos, dtype=radius_dtype), unit=radius_unit)
+        
+        # Receive arrays
+        comm.Recv(indexes, source=src, tag=tag)
+        comm.Recv(centres, source=src, tag=tag)
+        comm.Recv(radii, source=src, tag=tag)
+
+        # Construct the class instance
+        return cls(indexes, centres, radii, search_radius, halo_prop_list)

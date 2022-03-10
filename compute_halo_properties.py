@@ -116,7 +116,7 @@ if __name__ == "__main__":
     # Execute the chunk tasks
     result = task_queue.execute_tasks(tasks, args=(cellgrid, comm_intra_node, inter_node_rank),
                                       comm_all=comm_world, comm_master=comm_inter_node,
-                                      comm_workers=comm_intra_node)
+                                      comm_workers=comm_intra_node, task_type=chunk_tasks.ChunkTask)
 
     # Make a communicator which only contains tasks which have results
     colour = 0 if len(result) > 0 else 1

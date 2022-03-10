@@ -29,7 +29,7 @@ def sleepy_recv(comm, tag):
         delay = min(max_delay, delay*2)
         time.sleep(delay)
 
-def distribute_tasks(tasks, comm):
+def distribute_tasks(tasks, comm, task_type):
     """
     Listen for and respond to requests for tasks to do
     """
@@ -40,7 +40,12 @@ def distribute_tasks(tasks, comm):
     while nr_done < comm_size:
         request_src = sleepy_recv(comm, REQUEST_TASK_TAG)
         if next_task < nr_tasks:
-            comm.send(tasks[next_task], request_src, tag=ASSIGN_TASK_TAG)
+            if task_type is None:
+                # Use generic mpi4py send
+                comm.send(tasks[next_task], request_src, tag=ASSIGN_TASK_TAG)
+            else:
+                # Task provides its own send method
+                tasks[next_task].send(comm, request_src, tag=ASSIGN_TASK_TAG)
             next_task += 1
         else:
             comm.send(None, request_src, tag=ASSIGN_TASK_TAG)
@@ -78,7 +83,8 @@ def distribute_tasks_with_queue_per_rank(tasks, comm):
             nr_done += 1
 
 def execute_tasks(tasks, args, comm_all, comm_master, comm_workers,
-                  queue_per_rank=False, return_timing=False):
+                  queue_per_rank=False, return_timing=False,
+                  task_type=None):
     """
     Execute the tasks in tasks, which should be a sequence of
     callables which each return a result. Task objects are
@@ -129,11 +135,13 @@ def execute_tasks(tasks, args, comm_all, comm_master, comm_workers,
     # First rank in comm_master starts a thread to hand out tasks
     if master_rank == 0:
         if queue_per_rank:
+            if task_type is not None:
+                raise NotImplementedError("Can't specify task type with queue per rank")
             task_queue_thread = threading.Thread(target=distribute_tasks_with_queue_per_rank,
                                                  args=(tasks, comm_master_local))
         else:
             task_queue_thread = threading.Thread(target=distribute_tasks,
-                                                 args=(tasks, comm_master_local))
+                                                 args=(tasks, comm_master_local, task_type))
         task_queue_thread.start()
 
     # Request and run tasks until there are none left
@@ -149,7 +157,12 @@ def execute_tasks(tasks, args, comm_all, comm_master, comm_workers,
         # which doesn't need to be duplicated to all ranks.
         if worker_rank == 0:
             comm_master_local.send(master_rank, 0, tag=REQUEST_TASK_TAG)
-            task = comm_master_local.recv(tag=ASSIGN_TASK_TAG)
+            if task_type is None:
+                # generic recv
+                task = comm_master_local.recv(tag=ASSIGN_TASK_TAG)
+            else:
+                # task provides its own recv
+                task = task_type.recv(comm_master_local, 0, ASSIGN_TASK_TAG)
         else:
             task = None
 
