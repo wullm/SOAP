@@ -103,6 +103,9 @@ if __name__ == "__main__":
     if comm_world_rank == 0:
         print("Reading %d VR halos and setting up %d chunks took %.1fs" % (so_cat.nr_halos, len(tasks), t1-t0))
 
+    # We no longer need the VR catalogue, since halo centres etc are stored in the chunk tasks
+    del so_cat
+
     # Periodic boundary is only implemented for tasks smaller than the full box
     for ptype in cellgrid.ptypes:
         for i in range(3):
