@@ -14,8 +14,7 @@ class SOCatalogue:
 
         comm_rank = comm.Get_rank()
 
-        datasets = ("Xcminpot", "Ycminpot", "Zcminpot",
-                    "Mass_tot", "R_size")
+        datasets = ("Xcminpot", "Ycminpot", "Zcminpot", "R_size")
 
         # Check for single file VR output - will prefer filename without
         # extension if both are present
@@ -28,7 +27,7 @@ class SOCatalogue:
             filenames = None
         filenames = comm.bcast(filenames)
 
-        # Read in position, mass and radius of each halo, distributed over all MPI ranks
+        # Read in position and radius of each halo, distributed over all MPI ranks
         mf = phdf5.MultiFile(filenames, file_nr_dataset="Num_of_files")
         data = mf.read(datasets)
         
@@ -41,7 +40,6 @@ class SOCatalogue:
         local_centre[:,1] = y
         local_centre[:,2] = z
         local_r_size = data["R_size"]
-        local_mass_tot = data["Mass_tot"]
 
         # Extract unit information from the first file
         if comm_rank == 0:
@@ -75,17 +73,14 @@ class SOCatalogue:
         # Convert units
         local_centre   *= length_conversion
         local_r_size   *= length_conversion
-        local_mass_tot *= mass_conversion
 
         # Gather arrays on rank zero
-        self.mass_tot = g.gather_array(local_mass_tot)
         self.r_size   = g.gather_array(local_r_size)
         self.centre   = g.gather_array(local_centre)
 
         # Add units
         if comm_rank == 0:
-            self.nr_halos = self.mass_tot.shape[0]
+            self.nr_halos = self.r_size.shape[0]
             self.index    = np.arange(self.nr_halos, dtype=int)
-            self.mass_tot = astropy.units.Quantity(self.mass_tot, unit=mass_unit, copy=False)
             self.r_size   = astropy.units.Quantity(self.r_size, unit=length_unit, copy=False)
             self.centre   = astropy.units.Quantity(self.centre, unit=length_unit, copy=False)
