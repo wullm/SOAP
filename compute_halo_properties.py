@@ -53,7 +53,7 @@ if __name__ == "__main__":
     if comm_world_rank == 0:
         args["swift_filename"] = sys.argv[1] # Name of one snapshot file
         args["vr_basename"]    = sys.argv[2] # Name of properties file, minus the trailing .N
-        args["cells_per_task"] = int(sys.argv[3]) # 1D size of each task in top level cells
+        args["chunks_per_dimension"] = int(sys.argv[3]) # Number of chunks to divide volume into
         args["outfile"]        = sys.argv[4] # Name of the output file
     args = comm_world.bcast(args)
 
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     # Generate the chunk task list
     if comm_world_rank == 0:
         task_list = chunk_tasks.ChunkTaskList(cellgrid, so_cat, search_radius=search_radius,
-                                              cells_per_task=args["cells_per_task"],
+                                              chunks_per_dimension=args["chunks_per_dimension"],
                                               halo_prop_list=halo_prop_list)
         tasks = task_list.tasks
     else:
@@ -105,12 +105,6 @@ if __name__ == "__main__":
 
     # We no longer need the VR catalogue, since halo centres etc are stored in the chunk tasks
     del so_cat
-
-    # Periodic boundary is only implemented for tasks smaller than the full box
-    for ptype in cellgrid.ptypes:
-        for i in range(3):
-            if args["cells_per_task"] > cellgrid.cell[ptype].shape[i]/2:
-                raise Exception("cells_per_task is too large!")
 
     # Split MPI ranks according to which node they are on.
     # Only the first rank on each node belongs to comm_inter_node.

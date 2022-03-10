@@ -23,14 +23,17 @@ class ChunkTaskList:
     """
     Stores a list of ChunkTasks to be executed.
     """
-    def __init__(self, cellgrid, so_cat, search_radius, cells_per_task,
+    def __init__(self, cellgrid, so_cat, search_radius, chunks_per_dimension,
                  halo_prop_list):
-                
+
+        # Determine size of a task. Must be at least one top level cell.
+        cells_per_task = max(1, cellgrid.dimension[0] // chunks_per_dimension)
+
         # Find size of volume associated with each task
         task_size = cellgrid.cell_size[0]*cells_per_task
         
         # For each centre, determine integer coords in task grid
-        ipos = np.floor(so_cat.centre / task_size).value.astype(int)
+        ipos = np.floor(so_cat.centre / task_size).to(1).value.astype(int)
 
         # Generate a task ID for each halo
         nx = np.amax(ipos[:,0]) + 1

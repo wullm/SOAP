@@ -21,8 +21,8 @@ class SharedMesh:
         comm_rank = comm.Get_rank()
 
         # First, we need to establish a bounding box for the particles
-        pos_min_local = np.amin(pos.local.value, axis=0)
-        pos_max_local = np.amax(pos.local.value, axis=0)
+        pos_min_local = np.amin(pos.local, axis=0)
+        pos_max_local = np.amax(pos.local, axis=0)
         self.pos_min = pos_min_local.copy()
         comm.Allreduce(pos_min_local, self.pos_min, op=MPI.MIN)
         self.pos_max = pos_max_local.copy()
@@ -34,7 +34,7 @@ class SharedMesh:
         self.cell_size = (self.pos_max-self.pos_min)/self.resolution
 
         # Determine which cell each particle in the local part of pos belongs to
-        cell_idx = np.floor((pos.local.value-self.pos_min[None,:])/self.cell_size[None,:]).astype(np.int32)
+        cell_idx = np.floor((pos.local-self.pos_min[None,:])/self.cell_size[None,:]).to(1).value.astype(np.int32)
         cell_idx = np.clip(cell_idx, 0, self.resolution-1)
         cell_idx = cell_idx[:,0] + self.resolution*cell_idx[:,1] + (self.resolution**2)*cell_idx[:,2]
 
@@ -85,11 +85,6 @@ class SharedMesh:
         different MPI ranks since it only reads the shared data.
         """
         
-        if hasattr(pos_min, "value"):
-            pos_min = pos_min.value
-        if hasattr(pos_max, "value"):
-            pos_max = pos_max.value
-
         # Find range of cells involved
         cell_min_idx = np.floor((pos_min-self.pos_min)/self.cell_size).astype(np.int32)
         cell_min_idx = np.clip(cell_min_idx, 0, self.resolution-1)
@@ -123,11 +118,6 @@ class SharedMesh:
         
         pos_min = centre - radius
         pos_max = centre + radius
-
-        if hasattr(pos_min, "value"):
-            pos_min = pos_min.value
-        if hasattr(pos_max, "value"):
-            pos_max = pos_max.value
 
         # Find range of cells involved
         cell_min_idx = np.floor((pos_min-self.pos_min)/self.cell_size).astype(np.int32)
@@ -167,20 +157,15 @@ class SharedMesh:
         pos_min = centre - radius
         pos_max = centre + radius
 
-        if hasattr(pos_min, "value"):
-            pos_min = pos_min.value
-        if hasattr(pos_max, "value"):
-            pos_max = pos_max.value
-
         # Find range of cells involved
-        cell_min_idx = np.floor((pos_min-self.pos_min)/self.cell_size).astype(np.int32)
-        cell_max_idx = np.floor((pos_max-self.pos_min)/self.cell_size).astype(np.int32)
+        cell_min_idx = np.floor((pos_min-self.pos_min)/self.cell_size).to(1).astype(np.int32).value
+        cell_max_idx = np.floor((pos_max-self.pos_min)/self.cell_size).to(1).astype(np.int32).value
 
         def wrap_coord(dim, i):
             if i < 0:
-                return np.floor(((i+0.5)*self.cell_size[dim]+boxsize)/self.cell_size[dim]).astype(np.int32)
+                return np.floor(((i+0.5)*self.cell_size[dim]+boxsize)/self.cell_size[dim]).to(1).astype(np.int32).value
             elif i >= self.resolution:
-                return np.floor(((i+0.5)*self.cell_size[dim]-boxsize)/self.cell_size[dim]).astype(np.int32)
+                return np.floor(((i+0.5)*self.cell_size[dim]-boxsize)/self.cell_size[dim]).to(1).astype(np.int32).value
             else:
                 return i
 
