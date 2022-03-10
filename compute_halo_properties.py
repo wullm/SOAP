@@ -15,7 +15,7 @@ import h5py
 import astropy.units
 
 import virgo.mpi.parallel_hdf5 as phdf5
-import virgo.mpi.parallel_sort as ps
+import virgo.mpi.parallel_sort as psort
 
 import halo_centres
 import swift_cells
@@ -66,40 +66,42 @@ if __name__ == "__main__":
     # Make a list of properties to calculate
     halo_prop_list = [halo_properties.SOMasses(),]
 
-    # Rank zero reads the halo positions and generates a list of tasks
+    # Open the snapshot and read SWIFT cell structure, units etc
     if comm_world_rank == 0:
-
-        # Read SWIFT cells
         cellgrid = swift_cells.SWIFTCellGrid(args["swift_filename"])
         parsec_cgs = cellgrid.constants["parsec"]
         solar_mass_cgs = cellgrid.constants["solar_mass"]
         a = cellgrid.a
+    else:
+        cellgrid = None
+        parsec_cgs = None
+        solar_mass_cgs = None
+        a = None
+    cellgrid, parsec_cgs, solar_mass_cgs, a = comm_world.bcast((cellgrid, parsec_cgs, solar_mass_cgs, a))
 
-        # Read the halo catalogue
-        so_cat = halo_centres.SOCatalogue(args["vr_basename"], a, parsec_cgs, solar_mass_cgs)
+    # Read in the halo catalogue:
+    # All ranks read the file(s) in then gather to rank 0
+    so_cat = halo_centres.SOCatalogue(comm_world, args["vr_basename"], a, parsec_cgs, solar_mass_cgs)
 
-        # Decide on search radius
-        Mpc = astropy.units.cm * 1e6 * parsec_cgs
-        max_halo_radius = 10.0*Mpc
-        search_radius = max_halo_radius + 0.5*np.amax(cellgrid.cell_size)
+    # Decide on maximum search radius around any halo
+    Mpc = astropy.units.cm * 1e6 * parsec_cgs
+    max_halo_radius = 10.0*Mpc
+    search_radius = max_halo_radius + 0.5*np.amax(cellgrid.cell_size)
 
-        # Generate task list
+    # Generate the chunk task list
+    if comm_world_rank == 0:
         task_list = chunk_tasks.ChunkTaskList(cellgrid, so_cat, search_radius=search_radius,
                                               cells_per_task=args["cells_per_task"],
                                               halo_prop_list=halo_prop_list)
         tasks = task_list.tasks
     else:
-        cellgrid = None
         tasks = None
-
-    # All ranks will need the cell grid
-    cellgrid = comm_world.bcast(cellgrid)
 
     # Report initial set-up time
     comm_world.barrier()
     t1 = time.time()
     if comm_world_rank == 0:
-        print("Reading VR catalogue and setting up %d chunks took %.1fs" % (len(tasks), t1-t0))
+        print("Reading %d VR halos and setting up %d chunks took %.1fs" % (so_cat.nr_halos, len(tasks), t1-t0))
 
     # Periodic boundary is only implemented for tasks smaller than the full box
     for ptype in cellgrid.ptypes:
@@ -144,10 +146,10 @@ if __name__ == "__main__":
         # Sort all arrays by halo index
         comm_have_results.barrier()
         t0_sort = time.time()
-        idx = ps.parallel_sort(local_results["index"][0], comm=comm_have_results, return_index=True)
+        idx = psort.parallel_sort(local_results["index"][0], comm=comm_have_results, return_index=True)
         for name in names:
             if name != "index":
-                local_results[name][0] = ps.fetch_elements(local_results[name][0], idx, comm=comm_have_results)
+                local_results[name][0] = psort.fetch_elements(local_results[name][0], idx, comm=comm_have_results)
         del idx
         comm_have_results.barrier()
         t1_sort = time.time()

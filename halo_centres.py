@@ -1,34 +1,58 @@
 #!/bin/env python
 
+import os.path
 import h5py
 import numpy as np
 import astropy.units
+import virgo.mpi.parallel_hdf5 as phdf5
+import virgo.mpi.gather_array as g
+
 
 class SOCatalogue:
 
-    def __init__(self, vr_basename, a, parsec_cgs, solar_mass_cgs):
+    def __init__(self, comm, vr_basename, a, parsec_cgs, solar_mass_cgs):
+
+        comm_rank = comm.Get_rank()
 
         datasets = ("Xcminpot", "Ycminpot", "Zcminpot",
                     "Mass_tot", "R_size")
-        data = {name : [] for name in datasets}
 
-        # Read in position, mass and radius of each halo
-        nr_files = 1
-        file_nr = 0
-        while file_nr < nr_files:
-            fname = vr_basename + (".%d" % file_nr)
-            with h5py.File(fname, "r") as infile:
-                if file_nr == 0:
-                    nr_files = infile["Num_of_files"][0]
-                    units = dict(infile["UnitInfo"].attrs)
-                    siminfo = dict(infile["SimulationInfo"].attrs)
-                for name in data:
-                    data[name].append(infile[name][...])
-            file_nr +=1
+        # Check for single file VR output - will prefer filename without
+        # extension if both are present
+        if comm_rank == 0:
+            if os.path.exists(vr_basename):
+                filenames = vr_basename
+            else:
+                filenames = vr_basename+".%(i)d"
+        else:
+            filenames = None
+        filenames = comm.bcast(filenames)
 
-        # Combine and store arrays
-        for name in data:
-            data[name] = np.concatenate(data[name])
+        # Read in position, mass and radius of each halo, distributed over all MPI ranks
+        mf = phdf5.MultiFile(filenames, file_nr_dataset="Num_of_files")
+        data = mf.read(datasets)
+        
+        # Combine positions into one array
+        x = data["Xcminpot"]
+        y = data["Ycminpot"]
+        z = data["Zcminpot"]
+        local_centre = np.ndarray((x.shape[0], 3), dtype=x.dtype)
+        local_centre[:,0] = x
+        local_centre[:,1] = y
+        local_centre[:,2] = z
+        local_r_size = data["R_size"]
+        local_mass_tot = data["Mass_tot"]
+
+        # Extract unit information from the first file
+        if comm_rank == 0:
+            filename = filenames % {"i" : 0}
+            with h5py.File(filename, "r") as infile:
+                units = dict(infile["UnitInfo"].attrs)
+                siminfo = dict(infile["SimulationInfo"].attrs)
+        else:
+            units = None
+            siminfo = None
+        units, siminfo = comm.bcast((units, siminfo))
 
         # Compute conversion factors to comoving Mpc and Msolar (no h in either)
         comoving_or_physical = int(units["Comoving_or_Physical"])
@@ -48,15 +72,20 @@ class SOCatalogue:
         mass_unit = astropy.units.g * solar_mass_cgs
         length_unit = astropy.units.cm * 1.0e6 * parsec_cgs
 
-        # Read the data
-        self.nr_halos = data["Mass_tot"].shape[0]
-        self.mass_tot = astropy.units.Quantity(data["Mass_tot"] * mass_conversion, unit=mass_unit)
-        self.r_size   = astropy.units.Quantity(data["R_size"] * length_conversion, unit=length_unit)
-        self.centre   = astropy.units.Quantity(np.ndarray((self.nr_halos,3), dtype=data["Xcminpot"].dtype), unit=length_unit)
-        self.centre[:,0] = data["Xcminpot"] * length_conversion * length_unit
-        self.centre[:,1] = data["Ycminpot"] * length_conversion * length_unit
-        self.centre[:,2] = data["Zcminpot"] * length_conversion * length_unit
-        self.index = np.arange(self.nr_halos, dtype=int)
-        del data
+        # Convert units
+        local_centre   *= length_conversion
+        local_r_size   *= length_conversion
+        local_mass_tot *= mass_conversion
 
-    
+        # Gather arrays on rank zero
+        self.mass_tot = g.gather_array(local_mass_tot)
+        self.r_size   = g.gather_array(local_r_size)
+        self.centre   = g.gather_array(local_centre)
+
+        # Add units
+        if comm_rank == 0:
+            self.nr_halos = self.mass_tot.shape[0]
+            self.index    = np.arange(self.nr_halos, dtype=int)
+            self.mass_tot = astropy.units.Quantity(self.mass_tot, unit=mass_unit, copy=False)
+            self.r_size   = astropy.units.Quantity(self.r_size, unit=length_unit, copy=False)
+            self.centre   = astropy.units.Quantity(self.centre, unit=length_unit, copy=False)
