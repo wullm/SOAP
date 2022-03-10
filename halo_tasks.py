@@ -9,7 +9,8 @@ import time
 
 
 def process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
-                        boxsize, index, centre, initial_search_radius):
+                        boxsize, max_halo_radius, index, centre,
+                        initial_search_radius):
     """
     This computes properties for one halo and runs on a single
     MPI rank. Result is a dict of properties of the form
@@ -60,6 +61,10 @@ def process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
             search_radius *= 1.2
             del idx
 
+    # Check we didn't exceed the region we read in
+    if search_radius > max_halo_radius:
+        raise Exception("Search radius for halo is too large!")
+
     # Extract particles in this halo
     halo_data = {}
     for ptype in data:
@@ -86,7 +91,7 @@ def process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
 
 
 def process_halos(comm, data, mesh, halo_prop_list, a, z, cosmo,
-                  boxsize, indexes, centres, radii):
+                  boxsize, max_halo_radius, indexes, centres, radii):
     
     # Allocate shared storage for a single integer and initialize to zero
     if comm.Get_rank() == 0:
@@ -120,8 +125,8 @@ def process_halos(comm, data, mesh, halo_prop_list, a, z, cosmo,
         if task_to_do < nr_halos:
             t0_task = time.time()
             results.append(process_single_halo(mesh, data, halo_prop_list, a, z, cosmo, boxsize,
-                                               indexes.full[task_to_do], centres.full[task_to_do,:],
-                                               radii.full[task_to_do]))
+                                               max_halo_radius, indexes.full[task_to_do],
+                                               centres.full[task_to_do,:], radii.full[task_to_do]))
             t1_task = time.time()
             task_time += (t1_task-t0_task)
         else:

@@ -114,7 +114,7 @@ if __name__ == "__main__":
     inter_node_rank, inter_node_size = get_rank_and_size(comm_inter_node)
 
     # Execute the chunk tasks
-    result = task_queue.execute_tasks(tasks, args=(cellgrid, comm_intra_node, inter_node_rank),
+    result = task_queue.execute_tasks(tasks, args=(cellgrid, comm_intra_node, inter_node_rank, max_halo_radius),
                                       comm_all=comm_world, comm_master=comm_inter_node,
                                       comm_workers=comm_intra_node, task_type=chunk_tasks.ChunkTask)
 
