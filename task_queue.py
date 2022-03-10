@@ -157,7 +157,7 @@ def execute_tasks(tasks, args, comm_all, comm_master, comm_workers,
         # First they all need to know whether we have a task to do.
         task_not_none = int(task is not None)
         task_not_none = comm_workers_local.allreduce(task_not_none, MPI.MAX)
-        if task_not_none and comm_workers_local.Get_size() > 1:
+        if task_not_none:
             if worker_rank == 0:
                 task_class = type(task)
                 instance = task
@@ -165,7 +165,12 @@ def execute_tasks(tasks, args, comm_all, comm_master, comm_workers,
                 task_class = None
                 instance = None
             task_class = comm_workers_local.bcast(task_class)
-            task = task_class.bcast(comm_workers_local, instance)
+            if hasattr(task_class, "bcast"):
+                # Task implements it's own broadcast
+                task = task_class.bcast(comm_workers_local, instance)
+            else:
+                # Use generic mpi4py broadcast
+                task = comm_workers_local.bcast(task)
 
         # Accumulate time spent waiting for a task
         wait_time_t1 = time.time()
