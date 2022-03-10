@@ -187,7 +187,7 @@ class ChunkTask:
         t0_halos = time.time()
         nr_halos = len(self.indexes.full)
         result, dead_time_fraction = process_halos(comm, data, mesh, self.halo_prop_list, a, z, cosmo,
-                                                   self.indexes, self.centres, self.radii)
+                                                   boxsize, self.indexes, self.centres, self.radii)
         t1_halos = time.time()
         message("processing %d halos on %d ranks took %.1fs (dead time frac.=%.2f)" % (nr_halos, comm_size,
                                                                                        t1_halos-t0_halos, dead_time_fraction))

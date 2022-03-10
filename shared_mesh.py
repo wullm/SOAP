@@ -155,3 +155,64 @@ class SharedMesh:
             return np.concatenate(idx)
         else:
             return np.ndarray(0, dtype=int)
+
+    def query_radius_periodic(self, centre, radius, pos, boxsize):
+        """
+        Return indexes of particles which are in a sphere defined by
+        centre and radius. pos should be the coordinates used to build
+        the mesh. This can be called independently on different MPI ranks
+        since it only reads the shared data.
+        """
+        
+        pos_min = centre - radius
+        pos_max = centre + radius
+
+        if hasattr(pos_min, "value"):
+            pos_min = pos_min.value
+        if hasattr(pos_max, "value"):
+            pos_max = pos_max.value
+
+        # Find range of cells involved
+        cell_min_idx = np.floor((pos_min-self.pos_min)/self.cell_size).astype(np.int32)
+        cell_max_idx = np.floor((pos_max-self.pos_min)/self.cell_size).astype(np.int32)
+
+        def wrap_coord(dim, i):
+            if i < 0:
+                return np.floor(((i+0.5)*self.cell_size[dim]+boxsize)/self.cell_size[dim]).astype(np.int32)
+            elif i >= self.resolution:
+                return np.floor(((i+0.5)*self.cell_size[dim]-boxsize)/self.cell_size[dim]).astype(np.int32)
+            else:
+                return i
+
+        def periodic_distance_squared(pos, centre):
+            dr = pos - centre[None, :]
+            dr[dr >  0.5*boxsize] -= boxsize
+            dr[dr < -0.5*boxsize] += boxsize
+            return np.sum(dr**2, axis=1)
+
+        # Get the indexes of particles in the required cells
+        idx = []
+        for k in range(cell_min_idx[2], cell_max_idx[2]+1):
+            kk = wrap_coord(2, k)
+            if kk >=0 and kk < self.resolution:
+                for j in range(cell_min_idx[1], cell_max_idx[1]+1):
+                    jj = wrap_coord(1, j)
+                    if jj >=0 and jj < self.resolution:
+                        for i in range(cell_min_idx[0], cell_max_idx[0]+1):
+                            ii = wrap_coord(0, i)
+                            if ii >=0 and ii < self.resolution:
+                                cell_nr = ii+self.resolution*jj+(self.resolution**2)*kk
+                                start = self.cell_offset.full[cell_nr]
+                                count = self.cell_count.full[cell_nr]
+                                if count > 0:
+                                    idx_in_cell = self.sort_idx.full[start:start+count]
+                                    r2 = periodic_distance_squared(pos.full[idx_in_cell, :], centre)
+                                    keep = (r2 <= radius*radius)
+                                    if np.sum(keep) > 0:
+                                        idx.append(idx_in_cell[keep])
+        
+        # Return a single array of indexes
+        if len(idx) > 0:
+            return np.concatenate(idx)
+        else:
+            return np.ndarray(0, dtype=int)
