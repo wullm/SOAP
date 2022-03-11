@@ -87,6 +87,11 @@ def process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
     # Add the halo index to the result set
     halo_result["index"] = (u.Quantity(index, unit=None, dtype=np.int64), "Index of this halo in the input catalogue")
 
+    # Store search radius and density within that radius
+    halo_result["search_radius"] = (search_radius, "Search radius for property calculation")
+    halo_result["density_in_search_radius"] = (density, "Density within the search radius")
+    halo_result["target_density"] = (target_density, "Target density for property calculation")
+
     return halo_result
 
 
@@ -141,7 +146,7 @@ def process_halos(comm, data, mesh, halo_prop_list, a, z, cosmo,
     for halo_nr, result in enumerate(results):
         for name, (value, description) in result.items():
             if name not in result_arrays:
-                arr = astropy.units.Quantity(-np.ones(nr_halos, dtype=value.dtype), unit=value.unit, dtype=value.dtype)
+                arr = np.empty_like(value, shape=nr_halos)
                 result_arrays[name] = (arr, description)
             result_arrays[name][0][halo_nr] = value
 
