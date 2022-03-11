@@ -85,7 +85,7 @@ if __name__ == "__main__":
 
     # Decide on maximum search radius around any halo
     Mpc = astropy.units.cm * 1e6 * parsec_cgs
-    max_halo_radius = 10.0*Mpc
+    max_halo_radius = 20.0*Mpc
     search_radius = max_halo_radius + 0.5*np.amax(cellgrid.cell_size)
 
     # Generate the chunk task list
@@ -101,7 +101,7 @@ if __name__ == "__main__":
     comm_world.barrier()
     t1 = time.time()
     if comm_world_rank == 0:
-        print("Reading %d VR halos and setting up %d chunks took %.1fs" % (so_cat.nr_halos, len(tasks), t1-t0))
+        print("Reading %d VR halos and setting up %d chunk(s) took %.1fs" % (so_cat.nr_halos, len(tasks), t1-t0))
 
     # We no longer need the VR catalogue, since halo centres etc are stored in the chunk tasks
     del so_cat
@@ -129,10 +129,15 @@ if __name__ == "__main__":
         local_results = {}
         for name in result[0].keys():
             list_of_arrays = [r[name][0] for r in result]
-            output_array   = np.concatenate(list_of_arrays)
+            # Workaround for weird np.concatenate behaviour:
+            # Concatenating one astropy Quantity discards dtype information!
+            if len(list_of_arrays) > 1:
+                output_array = np.concatenate(list_of_arrays)
+            else:
+                output_array = list_of_arrays[0]
             description    = result[0][name][1]
             local_results[name] = [output_array, description]
-        
+
         # Get the full list of property names, in consistent order between ranks
         if comm_have_results.Get_rank() == 0:
             names = list(local_results.keys())
@@ -143,6 +148,7 @@ if __name__ == "__main__":
         # Sort all arrays by halo index
         comm_have_results.barrier()
         t0_sort = time.time()
+
         idx = psort.parallel_sort(local_results["index"][0], comm=comm_have_results, return_index=True)
         for name in names:
             if name != "index":
