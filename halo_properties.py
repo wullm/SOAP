@@ -3,6 +3,7 @@
 import numpy as np
 
 from dataset_names import mass_dataset
+import astropy.units as u
 
 class HaloProperty:
     def __init__(self):
@@ -52,6 +53,7 @@ class SOMasses(HaloProperty):
             radius.append(r)
         mass = np.concatenate(mass)
         radius = np.concatenate(radius)
+        nr_parts = mass.shape[0]
 
         # Sort by radius
         order = np.argsort(radius)
@@ -65,12 +67,21 @@ class SOMasses(HaloProperty):
         # Find critical density in comoving coordinates
         critical_density = cosmo.critical_density(z)*(a**3.0)
 
-        # Find smallest radius where the density is below the threshold
-        i = np.argmax(density < 200*critical_density)
+        # Check if we ever reach the density threshold
+        if nr_parts > 1 and np.any(density > 200*critical_density):
+            # Find smallest radius where the density is below the threshold,
+            # ignoring the first particle
+            i = np.argmax(density[1:] < 200*critical_density)
+            m200crit = cumulative_mass[1:][i]
+            r200crit = radius[1:][i]
+        else:
+            # Below threshold at all radii. Need to return zero with correct units attached.
+            m200crit = u.Quantity(0, dtype=cumulative_mass.dtype, unit=cumulative_mass.unit)
+            r200crit = u.Quantity(0, dtype=radius.dtype, unit=radius.unit)
 
         # Return value should be a dict containing astropy Quantities (i.e. with units)
         # and descriptions. The dict keys will be used as HDF5 dataset names in the output.
         return {
-            "r_200_crit" : (radius[i],          "Radius within which the density is 200 times the mean"),
-            "m_200_crit" : (cumulative_mass[i], "Mass within a sphere with density 200 times the mean"),
+            "r_200_crit" : (r200crit, "Radius within which the density is 200 times the mean"),
+            "m_200_crit" : (m200crit, "Mass within a sphere with density 200 times the mean"),
         }
