@@ -61,7 +61,7 @@ class SOMasses(HaloProperty):
         radius = radius[order]
 
         # Compute density within radius of each particle
-        cumulative_mass = np.cumsum(mass)
+        cumulative_mass = np.cumsum(mass, dtype=np.float64)
         density = cumulative_mass / (4./3.*np.pi*radius**3)
 
         # Find critical density in comoving coordinates

@@ -83,9 +83,16 @@ if __name__ == "__main__":
     # All ranks read the file(s) in then gather to rank 0
     so_cat = halo_centres.SOCatalogue(comm_world, args["vr_basename"], a, parsec_cgs, solar_mass_cgs)
 
+    # Find search radius
+    if comm_world_rank == 0:
+        max_halo_radius = np.amax(so_cat.r_size) * 1.5
+        print("Largest search radius = ", max_halo_radius)
+    else:
+        max_halo_radius = None
+    max_halo_radius = comm_world.bcast(max_halo_radius)
+
     # Decide on maximum search radius around any halo
     Mpc = astropy.units.cm * 1e6 * parsec_cgs
-    max_halo_radius = 20.0*Mpc
     search_radius = max_halo_radius + 0.5*np.amax(cellgrid.cell_size)
 
     # Generate the chunk task list
