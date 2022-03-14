@@ -153,9 +153,5 @@ def process_halos(comm, data, mesh, halo_prop_list, a, z, cosmo,
     # Stop the clock
     comm.barrier()
     t1_all = time.time()
-
-    # Measure dead time (i.e. time not doing halo calculations)
-    total_time = comm.allreduce(t1_all - t0_all)
-    dead_time  = total_time - comm.allreduce(task_time)
     
-    return result_arrays, dead_time/total_time
+    return result_arrays, t1_all-t0_all, task_time

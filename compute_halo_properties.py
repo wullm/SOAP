@@ -121,7 +121,8 @@ if __name__ == "__main__":
     inter_node_rank, inter_node_size = get_rank_and_size(comm_inter_node)
 
     # Execute the chunk tasks
-    result = task_queue.execute_tasks(tasks, args=(cellgrid, comm_intra_node, inter_node_rank, max_halo_radius),
+    timings = []
+    result = task_queue.execute_tasks(tasks, args=(cellgrid, comm_intra_node, inter_node_rank, max_halo_radius, timings),
                                       comm_all=comm_world, comm_master=comm_inter_node,
                                       comm_workers=comm_intra_node, task_type=chunk_tasks.ChunkTask)
 
@@ -189,6 +190,16 @@ if __name__ == "__main__":
     # Stop the clock
     comm_world.barrier()
     t1 = time.time()
+
+    # Find total time spent running tasks
+    if len(timings) > 0:
+        task_time_local = sum(timings)
+    else:
+        task_time_local = 0.0
+    task_time_total = comm_have_results.allreduce(task_time_local)
+    task_time_fraction = task_time_total / (comm_world_size*(t1-t0))
+    
     if comm_world_rank == 0:
+        print("Fraction of time spent calculating halo properties = %.2f" % task_time_fraction)
         print("Total elapsed time: %.1f seconds" % (t1-t0))
         print("Done.")

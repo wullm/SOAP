@@ -83,7 +83,7 @@ class ChunkTask:
         self.halo_prop_list = halo_prop_list
         self.shared = False
         
-    def __call__(self, cellgrid, comm, inter_node_rank, max_halo_radius):
+    def __call__(self, cellgrid, comm, inter_node_rank, max_halo_radius, timings):
 
         comm_rank = comm.Get_rank()
         comm_size = comm.Get_size()
@@ -187,10 +187,11 @@ class ChunkTask:
         # Calculate the halo properties
         t0_halos = time.time()
         nr_halos = len(self.indexes.full)
-        result, dead_time_fraction = process_halos(comm, data, mesh, self.halo_prop_list, a, z, cosmo,
-                                                   boxsize, max_halo_radius, self.indexes, self.centres,
-                                                   self.radii)
+        result, total_time, task_time = process_halos(comm, data, mesh, self.halo_prop_list, a, z, cosmo,
+                                                      boxsize, max_halo_radius, self.indexes, self.centres,
+                                                      self.radii)
         t1_halos = time.time()
+        dead_time_fraction = 1.0-comm.allreduce(task_time)/comm.allreduce(total_time)
         message("processing %d halos on %d ranks took %.1fs (dead time frac.=%.2f)" % (nr_halos, comm_size,
                                                                                        t1_halos-t0_halos, dead_time_fraction))
 
@@ -208,6 +209,9 @@ class ChunkTask:
             self.indexes.free()
             self.centres.free()
             self.radii.free()
+
+        # Store time taken for this task
+        timings.append(task_time)
 
         return result
 
