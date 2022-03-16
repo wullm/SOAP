@@ -177,10 +177,8 @@ if __name__ == "__main__":
     snap_file = virgo.mpi.parallel_hdf5.MultiFile(swift_filename_fmt,
                                                   file_nr_attr=("Header", "NumFilesPerSnapshot"))
 
-    # Open the output file in MPI mode
-    outfile = h5py.File(args["outfile"], "w", driver="mpio", comm=comm)
-
     # Loop over particle types
+    create_file = True
     for ptype in ptypes:
 
         if comm_rank == 0:
@@ -211,14 +209,20 @@ if __name__ == "__main__":
         swift_grnr_unbound[matched] = ps.fetch_elements(grnr_unbound, ptr[matched])
         swift_grnr_unbound[matched==False] = -1
 
-        # Write these particles to the output
+        # Determine if we need to create a new output file set
+        if create_file:
+            mode="w"
+            create_file=False
+        else:
+            mode="r+"
+
+        # Write these particles out with the same layout as the snapshot
         if comm_rank == 0:
             print("  Writing out VR group membership of SWIFT particles")
-        group = outfile.create_group(ptype)
-        virgo.mpi.parallel_hdf5.collective_write(group, "GroupNr_bound", swift_grnr_bound, comm)
-        virgo.mpi.parallel_hdf5.collective_write(group, "GroupNr_unbound", swift_grnr_unbound, comm)
-
-    outfile.close()
+        elements_per_file = snap_file.get_elements_per_file("ParticleIDs", group=ptype)
+        output = {"GroupNr_bound"   : swift_grnr_bound,
+                  "GroupNr_unbound" : swift_grnr_unbound}
+        snap_file.write(output, elements_per_file, filenames=args["outfile"], mode=mode, group=ptype)
 
     comm.barrier()
     if comm_rank == 0:
