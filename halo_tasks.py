@@ -9,8 +9,7 @@ import time
 
 
 def process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
-                        boxsize, max_halo_radius, index, centre,
-                        initial_search_radius):
+                        boxsize, index, centre, radius):
     """
     This computes properties for one halo and runs on a single
     MPI rank. Result is a dict of properties of the form
@@ -40,30 +39,19 @@ def process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
             target_density = density
     assert target_density is not None
 
-    # Loop until search radius is large enough
-    search_radius = initial_search_radius
-    while True:
+    # Find the mass within the search radius
+    mass_total = 0.0
+    idx = {}
+    for ptype in data:
+        mass = data[ptype][mass_dataset(ptype)]
+        pos = data[ptype]["Coordinates"]
+        idx[ptype] = mesh[ptype].query_radius_periodic(centre, radius, pos, boxsize)
+        mass_total += np.sum(mass.full[idx[ptype]], dtype=float)
 
-        # Find the mass within the search radius
-        mass_total = 0.0
-        idx = {}
-        for ptype in data:
-            mass = data[ptype][mass_dataset(ptype)]
-            pos = data[ptype]["Coordinates"]
-            idx[ptype] = mesh[ptype].query_radius_periodic(centre, search_radius, pos, boxsize)
-            mass_total += np.sum(mass.full[idx[ptype]], dtype=float)
-
-        # Check if we reached the density threshold
-        density = mass_total / (4./3.*np.pi*search_radius**3)
-        if density < target_density:
-            break
-        else:
-            search_radius *= 1.2
-            del idx
-
-    # Check we didn't exceed the region we read in
-    if search_radius > max_halo_radius:
-        raise Exception("Search radius for halo is too large!")
+    # Check if we reached the density threshold
+    density = mass_total / (4./3.*np.pi*radius**3)
+    if density > target_density:
+        raise Exception("Search radius for halo is not large enough to reach target density!")
 
     # Extract particles in this halo
     halo_data = {}
@@ -88,15 +76,15 @@ def process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
     halo_result["index"] = (u.Quantity(index, unit=None, dtype=np.int64), "Index of this halo in the input catalogue")
 
     # Store search radius and density within that radius
-    halo_result["search_radius"] = (search_radius, "Search radius for property calculation")
-    halo_result["density_in_search_radius"] = (density, "Density within the search radius")
-    halo_result["target_density"] = (target_density, "Target density for property calculation")
+    halo_result["search_radius"]            = (radius,         "Search radius for property calculation")
+    halo_result["density_in_search_radius"] = (density,        "Density within the search radius")
+    halo_result["target_density"]           = (target_density, "Target density for property calculation")
 
     return halo_result
 
 
 def process_halos(comm, data, mesh, halo_prop_list, a, z, cosmo,
-                  boxsize, max_halo_radius, indexes, centres, radii):
+                  boxsize, indexes, centres, radii):
     
     # Allocate shared storage for a single integer and initialize to zero
     if comm.Get_rank() == 0:
@@ -130,8 +118,8 @@ def process_halos(comm, data, mesh, halo_prop_list, a, z, cosmo,
         if task_to_do < nr_halos:
             t0_task = time.time()
             results.append(process_single_halo(mesh, data, halo_prop_list, a, z, cosmo, boxsize,
-                                               max_halo_radius, indexes.full[task_to_do],
-                                               centres.full[task_to_do,:], radii.full[task_to_do]))
+                                               indexes.full[task_to_do], centres.full[task_to_do,:],
+                                               radii.full[task_to_do]))
             t1_task = time.time()
             task_time += (t1_task-t0_task)
         else:

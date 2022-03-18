@@ -23,8 +23,7 @@ class ChunkTaskList:
     """
     Stores a list of ChunkTasks to be executed.
     """
-    def __init__(self, cellgrid, so_cat, search_radius, chunks_per_dimension,
-                 halo_prop_list):
+    def __init__(self, cellgrid, so_cat, chunks_per_dimension, halo_prop_list):
 
         # Find size of volume associated with each task
         task_size = cellgrid.boxsize / chunks_per_dimension
@@ -43,7 +42,7 @@ class ChunkTaskList:
         idx = np.argsort(task_id)
         centre  = so_cat.centre[idx,:]
         index   = so_cat.index[idx]
-        radius  = so_cat.r_size[idx]
+        radius  = so_cat.radius[idx]
         task_id = task_id[idx]
 
         # Find groups of halos with the same task ID
@@ -53,7 +52,7 @@ class ChunkTaskList:
         tasks = []
         for offset, count in zip(offsets, counts):
             tasks.append(ChunkTask(index[offset:offset+count], centre[offset:offset+count,:],
-                                   radius[offset:offset+count], search_radius, halo_prop_list))
+                                   radius[offset:offset+count], halo_prop_list))
 
         # Use number of halos as a rough estimate of cost.
         # Do tasks with the most halos first so we're not waiting for a few big jobs at the end.
@@ -70,20 +69,19 @@ class ChunkTask:
     compute node.
 
     centres contains the halo centres
-    search_radius is the radius around each halo we need to read in
     indexes contains the index of each halo in the input catalogue
+    radius  is the radius around each centre which we need to read in
     """
     def __init__(self, indexes=None, centres=None, radii=None,
-                 search_radius=None, halo_prop_list=None):
+                 halo_prop_list=None):
 
         self.indexes = indexes
         self.centres = centres
         self.radii = radii
-        self.search_radius = search_radius
         self.halo_prop_list = halo_prop_list
         self.shared = False
         
-    def __call__(self, cellgrid, comm, inter_node_rank, max_halo_radius, timings):
+    def __call__(self, cellgrid, comm, inter_node_rank, timings):
 
         comm_rank = comm.Get_rank()
         comm_size = comm.Get_size()
@@ -91,11 +89,11 @@ class ChunkTask:
         def message(m):
             if inter_node_rank >= 0:
                 print("[%8.1fs] %d: %s" % (time.time()-time_start, inter_node_rank, m))
-
-        # Find the region we need to read in
+        
+        # Find the region we need to read in, allowing for particles outside their cells
         if comm_rank == 0:
-            pos_min = np.amin(self.centres.full, axis=0) - self.search_radius
-            pos_max = np.amax(self.centres.full, axis=0) + self.search_radius
+            pos_min = np.amin(self.centres.full - self.radii.full[:,None] - 0.5*cellgrid.cell_size, axis=0)
+            pos_max = np.amax(self.centres.full + self.radii.full[:,None] + 0.5*cellgrid.cell_size, axis=0)
         else:
             pos_min = None
             pos_max = None
@@ -188,8 +186,7 @@ class ChunkTask:
         t0_halos = time.time()
         nr_halos = len(self.indexes.full)
         result, total_time, task_time = process_halos(comm, data, mesh, self.halo_prop_list, a, z, cosmo,
-                                                      boxsize, max_halo_radius, self.indexes, self.centres,
-                                                      self.radii)
+                                                      boxsize, self.indexes, self.centres, self.radii)
         t1_halos = time.time()
         dead_time_fraction = 1.0-comm.allreduce(task_time)/comm.allreduce(total_time)
         message("processing %d halos on %d ranks took %.1fs (dead time frac.=%.2f)" % (nr_halos, comm_size,
@@ -256,9 +253,7 @@ class ChunkTask:
         self.indexes = share_array(self.indexes)
         self.centres = share_array(self.centres)
         self.radii   = share_array(self.radii)
-        self.search_radius = comm.bcast(self.search_radius)
         self.halo_prop_list = comm.bcast(self.halo_prop_list)
-
         self.shared = True
 
         return self
@@ -267,7 +262,6 @@ class ChunkTask:
 
         # Send small parameters via pickling
         comm.send(len(self.indexes), dest, tag)
-        comm.send(self.search_radius, dest, tag)
         comm.send(self.halo_prop_list, dest, tag)
         comm.send((self.indexes.dtype, self.centres.dtype, self.radii.dtype), dest, tag)
         comm.send((self.centres.unit, self.radii.unit), dest, tag)
@@ -284,7 +278,6 @@ class ChunkTask:
         nr_halos = comm.recv(source=src, tag=tag)
         if nr_halos is None:
             return None
-        search_radius = comm.recv(source=src, tag=tag)
         halo_prop_list = comm.recv(source=src, tag=tag)        
         index_dtype, centre_dtype, radius_dtype = comm.recv(source=src, tag=tag)
         centre_unit, radius_unit = comm.recv(source=src, tag=tag)
@@ -300,4 +293,4 @@ class ChunkTask:
         comm.Recv(radii, source=src, tag=tag)
 
         # Construct the class instance
-        return cls(indexes, centres, radii, search_radius, halo_prop_list)
+        return cls(indexes, centres, radii, halo_prop_list)

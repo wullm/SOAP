@@ -80,24 +80,13 @@ if __name__ == "__main__":
     cellgrid, parsec_cgs, solar_mass_cgs, a = comm_world.bcast((cellgrid, parsec_cgs, solar_mass_cgs, a))
 
     # Read in the halo catalogue:
-    # All ranks read the file(s) in then gather to rank 0
-    so_cat = halo_centres.SOCatalogue(comm_world, args["vr_basename"], a, parsec_cgs, solar_mass_cgs)
-
-    # Find search radius
-    if comm_world_rank == 0:
-        max_halo_radius = np.amax(so_cat.r_size) * 1.5
-        print("Largest search radius = ", max_halo_radius)
-    else:
-        max_halo_radius = None
-    max_halo_radius = comm_world.bcast(max_halo_radius)
-
-    # Decide on maximum search radius around any halo
-    Mpc = astropy.units.cm * 1e6 * parsec_cgs
-    search_radius = max_halo_radius + 0.5*np.amax(cellgrid.cell_size)
+    # All ranks read the file(s) in then gather to rank 0. Also computes search radius for each halo.
+    so_cat = halo_centres.SOCatalogue(comm_world, args["vr_basename"], a, parsec_cgs, solar_mass_cgs,
+                                      cellgrid.boxsize)
 
     # Generate the chunk task list
     if comm_world_rank == 0:
-        task_list = chunk_tasks.ChunkTaskList(cellgrid, so_cat, search_radius=search_radius,
+        task_list = chunk_tasks.ChunkTaskList(cellgrid, so_cat,
                                               chunks_per_dimension=args["chunks_per_dimension"],
                                               halo_prop_list=halo_prop_list)
         tasks = task_list.tasks
@@ -122,7 +111,7 @@ if __name__ == "__main__":
 
     # Execute the chunk tasks
     timings = []
-    result = task_queue.execute_tasks(tasks, args=(cellgrid, comm_intra_node, inter_node_rank, max_halo_radius, timings),
+    result = task_queue.execute_tasks(tasks, args=(cellgrid, comm_intra_node, inter_node_rank, timings),
                                       comm_all=comm_world, comm_master=comm_inter_node,
                                       comm_workers=comm_intra_node, task_type=chunk_tasks.ChunkTask)
 
