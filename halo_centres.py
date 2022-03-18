@@ -22,7 +22,7 @@ class SOCatalogue:
             if os.path.exists(vr_basename):
                 filenames = vr_basename
             else:
-                filenames = vr_basename+".%(i)d"
+                filenames = vr_basename+".%(file_nr)d"
         else:
             filenames = None
         filenames = comm.bcast(filenames)
@@ -43,7 +43,7 @@ class SOCatalogue:
 
         # Extract unit information from the first file
         if comm_rank == 0:
-            filename = filenames % {"i" : 0}
+            filename = filenames % {"file_nr" : 0}
             with h5py.File(filename, "r") as infile:
                 units = dict(infile["UnitInfo"].attrs)
                 siminfo = dict(infile["SimulationInfo"].attrs)

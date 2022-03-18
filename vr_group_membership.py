@@ -21,7 +21,7 @@ def read_vr_datasets(vr_basename, file_type, datasets, return_file_nr=None):
     Parallel read of datasets from VR split over any number of files
     """
     # Make a format string for the filename
-    filename_format = vr_basename+"."+file_type+".%(i)d"
+    filename_format = vr_basename+"."+file_type+".%(file_nr)d"
 
     # Open the file
     vr_file = virgo.mpi.parallel_hdf5.MultiFile(filename_format, file_nr_dataset="Num_of_files")
