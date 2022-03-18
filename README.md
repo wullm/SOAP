@@ -52,3 +52,12 @@ There should also be a __call__ method which implements the calculation
 and returns a dict with the calculated properties.
 
 New classes must be added to halo_prop_list in compute_halo_properties.py.
+
+## TODO
+
+Possible improvements:
+
+  * Compute or read in VR halo membership to compute sums over bound particles only
+  * More flexible domain decomposition (e.g. Gadget style space filling curve)
+  * Assign initial search radii to halos individually and repeat part of calculation if too small
+  * Compute cells to read halo by halo instead of just using the bounding box
