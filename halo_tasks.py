@@ -51,7 +51,8 @@ def process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
     # Check if we reached the density threshold
     density = mass_total / (4./3.*np.pi*radius**3)
     if density > target_density:
-        raise Exception("Search radius for halo is not large enough to reach target density!")
+        #raise Exception("Search radius for halo is not large enough to reach target density!")
+        print("Search radius too small: r=%.2f, density ratio=%.2f" % (radius.value, density/target_density))
 
     # Extract particles in this halo
     halo_data = {}

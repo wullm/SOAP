@@ -11,6 +11,7 @@ import shared_array
 import halo_tasks
 from dataset_names import mass_dataset
 from halo_tasks import process_halos
+from mask_cells import mask_cells
 
 
 def box_wrap(pos, ref_pos, boxsize):
@@ -91,23 +92,25 @@ class ChunkTask:
                 print("[%8.1fs] %d: %s" % (time.time()-time_start, inter_node_rank, m))
         
         # Find the region we need to read in, allowing for particles outside their cells
-        if comm_rank == 0:
-            pos_min = np.amin(self.centres.full - self.radii.full[:,None] - 0.5*cellgrid.cell_size, axis=0)
-            pos_max = np.amax(self.centres.full + self.radii.full[:,None] + 0.5*cellgrid.cell_size, axis=0)
-        else:
-            pos_min = None
-            pos_max = None
-        pos_min, pos_max = comm.bcast((pos_min, pos_max))
-
-        message("chunk has pos_min=(%.2f,%.2f,%.2f), pos_max=(%.2f,%.2f,%.2f)" %
-                (pos_min[0].value, pos_min.value[1], pos_min.value[2],
-                 pos_max.value[0], pos_max.value[1], pos_max.value[2]))
+        comm.barrier()
+        t0_mask = time.time()
+        mask = mask_cells(comm, cellgrid, self.centres.full, self.radii.full)
+        nr_cells = np.sum(mask==True)
+        comm.barrier()
+        t1_mask = time.time()
+        message("identifed %d cells to read in %.2fs" % (nr_cells, t1_mask-t0_mask))
 
         # Get the cosmology from the input snapshot
         cosmo = cellgrid.cosmology
         a = cellgrid.a
         z = cellgrid.z
         boxsize = cellgrid.boxsize
+
+        # Find reference position for box wrapping:
+        # Coordinates will be wrapped in order to minimize the size of the volume we place
+        # the mesh over. TODO: use a tree instead so that this isn't necessary.
+        pos_min = np.amin(self.centres.full, axis=0)
+        pos_max = np.amax(self.centres.full, axis=0)
         ref_pos = (pos_min+pos_max)/2
 
         # Find all particle properties we need to read in:
@@ -134,8 +137,6 @@ class ChunkTask:
         # Read in particles in the required region
         comm.barrier()
         t0_read = time.time()
-        mask = cellgrid.empty_mask()
-        cellgrid.mask_region(mask, pos_min, pos_max)
         data = cellgrid.read_masked_cells_to_shared_memory(properties, mask, comm)
         comm.barrier()
         t1_read = time.time()
@@ -190,7 +191,8 @@ class ChunkTask:
         t1_halos = time.time()
         dead_time_fraction = 1.0-comm.allreduce(task_time)/comm.allreduce(total_time)
         message("processing %d halos on %d ranks took %.1fs (dead time frac.=%.2f)" % (nr_halos, comm_size,
-                                                                                       t1_halos-t0_halos, dead_time_fraction))
+                                                                                       t1_halos-t0_halos,
+                                                                                       dead_time_fraction))
 
         # Free the shared particle data
         for ptype in data:
