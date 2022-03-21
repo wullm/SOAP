@@ -1,13 +1,13 @@
 #!/bin/bash -l
 #
-#SBATCH --nodes=4
+#SBATCH --nodes=1
 #SBATCH --cpus-per-task=1
 #SBATCH -J test
 #SBATCH -o ./test.out
 #SBATCH -p cosma8
 #SBATCH -A dp004
 #SBATCH --exclusive
-#SBATCH -t 0:10:00
+#SBATCH -t 0:20:00
 #
 
 module purge
