@@ -90,14 +90,52 @@ class ReadTask:
                             np.s_[mem_start:mem_end,...])
 
 
+def identify_datasets(filename, nr_files, ptypes, total_nr_particles):
+    """
+    Find units, data type and shape for datasets in snapshot-like files.
+    Returns a dict with one entry per particle type. Dict keys are the
+    property names and values are (shape, dtype, units) tuples.
+    """
+    metadata = {ptype : {} for ptype in ptypes}
+
+    # Make a dict of flags of which particle types we still need to find
+    to_find = {ptype : (total_nr_particles[ptype] > 0) for ptype in ptypes}
+
+    # Scan snapshot files to find shape, type and units for each quantity
+    for file_nr in range(nr_files):
+        infile = h5py.File(filename % {"file_nr":file_nr}, "r")
+        nr_left = 0
+        for ptype in ptypes:
+            if to_find[ptype]:
+                group_name = ptype
+                if group_name in infile and infile[group_name].attrs["NumberOfParticles"][0] > 0:
+                    for name in infile[group_name]:
+                        dset = infile[group_name][name]
+                        if "a-scale exponent" in dset.attrs:
+                            units = swift_units.units_from_attributes(dset)
+                            dtype = dset.dtype.newbyteorder("=")
+                            metadata[ptype][name] = (dset.shape[1:], dtype, units)
+                    to_find[ptype] = False
+                else:
+                    nr_left += 1
+        infile.close()
+        if nr_left == 0:
+            break
+
+    return metadata
+
+
 class SWIFTCellGrid:
     
-    def __init__(self, filename):
+    def __init__(self, snap_filename, extra_filename=None):
 
-        self.filename = filename
+        self.snap_filename = snap_filename
+
+        # Option format string to generate name of file(s) with extra datasets
+        self.extra_filename = extra_filename
 
         # Open the input file
-        with h5py.File(filename % {"file_nr":0}, "r") as infile:
+        with h5py.File(snap_filename % {"file_nr":0}, "r") as infile:
             
             # Read cosmology
             cosmo = infile["Cosmology"].attrs
@@ -174,33 +212,11 @@ class SWIFTCellGrid:
         # Scan files to find shape and dtype for all quantities in the snapshot
         #
         # Make a dict to store the metadata. Aim is to be able to do
-        # shape, dtype = self.metadata[ptype][property_name].
+        # shape, dtype, units = self.snap_metadata[ptype][property_name].
         #
-        self.metadata = {ptype : {} for ptype in self.ptypes}
-
-        # Make a dict of flags of which particle types we still need to find
-        to_find = {ptype : (self.total_nr_particles[ptype] > 0) for ptype in self.ptypes}
-
-        # Loop over files in the snapshot
-        for file_nr in range(self.nr_files):
-            infile = h5py.File(filename % {"file_nr":file_nr}, "r")
-            nr_left = 0
-            for ptype in self.ptypes:
-                if to_find[ptype]:
-                    group_name = ptype
-                    if group_name in infile and infile[group_name].attrs["NumberOfParticles"][0] > 0:
-                        for name in infile[group_name]:
-                            dset = infile[group_name][name]
-                            if "a-scale exponent" in dset.attrs:
-                                units = swift_units.units_from_attributes(dset)
-                                dtype = dset.dtype.newbyteorder("=")
-                                self.metadata[ptype][name] = (dset.shape[1:], dtype, units)
-                        to_find[ptype] = False
-                    else:
-                        nr_left += 1
-            infile.close()
-            if nr_left == 0:
-                break
+        self.snap_metadata = identify_datasets(snap_filename, self.nr_files, self.ptypes, self.total_nr_particles)
+        if extra_filename is not None:
+            self.extra_metadata = identify_datasets(extra_filename, self.nr_files, self.ptypes, self.total_nr_particles)
 
     def prepare_read(self, ptype, mask):
         """
@@ -254,85 +270,6 @@ class SWIFTCellGrid:
 
         return reads
 
-    def read_masked_cells(self, property_names, mask):
-        """
-        Read the requested properties from the cells where mask=True.
-
-        property_names[ptype] contains the list of quantity names to
-        read for particle type ptype.
-
-        mask is a 3D boolean array which flags the cells to read.
-
-        Returns a dict with the data arrays:
-
-        data[ptype][property_name] contains property property_name
-        for particle type ptype.
-        """
-        
-        # Find ranges of particles to read from each file
-        reads = {ptype : self.prepare_read(ptype, mask) for ptype in property_names}
-
-        # Find union of file numbers to read for all particle types
-        all_file_nrs = []
-        for ptype in property_names:
-            all_file_nrs += list(reads[ptype])
-        all_file_nrs = np.unique(all_file_nrs)
-
-        # Find number of particles of each type to be read
-        nr_parts = {ptype : 0 for ptype in property_names}
-        for ptype in property_names:
-            for file_nr in reads[ptype]:
-                for file_offset, mem_offset, count in reads[ptype][file_nr]:
-                    nr_parts[ptype] += count
-
-        # Allocate output arrays
-        data = {}
-        for ptype in property_names:
-            data[ptype] = {}
-            for name in property_names[ptype]:
-                shape, dtype, units = self.metadata[ptype][name]
-                shape = (nr_parts[ptype],)+shape
-                data[ptype][name] = u.Quantity(np.ndarray(shape, dtype=dtype), unit=units, dtype=dtype)
-
-        # Loop over files to read
-        for file_nr in all_file_nrs:
-
-            # Open this file
-            filename = self.filename % {"file_nr" : file_nr}
-            infile = h5py.File(filename, "r", rdcc_nbytes=rdcc_nbytes)
-
-            # Loop over particle types to read
-            for ptype in property_names:
-
-                # Check if we need to read from this file for this particle type
-                if file_nr in reads[ptype]:
-
-                    # Loop over quantities to read for this particle type
-                    for name in property_names[ptype]:
-
-                        # Find the dataset
-                        dataset = infile[ptype][name]
-
-                        # Read the chunks for this property
-                        for (file_offset, mem_offset, count) in reads[ptype][file_nr]:
-                            unit = data[ptype][name].unit
-                            dtype = data[ptype][name].dtype
-                            data[ptype][name][mem_offset:mem_offset+count,...] = (
-                                u.Quantity(dataset[file_offset:file_offset+count,...], unit=unit, dtype=dtype))
-                            mem_offset += count
-
-            # Close the file
-            infile.close()
-
-        # Calculate amount of data read
-        nbytes = 0
-        for ptype in property_names:
-            for name in property_names[ptype]:
-                nbytes += data[ptype][name].nbytes
-        mb_read = nbytes/(1024*1024)
-
-        return data
-
     def empty_mask(self):
 
         return np.zeros(self.dimension, dtype=np.bool)
@@ -378,11 +315,22 @@ class SWIFTCellGrid:
         # By file, then by particle type, then by dataset, then by offset in the file
         all_tasks = collections.deque()
         for file_nr in all_file_nrs:
-            filename = self.filename % {"file_nr" : file_nr}
+            filename = self.snap_filename % {"file_nr" : file_nr}
             for ptype in property_names:
                 for dataset in property_names[ptype]:
-                    for (file_offset, mem_offset, count) in reads_for_type[ptype][file_nr]:
-                        all_tasks.append(ReadTask(filename, ptype, dataset, file_offset, mem_offset, count))
+                    if dataset in self.snap_metadata:
+                        for (file_offset, mem_offset, count) in reads_for_type[ptype][file_nr]:
+                            all_tasks.append(ReadTask(filename, ptype, dataset, file_offset, mem_offset, count))
+
+        # Create additional read tasks for the extra data files
+        if self.extra_filename is not None:
+            for file_nr in all_file_nrs:
+                filename = self.extra_filename % {"file_nr" : file_nr}
+                for ptype in property_names:
+                    for dataset in property_names[ptype]:
+                        if dataset in self.extra_metadata:
+                            for (file_offset, mem_offset, count) in reads_for_type[ptype][file_nr]:
+                                all_tasks.append(ReadTask(filename, ptype, dataset, file_offset, mem_offset, count))
 
         # Make one task queue per MPI rank
         tasks = [collections.deque() for _ in range(comm_size)]
@@ -402,7 +350,10 @@ class SWIFTCellGrid:
         for ptype in property_names:
             data[ptype] = {}
             for name in property_names[ptype]:
-                shape, dtype, units = self.metadata[ptype][name]
+                if name in self.snap_metadata:
+                    shape, dtype, units = self.snap_metadata[ptype][name]
+                else:
+                    shape, dtype, units = self.extra_metadata[ptype][name]
                 # Determine size of local array section
                 nr_local = nr_parts[ptype] // comm_size
                 if comm_rank < (nr_parts[ptype] % comm_size):
