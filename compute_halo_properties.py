@@ -55,6 +55,10 @@ if __name__ == "__main__":
         args["vr_basename"]    = sys.argv[2] # Name of properties file, minus the trailing .N
         args["chunks_per_dimension"] = int(sys.argv[3]) # Number of chunks to divide volume into
         args["outfile"]        = sys.argv[4] # Name of the output file
+        if len(sys.argv) > 5:
+            args["extra_filename"] = sys.argv[5] # Additional data file, if any
+        else:
+            args["extra_filename"] = None            
     args = comm_world.bcast(args)
 
     # Start the clock
@@ -68,7 +72,7 @@ if __name__ == "__main__":
 
     # Open the snapshot and read SWIFT cell structure, units etc
     if comm_world_rank == 0:
-        cellgrid = swift_cells.SWIFTCellGrid(args["swift_filename"])
+        cellgrid = swift_cells.SWIFTCellGrid(args["swift_filename"], args["extra_filename"])
         parsec_cgs = cellgrid.constants["parsec"]
         solar_mass_cgs = cellgrid.constants["solar_mass"]
         a = cellgrid.a

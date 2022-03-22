@@ -108,7 +108,7 @@ def identify_datasets(filename, nr_files, ptypes, total_nr_particles):
         for ptype in ptypes:
             if to_find[ptype]:
                 group_name = ptype
-                if group_name in infile and infile[group_name].attrs["NumberOfParticles"][0] > 0:
+                if group_name in infile: # and infile[group_name].attrs["NumberOfParticles"][0] > 0:
                     for name in infile[group_name]:
                         dset = infile[group_name][name]
                         if "a-scale exponent" in dset.attrs:
