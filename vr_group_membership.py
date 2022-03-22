@@ -167,7 +167,7 @@ if __name__ == "__main__":
     if nr_files > 1:
         m = re.match(r"(.*)\.[0-9]+\.hdf5", args["swift_filename"])
         if m is not None:
-            swift_filename_fmt = m.group(1)+".%(i)d.hdf5"
+            swift_filename_fmt = m.group(1)+".%(file_nr)d.hdf5"
         else:
             raise ValueError("Don't understand SWIFT filename")
     else:
