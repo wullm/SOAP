@@ -350,10 +350,12 @@ class SWIFTCellGrid:
         for ptype in property_names:
             data[ptype] = {}
             for name in property_names[ptype]:
-                if name in self.snap_metadata:
+                if name in self.snap_metadata[ptype]:
                     shape, dtype, units = self.snap_metadata[ptype][name]
-                else:
+                elif self.extra_metadata is not None and name in self.extra_metadata[ptype]:
                     shape, dtype, units = self.extra_metadata[ptype][name]
+                else:
+                    raise Exception("Can't find required dataset %s in input file(s)!" % name)
                 # Determine size of local array section
                 nr_local = nr_parts[ptype] // comm_size
                 if comm_rank < (nr_parts[ptype] % comm_size):
