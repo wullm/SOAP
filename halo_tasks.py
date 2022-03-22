@@ -137,9 +137,10 @@ def process_halos(comm, data, mesh, halo_prop_list, a, z, cosmo,
     for halo_nr, result in enumerate(results):
         for name, (value, description) in result.items():
             if name not in result_arrays:
-                arr = np.empty_like(value, shape=nr_halos)
+                shape = (nr_halos,)+value.shape
+                arr = np.empty_like(value, shape=shape)
                 result_arrays[name] = (arr, description)
-            result_arrays[name][0][halo_nr] = value
+            result_arrays[name][0][halo_nr,...] = value
 
     # Stop the clock
     comm.barrier()

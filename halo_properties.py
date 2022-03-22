@@ -122,29 +122,30 @@ class CentreOfMass(HaloProperty):
         """
         
         cofm = None
-        mbound = None
+        mtot = None
 
         # Loop over particle types
         for ptype in data:
 
-            # Find particle position, mass and group membership
-            pos  = data[ptype]["Coordinates"]
-            mass = data[ptype][mass_dataset(ptype)]
+            # Find position and mass of particles bound to the group
             grnr = data[ptype]["GroupNr_bound"]
             bound = (grnr==index)
+            pos  = data[ptype]["Coordinates"][bound,:]
+            mass = data[ptype][mass_dataset(ptype)][bound]
 
             # Accumulate total mass of bound particles
-            mbound = np.sum(mass[bound], dtype=float)
+            mbound = np.sum(mass, dtype=float)
             if mtot is None:
                 mtot = mbound
             else:
                 mtot += mbound
 
             # Accumulate position*mass for particles in this group
+            pos_mass = np.sum(pos*mass[:,None], axis=0, dtype=float)
             if cofm is None:
-                cofm = u.Quantity(np.zeros(3, dtype=float), unit=pos.unit)
-            for dim in range(3):
-                cofm[dim] += np.sum(pos[bound,dim]*mass[bound], dtype=float)
+                cofm = pos_mass
+            else:
+                cofm += pos_mass
         
         # Compute centre of mass
         cofm /= mtot

@@ -318,7 +318,7 @@ class SWIFTCellGrid:
             filename = self.snap_filename % {"file_nr" : file_nr}
             for ptype in property_names:
                 for dataset in property_names[ptype]:
-                    if dataset in self.snap_metadata:
+                    if dataset in self.snap_metadata[ptype]:
                         for (file_offset, mem_offset, count) in reads_for_type[ptype][file_nr]:
                             all_tasks.append(ReadTask(filename, ptype, dataset, file_offset, mem_offset, count))
 
@@ -328,7 +328,7 @@ class SWIFTCellGrid:
                 filename = self.extra_filename % {"file_nr" : file_nr}
                 for ptype in property_names:
                     for dataset in property_names[ptype]:
-                        if dataset in self.extra_metadata:
+                        if dataset in self.extra_metadata[ptype]:
                             for (file_offset, mem_offset, count) in reads_for_type[ptype][file_nr]:
                                 all_tasks.append(ReadTask(filename, ptype, dataset, file_offset, mem_offset, count))
 

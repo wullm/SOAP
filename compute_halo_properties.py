@@ -133,7 +133,7 @@ if __name__ == "__main__":
             # Workaround for weird np.concatenate behaviour:
             # Concatenating one astropy Quantity discards dtype information!
             if len(list_of_arrays) > 1:
-                output_array = np.concatenate(list_of_arrays)
+                output_array = np.concatenate(list_of_arrays, axis=0)
             else:
                 output_array = list_of_arrays[0]
             description    = result[0][name][1]
