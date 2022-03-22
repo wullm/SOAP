@@ -216,15 +216,32 @@ if __name__ == "__main__":
         else:
             mode="r+"
 
+        # Set up dataset attributes
+        unit_attrs = {
+            "Conversion factor to CGS (not including cosmological corrections)" : [1.0,],
+            "Conversion factor to CGS (including cosmological corrections)" : [1.0,],
+            "U_I exponent" : [0.0,],
+            "U_L exponent" : [0.0,],
+            "U_M exponent" : [0.0,],
+            "U_t exponent" : [0.0,],
+            "U_T exponent" : [0.0,],
+            "a-scale exponent" : [0.0,],
+            "h-scale exponent" : [0.0,],
+        }
+        attrs = {"GroupNr_bound"   : {"Description" : "Index of halo in which this particle is a bound member, or -1 if none"},
+                 "GroupNr_unbound" : {"Description" : "Index of halo in which this particle is an unbound member, or -1 if none"}}
+        attrs["GroupNr_bound"].update(unit_attrs)
+        attrs["GroupNr_unbound"].update(unit_attrs)
+
         # Write these particles out with the same layout as the snapshot
         if comm_rank == 0:
             print("  Writing out VR group membership of SWIFT particles")
         elements_per_file = snap_file.get_elements_per_file("ParticleIDs", group=ptype)
         output = {"GroupNr_bound"   : swift_grnr_bound,
                   "GroupNr_unbound" : swift_grnr_unbound}
-        snap_file.write(output, elements_per_file, filenames=args["outfile"], mode=mode, group=ptype)
+        snap_file.write(output, elements_per_file, filenames=args["outfile"], mode=mode, group=ptype, attrs=attrs)
 
     comm.barrier()
     if comm_rank == 0:
         print("Done.")
-    
+
