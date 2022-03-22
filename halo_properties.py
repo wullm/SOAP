@@ -29,7 +29,7 @@ class SOMasses(HaloProperty):
     mean_density_multiple     = 200.0
     critical_density_multiple = 200.0
 
-    def calculate(self, cosmo, a, z, centre, data):
+    def calculate(self, index, cosmo, a, z, centre, data):
         """
         Compute spherical masses and overdensities for a halo
 
@@ -84,4 +84,72 @@ class SOMasses(HaloProperty):
         return {
             "r_200_crit" : (r200crit, "Radius within which the density is 200 times the mean"),
             "m_200_crit" : (m200crit, "Mass within a sphere with density 200 times the mean"),
+        }
+
+
+class CentreOfMass(HaloProperty):
+    
+    # Arrays which must be read in for this calculation.
+    # Note that if there are no particles of a given type in the
+    # snapshot, that type will not be read in and will not have
+    # an entry in the data argument to calculate(), below.
+    # (E.g. gas, star or BH particles in DMO runs)
+    particle_properties = {
+        "PartType0" : ["Coordinates", "Masses", "GroupNr_bound"],
+        "PartType1" : ["Coordinates", "Masses", "GroupNr_bound"],
+        "PartType4" : ["Coordinates", "Masses", "GroupNr_bound"],
+        "PartType5" : ["Coordinates", "DynamicalMasses", "GroupNr_bound"]
+    }
+
+    # This specifies how large a sphere is read in:
+    # Will ensure we have a sphere with a mean density less than
+    # or equal to the minimum of these densities.
+    mean_density_multiple     = None
+    critical_density_multiple = None
+
+    def calculate(self, index, cosmo, a, z, centre, data):
+        """
+        Compute centre of mass of bound particles
+
+        cosmo  - astropy cosmology object
+        a      - expansion factor
+        z      - redshift
+        centre - coordinates of the halo centre
+        data   - contains particle data. E.g. data["PartType1"]["Coordinates"]
+                 has the particle coordinates for type 1
+
+        Input particle data arrays are astropy Quantities.
+        """
+        
+        cofm = None
+        mbound = None
+
+        # Loop over particle types
+        for ptype in data:
+
+            # Find particle position, mass and group membership
+            pos  = data[ptype]["Coordinates"]
+            mass = data[ptype][mass_dataset(ptype)]
+            grnr = data[ptype]["GroupNr_bound"]
+            bound = (grnr==index)
+
+            # Accumulate total mass of bound particles
+            mbound = np.sum(mass[bound], dtype=float)
+            if mtot is None:
+                mtot = mbound
+            else:
+                mtot += mbound
+
+            # Accumulate position*mass for particles in this group
+            if cofm is None:
+                cofm = u.Quantity(np.zeros(3, dtype=float), unit=pos.unit)
+            for dim in range(3):
+                cofm[dim] += np.sum(pos[bound,dim]*mass[bound], dtype=float)
+        
+        # Compute centre of mass
+        cofm /= mtot
+
+        return {
+            "CentreOfMass" : (cofm, "Centre of mass of bound particles in the group"),
+            "BoundMass"    : (mtot, "Bound mass of particles in this group"),
         }

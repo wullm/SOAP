@@ -30,28 +30,31 @@ def process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
     mean_density = critical_density * cosmo.Om(z)
     for halo_prop in halo_prop_list:
         # Ensure target density is no greater than mean density multiple
-        density = halo_prop.mean_density_multiple*mean_density
-        if target_density is None or density < target_density:
-            target_density = density
+        if halo_prop.mean_density_multiple is not None:
+            density = halo_prop.mean_density_multiple*mean_density
+            if target_density is None or density < target_density:
+                target_density = density
         # Ensure target density is no greater than critical density multiple
-        density = halo_prop.critical_density_multiple*critical_density
-        if target_density is None or density < target_density:
-            target_density = density
-    assert target_density is not None
+        if halo_prop.critical_density_multiple is not None:
+            density = halo_prop.critical_density_multiple*critical_density
+            if target_density is None or density < target_density:
+                target_density = density
 
-    # Find the mass within the search radius
-    mass_total = 0.0
-    idx = {}
-    for ptype in data:
-        mass = data[ptype][mass_dataset(ptype)]
-        pos = data[ptype]["Coordinates"]
-        idx[ptype] = mesh[ptype].query_radius_periodic(centre, radius, pos, boxsize)
-        mass_total += np.sum(mass.full[idx[ptype]], dtype=float)
+    # If we have a target density, check we read in a large enough sphere
+    if target_density is not None:
+        # Find the mass within the search radius
+        mass_total = 0.0
+        idx = {}
+        for ptype in data:
+            mass = data[ptype][mass_dataset(ptype)]
+            pos = data[ptype]["Coordinates"]
+            idx[ptype] = mesh[ptype].query_radius_periodic(centre, radius, pos, boxsize)
+            mass_total += np.sum(mass.full[idx[ptype]], dtype=float)
 
-    # Check if we reached the density threshold
-    density = mass_total / (4./3.*np.pi*radius**3)
-    if density > target_density:
-        raise Exception ("Search radius too small: r=%.2f, density ratio=%.2f" % (radius.value, density/target_density))
+        # Check if we reached the density threshold
+        density = mass_total / (4./3.*np.pi*radius**3)
+        if density > target_density:
+            raise Exception ("Search radius too small: r=%.2f, density ratio=%.2f" % (radius.value, density/target_density))
 
     # Extract particles in this halo
     halo_data = {}
@@ -70,7 +73,7 @@ def process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
     # Compute properties of this halo        
     halo_result = {}
     for halo_prop in halo_prop_list:
-        halo_result.update(halo_prop.calculate(cosmo, a, z, centre, halo_data))
+        halo_result.update(halo_prop.calculate(index, cosmo, a, z, centre, halo_data))
 
     # Add the halo index to the result set
     halo_result["index"] = (u.Quantity(index, unit=None, dtype=np.int64), "Index of this halo in the input catalogue")
