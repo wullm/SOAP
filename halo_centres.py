@@ -98,7 +98,10 @@ class SOCatalogue:
         dist = np.linalg.norm(dist)
 
         # Store the search radius
-        local_search_radius = (local_r_size + dist)
+        min_radius = 5.0*length_unit
+        local_search_radius = (local_r_size*1.01 + dist)
+        ind = local_search_radius < min_radius
+        local_search_radius[ind] = min_radius
 
         # Free some arrays we don't need
         del dist
