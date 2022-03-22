@@ -23,6 +23,7 @@ class SOCatalogue:
 
         # Check for single file VR output - will prefer filename without
         # extension if both are present
+        vr_basename += ".properties"
         if comm_rank == 0:
             if os.path.exists(vr_basename):
                 filenames = vr_basename

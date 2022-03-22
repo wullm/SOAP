@@ -15,10 +15,22 @@ module load gnu_comp/11.1.0 openmpi/4.1.1 python/3.10.1
 
 export HDF5_USE_FILE_LOCKING=FALSE
 
-swift_filename="/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL/snapshots/flamingo_0077/flamingo_0077.%(file_nr)d.hdf5"
-vr_basename=/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL/VR/catalogue_0077/vr_catalogue_0077.properties
+snapnum=`printf '%04d' ${SLURM_ARRAY_TASK_ID}`
+basedir="/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL/"
+outbase="/cosma8/data/dp004/jch/FLAMINGO/ScienceRuns/"
+
+swift_filename="${basedir}/snapshots/flamingo_${snapnum}/flamingo_${snapnum}.%(file_nr)d.hdf5"
+vr_basename="${basedir}/VR/catalogue_${snapnum}/vr_catalogue_${snapnum}"
+outfile="${outbase}/L1000N1800/HYDRO_FIDUCIAL/halo_properties/halo_properties_${snapnum}.hdf5"
+
 chunks_per_dimension=2
-outfile=/cosma8/data/dp004/jch/FLAMINGO/tmp/test.hdf5
+
+# Create output directory
+outdir=`dirname "${outfile}"`
+mkdir -p "${outdir}"
+
+# Set striping (C8 default of putting first part of file on metadata server is very slow sometimes)
+lfs setstripe --stripe-count=-1 --stripe-size=32M "${outdir}"
 
 mpirun python3 -u -m mpi4py ./compute_halo_properties.py \
     ${swift_filename} ${vr_basename} ${chunks_per_dimension} ${outfile}
