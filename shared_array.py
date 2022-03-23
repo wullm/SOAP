@@ -43,8 +43,8 @@ class SharedArray:
 
         # Add units if specified
         if units is not None:
-            self.full  = u.Quantity(self.full, unit=units, copy=False)
-            self.local = u.Quantity(self.local, unit=units, copy=False)
+            self.full  = u.Quantity(self.full, unit=units, copy=False, dtype=self.full.dtype)
+            self.local = u.Quantity(self.local, unit=units, copy=False, dtype=self.full.dtype)
 
     def sync(self):
         self.win.Sync()
