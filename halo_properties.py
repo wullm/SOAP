@@ -123,6 +123,7 @@ class CentreOfMass(HaloProperty):
         
         cofm = None
         mtot = None
+        nr_bound = 0
 
         # Loop over particle types
         for ptype in data:
@@ -147,10 +148,17 @@ class CentreOfMass(HaloProperty):
             else:
                 cofm += pos_mass
         
+            # Accumulate total number of bound particles
+            nr_bound += pos.shape[0]
+
         # Compute centre of mass
         cofm /= mtot
+
+        if index == 0:
+            print("in halo properties: nr_bound = ", nr_bound)
 
         return {
             "CentreOfMass" : (cofm, "Centre of mass of bound particles in the group"),
             "BoundMass"    : (mtot, "Bound mass of particles in this group"),
+            "NrBound"      : (u.Quantity(nr_bound, unit=None, dtype=int), "Number of bound particles in this group"),
         }
