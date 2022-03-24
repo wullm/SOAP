@@ -14,6 +14,51 @@ from halo_tasks import process_halos
 from mask_cells import mask_cells
 
 
+def send_array(comm, arr, dest, tag):
+    """Send an astropy Quantity over MPI"""
+    if hasattr(arr, "unit"):
+        unit = arr.unit
+    else:
+        unit = None
+    comm.send((arr.dtype, unit, arr.shape), dest=dest, tag=tag)
+    comm.Send(arr, dest=dest, tag=tag)
+
+def recv_array(comm, src, tag):
+    """Receive an astropy Quantity over MPI"""
+    dtype, unit, shape = comm.recv(source=src, tag=tag)
+    if unit is not None:
+        arr = astropy.units.Quantity(np.ndarray(shape, dtype=dtype), unit=unit)
+    else:
+        arr = np.ndarray(shape, dtype=dtype)
+    comm.Recv(arr, source=src, tag=tag)
+    return arr
+
+def share_array(comm, arr):
+    """
+    Take the array on rank 0 of communicator comm and copy it into
+    shared memory. All ranks in comm must be on the same node.
+    """
+    comm_rank = comm.Get_rank()
+    if comm_rank == 0:
+        shape = list(arr.shape)
+        dtype = arr.dtype
+        if hasattr(arr, "unit"):
+            unit = arr.unit
+        else:
+            unit = None
+    else:
+        shape = None
+        dtype = None
+        unit = None
+    shape, dtype, unit = comm.bcast((shape, dtype, unit))
+    if comm_rank > 0:
+        shape[0] = 0
+    shared_arr = shared_array.SharedArray(shape, dtype, comm, unit)
+    if comm_rank == 0:
+        shared_arr.full[...] = arr[...]
+    shared_arr.sync()
+    return shared_arr
+
 def box_wrap(pos, ref_pos, boxsize):
     shift = ref_pos[None,:] - 0.5*boxsize
     return (pos - shift) % boxsize + shift
@@ -43,7 +88,8 @@ class ChunkTaskList:
         idx = np.argsort(task_id)
         centre  = so_cat.centre[idx,:]
         index   = so_cat.index[idx]
-        radius  = so_cat.radius[idx]
+        search_radius  = so_cat.search_radius[idx]
+        read_radius  = so_cat.read_radius[idx]
         task_id = task_id[idx]
 
         # Find groups of halos with the same task ID
@@ -53,7 +99,8 @@ class ChunkTaskList:
         tasks = []
         for offset, count in zip(offsets, counts):
             tasks.append(ChunkTask(index[offset:offset+count], centre[offset:offset+count,:],
-                                   radius[offset:offset+count], halo_prop_list))
+                                   search_radius[offset:offset+count], read_radius[offset:offset+count],
+                                   halo_prop_list))
 
         # Use number of halos as a rough estimate of cost.
         # Do tasks with the most halos first so we're not waiting for a few big jobs at the end.
@@ -73,12 +120,13 @@ class ChunkTask:
     indexes contains the index of each halo in the input catalogue
     radius  is the radius around each centre which we need to read in
     """
-    def __init__(self, indexes=None, centres=None, radii=None,
-                 halo_prop_list=None):
+    def __init__(self, indexes=None, centres=None, search_radii=None,
+                 read_radii=None, halo_prop_list=None):
 
         self.indexes = indexes
         self.centres = centres
-        self.radii = radii
+        self.search_radii = search_radii
+        self.read_radii = read_radii
         self.halo_prop_list = halo_prop_list
         self.shared = False
         
@@ -94,7 +142,7 @@ class ChunkTask:
         # Find the region we need to read in, allowing for particles outside their cells
         comm.barrier()
         t0_mask = time.time()
-        mask = mask_cells(comm, cellgrid, self.centres.full, self.radii.full)
+        mask = mask_cells(comm, cellgrid, self.centres.full, self.read_radii.full)
         nr_cells = np.sum(mask==True)
         comm.barrier()
         t1_mask = time.time()
@@ -187,7 +235,8 @@ class ChunkTask:
         t0_halos = time.time()
         nr_halos = len(self.indexes.full)
         result, total_time, task_time = process_halos(comm, data, mesh, self.halo_prop_list, a, z, cosmo,
-                                                      boxsize, self.indexes, self.centres, self.radii)
+                                                      boxsize, self.indexes, self.centres, self.search_radii,
+                                                      self.read_radii)
         t1_halos = time.time()
         dead_time_fraction = 1.0-comm.allreduce(task_time)/comm.allreduce(total_time)
         message("processing %d halos on %d ranks took %.1fs (dead time frac.=%.2f)" % (nr_halos, comm_size,
@@ -207,7 +256,8 @@ class ChunkTask:
         if self.shared:
             self.indexes.free()
             self.centres.free()
-            self.radii.free()
+            self.search_radii.free()
+            self.read_radii.free()
 
         # Store time taken for this task
         timings.append(task_time)
@@ -230,31 +280,11 @@ class ChunkTask:
         else:
             self = cls()
 
-        # Share the data arrays
-        def share_array(arr):
-            if comm_rank == 0:
-                shape = list(arr.shape)
-                dtype = arr.dtype
-                if hasattr(arr, "unit"):
-                    unit = arr.unit
-                else:
-                    unit = None
-            else:
-                shape = None
-                dtype = None
-                unit = None
-            shape, dtype, unit = comm.bcast((shape, dtype, unit))
-            if comm_rank > 0:
-                shape[0] = 0
-            shared_arr = shared_array.SharedArray(shape, dtype, comm, unit)
-            if comm_rank == 0:
-                shared_arr.full[...] = arr[...]
-            shared_arr.sync()
-            return shared_arr
-
-        self.indexes = share_array(self.indexes)
-        self.centres = share_array(self.centres)
-        self.radii   = share_array(self.radii)
+        # Rather than bcasting the arrays, copy them to shared memory
+        self.indexes = share_array(comm, self.indexes)
+        self.centres = share_array(comm, self.centres)
+        self.search_radii = share_array(comm, self.search_radii)
+        self.read_radii   = share_array(comm, self.read_radii)
         self.halo_prop_list = comm.bcast(self.halo_prop_list)
         self.shared = True
 
@@ -265,13 +295,12 @@ class ChunkTask:
         # Send small parameters via pickling
         comm.send(len(self.indexes), dest, tag)
         comm.send(self.halo_prop_list, dest, tag)
-        comm.send((self.indexes.dtype, self.centres.dtype, self.radii.dtype), dest, tag)
-        comm.send((self.centres.unit, self.radii.unit), dest, tag)
 
-        # Send large data arrays using buffer method
-        comm.Send(self.indexes, dest, tag)
-        comm.Send(self.centres, dest, tag)
-        comm.Send(self.radii,   dest, tag)
+        # Send arrays
+        send_array(comm, self.indexes,      dest, tag)
+        send_array(comm, self.centres,      dest, tag)
+        send_array(comm, self.search_radii, dest, tag)
+        send_array(comm, self.read_radii,   dest, tag)
         
     @classmethod
     def recv(cls, comm, src, tag):
@@ -281,18 +310,12 @@ class ChunkTask:
         if nr_halos is None:
             return None
         halo_prop_list = comm.recv(source=src, tag=tag)        
-        index_dtype, centre_dtype, radius_dtype = comm.recv(source=src, tag=tag)
-        centre_unit, radius_unit = comm.recv(source=src, tag=tag)
 
-        # Allocate arrays
-        indexes = np.ndarray(nr_halos, dtype=index_dtype)
-        centres = astropy.units.Quantity(np.ndarray((nr_halos, 3), dtype=centre_dtype), unit=centre_unit)
-        radii   = astropy.units.Quantity(np.ndarray(nr_halos, dtype=radius_dtype), unit=radius_unit)
-        
         # Receive arrays
-        comm.Recv(indexes, source=src, tag=tag)
-        comm.Recv(centres, source=src, tag=tag)
-        comm.Recv(radii, source=src, tag=tag)
+        indexes = recv_array(comm, src, tag)
+        centres = recv_array(comm, src, tag)
+        search_radii = recv_array(comm, src, tag)
+        read_radii   = recv_array(comm, src, tag)
 
         # Construct the class instance
-        return cls(indexes, centres, radii, halo_prop_list)
+        return cls(indexes, centres, search_radii, read_radii, halo_prop_list)

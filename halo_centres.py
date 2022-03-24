@@ -82,10 +82,7 @@ class SOCatalogue:
         local_r_size = astropy.units.Quantity(local_r_size, unit=length_unit, copy=False)
 
         #
-        # Compute search radius for each halo:
-        # If we exceed this looking for the required overdensity,
-        # then something has gone wrong and we need to abort.
-        # TODO: try again with a larger radius in that case?
+        # Compute initial search radius for each halo:
         #
         # Need to ensure that our radius about the potential minimum
         # includes all particles within r_size of the centre of mass.
@@ -98,11 +95,15 @@ class SOCatalogue:
             dist[need_wrap, dim] = boxsize - dist[need_wrap, dim]
         dist = np.linalg.norm(dist)
 
-        # Store the search radius
-        min_radius = 5.0*length_unit
+        # Store the initial search radius
         local_search_radius = (local_r_size*1.01 + dist)
-        ind = local_search_radius < min_radius
-        local_search_radius[ind] = min_radius
+
+        # Compute radius to read in about each halo:
+        # this is the maximum radius we'll search to reach the required overdensity
+        local_read_radius = local_search_radius.copy()
+        min_radius = 5.0*length_unit
+        ind = local_read_radius < min_radius
+        local_read_radius[ind] = min_radius
 
         # Free some arrays we don't need
         del dist
@@ -112,12 +113,15 @@ class SOCatalogue:
         # Gather arrays on rank zero.
         # Will strip units to communicate the arrays then add them back afterwards.
         search_radius = g.gather_array(local_search_radius.value)
+        read_radius = g.gather_array(local_read_radius.value)
         del local_search_radius
+        del local_read_radius
         centre = g.gather_array(local_cofp.value)
         del local_cofp
         if comm_rank == 0:
             self.nr_halos = len(search_radius)
-            self.radius = astropy.units.Quantity(search_radius, unit=length_unit, copy=False)
+            self.search_radius = astropy.units.Quantity(search_radius, unit=length_unit, copy=False)
+            self.read_radius = astropy.units.Quantity(read_radius, unit=length_unit, copy=False)
             self.centre = astropy.units.Quantity(centre, unit=length_unit, copy=False)
             self.index = np.arange(self.nr_halos, dtype=int)
 
