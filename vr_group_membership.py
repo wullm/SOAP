@@ -10,6 +10,8 @@ import virgo.mpi.parallel_hdf5
 import virgo.mpi.gather_array as ga
 import virgo.mpi.parallel_sort as ps
 
+import lustre
+
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
 comm_rank = comm.Get_rank()
@@ -149,6 +151,11 @@ if __name__ == "__main__":
         args["outfile"]        = sys.argv[3] # Name of the output file
     args = comm.bcast(args)
 
+    # Ensure output dir exists
+    if comm_rank == 0:
+        lustre.ensure_output_dir(args["outfile"])
+    comm.barrier()
+
     # Find group number for each particle ID in the VR output
     ids_bound, grnr_bound, ids_unbound, grnr_unbound = find_group_membership(args["vr_basename"])
 
@@ -208,6 +215,7 @@ if __name__ == "__main__":
         matched = ptr >= 0
         swift_grnr_unbound[matched] = ps.fetch_elements(grnr_unbound, ptr[matched])
         swift_grnr_unbound[matched==False] = -1
+        swift_grnr_all = np.maximum(swift_grnr_bound, swift_grnr_unbound)
 
         # Determine if we need to create a new output file set
         if create_file:
@@ -228,17 +236,17 @@ if __name__ == "__main__":
             "a-scale exponent" : [0.0,],
             "h-scale exponent" : [0.0,],
         }
-        attrs = {"GroupNr_bound"   : {"Description" : "Index of halo in which this particle is a bound member, or -1 if none"},
-                 "GroupNr_unbound" : {"Description" : "Index of halo in which this particle is an unbound member, or -1 if none"}}
+        attrs = {"GroupNr_bound" : {"Description" : "Index of halo in which this particle is a bound member, or -1 if none"},
+                 "GroupNr_all" : {"Description" : "Index of halo in which this particle is a member (bound or unbound), or -1 if none"}}
         attrs["GroupNr_bound"].update(unit_attrs)
-        attrs["GroupNr_unbound"].update(unit_attrs)
+        attrs["GroupNr_all"].update(unit_attrs)
 
         # Write these particles out with the same layout as the snapshot
         if comm_rank == 0:
             print("  Writing out VR group membership of SWIFT particles")
         elements_per_file = snap_file.get_elements_per_file("ParticleIDs", group=ptype)
         output = {"GroupNr_bound"   : swift_grnr_bound,
-                  "GroupNr_unbound" : swift_grnr_unbound}
+                  "GroupNr_all"     : swift_grnr_all}
         snap_file.write(output, elements_per_file, filenames=args["outfile"], mode=mode, group=ptype, attrs=attrs)
 
     comm.barrier()

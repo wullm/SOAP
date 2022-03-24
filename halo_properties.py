@@ -95,10 +95,10 @@ class CentreOfMass(HaloProperty):
     # an entry in the data argument to calculate(), below.
     # (E.g. gas, star or BH particles in DMO runs)
     particle_properties = {
-        "PartType0" : ["Coordinates", "Masses", "GroupNr_bound"],
-        "PartType1" : ["Coordinates", "Masses", "GroupNr_bound"],
-        "PartType4" : ["Coordinates", "Masses", "GroupNr_bound"],
-        "PartType5" : ["Coordinates", "DynamicalMasses", "GroupNr_bound"]
+        "PartType0" : ["Coordinates", "Masses", "GroupNr_all"],
+        "PartType1" : ["Coordinates", "Masses", "GroupNr_all"],
+        "PartType4" : ["Coordinates", "Masses", "GroupNr_all"],
+        "PartType5" : ["Coordinates", "DynamicalMasses", "GroupNr_all"]
     }
 
     # This specifies how large a sphere is read in:
@@ -123,23 +123,23 @@ class CentreOfMass(HaloProperty):
         
         cofm = None
         mtot = None
-        nr_bound = 0
+        nr_part = 0
 
         # Loop over particle types
         for ptype in data:
 
-            # Find position and mass of particles bound to the group
-            grnr = data[ptype]["GroupNr_bound"]
-            bound = (grnr==index)
-            pos  = data[ptype]["Coordinates"][bound,:]
-            mass = data[ptype][mass_dataset(ptype)][bound]
+            # Find position and mass of particles in the group
+            grnr = data[ptype]["GroupNr_all"]
+            in_halo = (grnr==index)
+            pos  = data[ptype]["Coordinates"][in_halo,:]
+            mass = data[ptype][mass_dataset(ptype)][in_halo]
 
-            # Accumulate total mass of bound particles
-            mbound = np.sum(mass, dtype=float)
+            # Accumulate total mass of particles
+            m = np.sum(mass, dtype=float)
             if mtot is None:
-                mtot = mbound
+                mtot = m
             else:
-                mtot += mbound
+                mtot += m
 
             # Accumulate position*mass for particles in this group
             pos_mass = np.sum(pos*mass[:,None], axis=0, dtype=float)
@@ -148,17 +148,14 @@ class CentreOfMass(HaloProperty):
             else:
                 cofm += pos_mass
         
-            # Accumulate total number of bound particles
-            nr_bound += pos.shape[0]
+            # Accumulate total number of particles
+            nr_part += pos.shape[0]
 
         # Compute centre of mass
         cofm /= mtot
 
-        if index == 0:
-            print("in halo properties: nr_bound = ", nr_bound)
-
         return {
-            "CentreOfMass" : (cofm, "Centre of mass of bound particles in the group"),
-            "BoundMass"    : (mtot, "Bound mass of particles in this group"),
-            "NrBound"      : (u.Quantity(nr_bound, unit=None, dtype=int), "Number of bound particles in this group"),
+            "CentreOfMass" : (cofm, "Centre of mass of particles in the group"),
+            "Mass"         : (mtot, "Total mass of particles in this group"),
+            "NrParticles"  : (u.Quantity(nr_part, unit=None, dtype=int), "Number of bound or unbound particles in this group"),
         }

@@ -23,6 +23,7 @@ import chunk_tasks
 import swift_units
 import halo_properties
 import task_queue
+import lustre
 
 
 def split_comm_world():
@@ -82,6 +83,11 @@ if __name__ == "__main__":
         solar_mass_cgs = None
         a = None
     cellgrid, parsec_cgs, solar_mass_cgs, a = comm_world.bcast((cellgrid, parsec_cgs, solar_mass_cgs, a))
+
+    # Ensure output dir exists
+    if comm_world_rank == 0:
+        lustre.ensure_output_dir(args["outfile"])
+    comm_world.barrier()
 
     # Read in the halo catalogue:
     # All ranks read the file(s) in then gather to rank 0. Also computes search radius for each halo.
