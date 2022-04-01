@@ -1,15 +1,18 @@
 #!/bin/env python
 
 import collections
+
 import numpy as np
 import h5py
 import time
 import astropy.cosmology
 import astropy.units as u
+from mpi4py import MPI
+import swiftsimio
+
 import swift_units
 import task_queue
 import shared_array
-from mpi4py import MPI
 
 # HDF5 chunk cache parameters:
 # SWIFT writes datasets with large chunks so the default 1Mb may be too small
@@ -84,13 +87,12 @@ class ReadTask:
         file_start = self.file_offset
         file_end   = self.file_offset + self.count
 
-        #data[self.ptype][self.dataset].full.value[mem_start:mem_end,...] = dataset[file_start:file_end,...]
         dataset.read_direct(data[self.ptype][self.dataset].full.value,
                             np.s_[file_start:file_end,...],
                             np.s_[mem_start:mem_end,...])
 
 
-def identify_datasets(filename, nr_files, ptypes, total_nr_particles):
+def identify_datasets(filename, nr_files, ptypes, unit_system, a):
     """
     Find units, data type and shape for datasets in snapshot-like files.
     Returns a dict with one entry per particle type. Dict keys are the
@@ -99,7 +101,7 @@ def identify_datasets(filename, nr_files, ptypes, total_nr_particles):
     metadata = {ptype : {} for ptype in ptypes}
 
     # Make a dict of flags of which particle types we still need to find
-    to_find = {ptype : (total_nr_particles[ptype] > 0) for ptype in ptypes}
+    to_find = {ptype : True for ptype in ptypes}
 
     # Scan snapshot files to find shape, type and units for each quantity
     for file_nr in range(nr_files):
@@ -108,13 +110,13 @@ def identify_datasets(filename, nr_files, ptypes, total_nr_particles):
         for ptype in ptypes:
             if to_find[ptype]:
                 group_name = ptype
-                if group_name in infile: # and infile[group_name].attrs["NumberOfParticles"][0] > 0:
+                if group_name in infile:
                     for name in infile[group_name]:
                         dset = infile[group_name][name]
                         if "a-scale exponent" in dset.attrs:
-                            units = swift_units.units_from_attributes(dset)
+                            units = swift_units.units_from_attributes(dset, unit_system, a)
                             dtype = dset.dtype.newbyteorder("=")
-                            metadata[ptype][name] = (dset.shape[1:], dtype, units)
+                            metadata[ptype][name] = (dset.shape[1:], dtype, unit_system)
                     to_find[ptype] = False
                 else:
                     nr_left += 1
@@ -134,48 +136,25 @@ class SWIFTCellGrid:
         # Option format string to generate name of file(s) with extra datasets
         self.extra_filename = extra_filename
 
+        # Use swiftsimio to get the cosmology, units etc from the snapshot
+        snap = swiftsimio.load(snap_filename % {"file_nr":0})
+        self.cosmology = snap.metadata.cosmology
+        self.units = snap.metadata.units
+        self.boxsize = snap.metadata.boxsize[0]
+        self.a = snap.metadata.a
+        self.z = snap.metadata.z
+        self.nr_files = snap.metadata.header["NumFilesPerSnapshot"][0]
+
+        # Determine which particle types are present
+        self.ptypes = ["PartType%d" % i for i in snap.metadata.present_particle_types]
+        
         # Open the input file
         with h5py.File(snap_filename % {"file_nr":0}, "r") as infile:
             
-            # Read cosmology
-            cosmo = infile["Cosmology"].attrs
-            H0  = 100.0*cosmo["h"][0]
-            Om0 = cosmo["Omega_m"][0]
-            Omega_b = cosmo["Omega_b"][0]
-            Omega_lambda = cosmo["Omega_lambda"][0]
-            Omega_r = cosmo["Omega_r"][0]
-            Omega_m = cosmo["Omega_m"][0]
-            w_0 = cosmo["w_0"][0]
-            w_a = cosmo["w_a"][0]
-            Tcmb0 = cosmo["T_CMB_0 [K]"][0]
-            self.cosmology = astropy.cosmology.w0waCDM(H0=H0, Om0=Omega_m, Ode0=Omega_lambda,
-                                                       w0=w_0, wa=w_a, Tcmb0=Tcmb0, Ob0=Omega_b)
-            self.a = cosmo["Scale-factor"][0]
-            self.z = cosmo["Redshift"][0]
-            self.nr_files = infile["Header"].attrs["NumFilesPerSnapshot"][0]
-            self.ptypes = [pt for pt in infile["Cells"]["Counts"]]
-
-            # Determine total number of particles of each type in the snapshot
-            nr_types = len(infile["Header"].attrs["NumPart_Total"])
-            total_nr_particles  =  infile["Header"].attrs["NumPart_Total"].astype(np.int64)
-            total_nr_particles += (infile["Header"].attrs["NumPart_Total_HighWord"].astype(np.int64) << 32)
-            self.total_nr_particles = {}
-            for i in range(nr_types):
-                ptype = "PartType%d" % i
-                if ptype in self.ptypes:
-                    self.total_nr_particles[ptype] = total_nr_particles[i]
-
             # Read constants
             self.constants = {}
             for name in infile["PhysicalConstants"]["CGS"].attrs:
                 self.constants[name] = infile["PhysicalConstants"]["CGS"].attrs[name][0]
-
-            # Read some snapshot units
-            self.length_unit = (infile["Units"].attrs["Unit length in cgs (U_L)"][0])*u.cm
-            self.mass_unit   = (infile["Units"].attrs["Unit mass in cgs (U_M)"][0])*u.g
-
-            # Get the box size
-            self.boxsize = u.Quantity(infile["Header"].attrs["BoxSize"][0], unit=self.length_unit)
 
             # Read cell meta data
             self.ptypes = []
@@ -208,15 +187,16 @@ class SWIFTCellGrid:
         # Reshape into a grid
         for ptype in self.ptypes:
             self.cell[ptype] = self.cell[ptype].reshape(self.dimension)
+
         #
         # Scan files to find shape and dtype for all quantities in the snapshot
         #
         # Make a dict to store the metadata. Aim is to be able to do
         # shape, dtype, units = self.snap_metadata[ptype][property_name].
         #
-        self.snap_metadata = identify_datasets(snap_filename, self.nr_files, self.ptypes, self.total_nr_particles)
+        self.snap_metadata = identify_datasets(snap_filename, self.nr_files, self.ptypes, self.units, self.a)
         if extra_filename is not None:
-            self.extra_metadata = identify_datasets(extra_filename, self.nr_files, self.ptypes, self.total_nr_particles)
+            self.extra_metadata = identify_datasets(extra_filename, self.nr_files, self.ptypes, self.units, self.a)
 
     def prepare_read(self, ptype, mask):
         """
