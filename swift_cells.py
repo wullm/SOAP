@@ -5,8 +5,6 @@ import collections
 import numpy as np
 import h5py
 import time
-import astropy.cosmology
-import astropy.units as u
 from mpi4py import MPI
 import swiftsimio
 
@@ -87,7 +85,7 @@ class ReadTask:
         file_start = self.file_offset
         file_end   = self.file_offset + self.count
 
-        dataset.read_direct(data[self.ptype][self.dataset].full.value,
+        dataset.read_direct(data[self.ptype][self.dataset].full,
                             np.s_[file_start:file_end,...],
                             np.s_[mem_start:mem_end,...])
 
@@ -116,7 +114,7 @@ def identify_datasets(filename, nr_files, ptypes, unit_system, a):
                         if "a-scale exponent" in dset.attrs:
                             units = swift_units.units_from_attributes(dset, unit_system, a)
                             dtype = dset.dtype.newbyteorder("=")
-                            metadata[ptype][name] = (dset.shape[1:], dtype, unit_system)
+                            metadata[ptype][name] = (dset.shape[1:], dtype, units)
                     to_find[ptype] = False
                 else:
                     nr_left += 1
@@ -160,7 +158,7 @@ class SWIFTCellGrid:
             self.ptypes = []
             self.nr_cells  = infile["Cells/Meta-data"].attrs["nr_cells"]
             self.dimension = infile["Cells/Meta-data"].attrs["dimension"]
-            self.cell_size = u.Quantity(infile["Cells/Meta-data"].attrs["size"], unit=self.length_unit)
+            self.cell_size = infile["Cells/Meta-data"].attrs["size"]*self.units.length
             for name in infile["Cells/Counts"]:
                 self.ptypes.append(name)
                 
@@ -345,7 +343,9 @@ class SWIFTCellGrid:
                 local_shape  = (nr_local,)+shape
                 # Allocate storage
                 data[ptype][name] = shared_array.SharedArray(local_shape, dtype, comm, units)
-        
+
+        comm.barrier()
+
         # Execute the tasks
         cache = DatasetCache()
         task_queue.execute_tasks(tasks, args=(data, cache), comm_all=comm, comm_master=comm,

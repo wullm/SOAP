@@ -7,6 +7,7 @@ def units_from_attributes(dset, unit_system, a):
 
     # Determine unyt unit for this quantity
     u = 1.0
+    dimensionless = True
     for symbol, unit in (("I", unit_system.current),
                          ("L", unit_system.length),
                          ("M", unit_system.mass),
@@ -15,8 +16,13 @@ def units_from_attributes(dset, unit_system, a):
         exponent = dset.attrs["U_%s exponent" % symbol][0]
         if exponent == 1.0:
             u *= unit
+            dimensionless = False
         elif exponent != 0.0:
             u *= (unit**exponent)
+            dimensionless = False
+
+    if dimensionless:
+        u = None
 
     # Handle any a factor(s) and return a swiftsimio cosmo_array
     a_scale_exponent = dset.attrs["a-scale exponent"][0]

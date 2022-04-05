@@ -29,8 +29,8 @@ def io_test():
     }
 
     # Specify region to read
-    pos_min = np.asarray((    0.0,    0.0,    0.0))
-    pos_max = np.asarray((   50.0,   50.0,   50.0))
+    pos_min = np.asarray((    0.0,    0.0,    0.0))*cellgrid.units.length
+    pos_max = np.asarray((   50.0,   50.0,   50.0))*cellgrid.units.length
 
     # Read in the region
     mask = cellgrid.empty_mask()
@@ -67,14 +67,14 @@ def io_test():
         plt.gca().set_aspect("equal")
 
         # Use the mesh to plot a sub-region
-        pos_min=np.asarray((20,20,20), dtype=float)
-        pos_max=np.asarray((40,40,40), dtype=float)
+        pos_min=np.asarray((20,20,20), dtype=float)*cellgrid.units.length
+        pos_max=np.asarray((40,40,40), dtype=float)*cellgrid.units.length
         idx = mesh.query(pos_min, pos_max)
         plt.plot(pos[idx,0], pos[idx,1], "r,")
         
         # Try selecting a sphere
-        centre = np.asarray((30, 30, 30))
-        radius = 10
+        centre = np.asarray((30, 30, 30))*cellgrid.units.length
+        radius = 10*cellgrid.units.length
         idx = mesh.query_radius(centre, radius, pos)
         plt.plot(pos[idx,0], pos[idx,1], "g,")
 
