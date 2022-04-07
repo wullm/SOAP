@@ -12,7 +12,6 @@ import sys
 import time
 import numpy as np
 import h5py
-import astropy.units
 
 import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.parallel_sort as psort
@@ -91,8 +90,7 @@ if __name__ == "__main__":
 
     # Read in the halo catalogue:
     # All ranks read the file(s) in then gather to rank 0. Also computes search radius for each halo.
-    so_cat = halo_centres.SOCatalogue(comm_world, args["vr_basename"], a, parsec_cgs, solar_mass_cgs,
-                                      cellgrid.boxsize)
+    so_cat = halo_centres.SOCatalogue(comm_world, args["vr_basename"], a, cellgrid.units, cellgrid.boxsize)
 
     # Generate the chunk task list
     if comm_world_rank == 0:
@@ -136,8 +134,6 @@ if __name__ == "__main__":
         local_results = {}
         for name in result[0].keys():
             list_of_arrays = [r[name][0] for r in result]
-            # Workaround for weird np.concatenate behaviour:
-            # Concatenating one astropy Quantity discards dtype information!
             if len(list_of_arrays) > 1:
                 output_array = np.concatenate(list_of_arrays, axis=0)
             else:

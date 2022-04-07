@@ -7,7 +7,11 @@ import unyt
 
 class SharedArray:
 
-    def __init__(self, local_shape, dtype, comm, units=None):
+    def __init__(self, local_shape, dtype, comm, cosmo_array_params=None):
+
+        # Extract cosmo_array parameters, if provided
+        if cosmo_array_params is not None:
+            units, cosmo_factor, comoving = cosmo_array_params
         
         self.comm = comm
         self.dtype = np.dtype(dtype)
@@ -41,14 +45,12 @@ class SharedArray:
         buf, itemsize = self.win.Shared_query(comm.Get_rank())
         self.local = np.ndarray(buffer=buf, dtype=self.dtype, shape=local_shape)
 
-        # Wrap the numpy arrays in swiftsimio cosmo_arrays if we have unit information
-        if units is not None:
-            self.full = swiftsimio.objects.cosmo_array(unyt.unyt_array(self.full, units=units.units),
-                                                       cosmo_factor=units.cosmo_factor,
-                                                       comoving=units.comoving)
-            self.local = swiftsimio.objects.cosmo_array(unyt.unyt_array(self.local, units=units.units),
-                                                        cosmo_factor=units.cosmo_factor,
-                                                        comoving=units.comoving)
+        # Wrap the numpy arrays in swiftsimio cosmo_arrays if parameters were provided
+        if cosmo_array_params is not None:
+            self.full = swiftsimio.objects.cosmo_array(unyt.unyt_array(self.full, units=units),
+                                                       cosmo_factor=cosmo_factor, comoving=comoving)
+            self.local = swiftsimio.objects.cosmo_array(unyt.unyt_array(self.local, units=units),
+                                                        cosmo_factor=cosmo_factor, comoving=comoving)
 
     def sync(self):
         self.win.Sync()

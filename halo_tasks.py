@@ -2,11 +2,9 @@
 
 import numpy as np
 from dataset_names import mass_dataset
-import astropy.units as u
 import shared_array
-import astropy.units
 import time
-
+from cosmo_array import cosmo_array_like, cosmo_array_scalar
 
 def process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
                         boxsize, index, centre, search_radius,
@@ -15,11 +13,11 @@ def process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
     This computes properties for one halo and runs on a single
     MPI rank. Result is a dict of properties of the form
     
-    halo_result[property_name] = (astropy quantity, description)
+    halo_result[property_name] = (cosmo_array, description)
 
     where the property_name will be used as the HDF5 dataset name
-    in the output and the units of the astropy Quantity determine
-    the unit attributes.
+    in the output and the units of the cosmo_array determine the unit
+    attributes.
 
     Two radii are passed in:
 
@@ -79,7 +77,7 @@ def process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
         halo_result.update(halo_prop.calculate(index, cosmo, a, z, centre, halo_data))
 
     # Add the halo index to the result set
-    halo_result["index"] = (u.Quantity(index, unit=None, dtype=np.int64), "Index of this halo in the input catalogue")
+    halo_result["index"] = (cosmo_array_scalar(index, dtype=int, a=a), "Index of this halo in the input catalogue")
 
     # Store search radius and density within that radius
     halo_result["search_radius"]            = (current_radius, "Search radius for property calculation")
@@ -126,8 +124,10 @@ def process_halos(comm, data, mesh, halo_prop_list, a, z, cosmo,
     t0_all = time.time()
 
     # Loop until all halos are done
-    results = []
+    result_arrays = {}
     nr_halos = len(indexes.full)
+    nr_done_this_rank = 0
+    nr_halos_this_rank_guess = int(nr_halos / comm.Get_size() * 1.5)
     task_time = 0.0
     while True:
 
@@ -143,28 +143,51 @@ def process_halos(comm, data, mesh, halo_prop_list, a, z, cosmo,
         # Execute the task, if there's one left
         if task_to_do < nr_halos:
             t0_task = time.time()
-            results.append(process_single_halo(mesh, data, halo_prop_list, a, z, cosmo, boxsize,
-                                               indexes.full[task_to_do], centres.full[task_to_do,:],
-                                               search_radii.full[task_to_do], read_radii.full[task_to_do],
-                                               target_density))
+
+            # Fetch the results for this particular halo
+            results = process_single_halo(mesh, data, halo_prop_list, a, z, cosmo, boxsize,
+                                          indexes.full[task_to_do], centres.full[task_to_do,:],
+                                          search_radii.full[task_to_do], read_radii.full[task_to_do],
+                                          target_density)
+
+            # Loop over properties which were calculated
+            for name, (data, description) in results.items():
+
+                # Create a new array to store this property if necessary
+                if name not in result_arrays:
+                    shape = (nr_halos_this_rank_guess,) + data.shape
+                    arr = cosmo_array_like(data, shape=shape)
+                    result_arrays[name] = [arr, description]
+
+                # Find the array to store this result
+                arr, description = result_arrays[name]
+
+                # Ensure the array is large enough
+                if nr_done_this_rank >= arr.shape[0]:
+                    new_shape = list(arr.shape)
+                    new_shape[0] *= 2
+                    new_arr = cosmo_array_like(arr, shape=new_shape)
+                    new_arr[0:arr.shape[0],...] = arr[...]
+                    arr = new_arr
+                    result_arrays[name] = [arr, description]
+                    
+                # Store this property for this halo to the output array
+                arr[nr_done_this_rank,...] = data
+
+            # Count halos processed on this rank
+            nr_done_this_rank += 1
+                    
             t1_task = time.time()
             task_time += (t1_task-t0_task)
         else:
             break
 
+    # Resize output arrays, since they may have been allocated larger than needed
+    for name in results:
+        results[name][0] = results[name][0][:nr_done_this_rank,...]
+
     # Free the shared task counter
     next_task.free()
-
-    # Combine task results into arrays
-    nr_halos = len(results)
-    result_arrays = {}
-    for halo_nr, result in enumerate(results):
-        for name, (value, description) in result.items():
-            if name not in result_arrays:
-                shape = (nr_halos,)+value.shape
-                arr = np.empty_like(value, shape=shape)
-                result_arrays[name] = (arr, description)
-            result_arrays[name][0][halo_nr,...] = value
 
     # Stop the clock
     comm.barrier()

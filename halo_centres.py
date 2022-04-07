@@ -3,14 +3,14 @@
 import os.path
 import h5py
 import numpy as np
-import astropy.units
+import unyt
 import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.gather_array as g
-
+import swiftsimio.objects as o
 
 class SOCatalogue:
 
-    def __init__(self, comm, vr_basename, a, parsec_cgs, solar_mass_cgs, boxsize):
+    def __init__(self, comm, vr_basename, a, unit_system, boxsize):
 
         comm_rank = comm.Get_rank()
 
@@ -67,19 +67,15 @@ class SOCatalogue:
             length_conversion = h * length_unit_to_kpc / 1000.0 # to comoving Mpc
             mass_conversion = h * mass_unit_to_solarmass # To solar masses
 
-        # Use SWIFT's defintions of parsec, solar mass
-        mass_unit = astropy.units.g * solar_mass_cgs
-        length_unit = astropy.units.cm * 1.0e6 * parsec_cgs
-
         # Convert units
         local_cofm *= length_conversion
         local_cofp *= length_conversion
         local_r_size *= length_conversion
 
         # Add units to local arrays
-        local_cofm = astropy.units.Quantity(local_cofm, unit=length_unit, copy=False)
-        local_cofp = astropy.units.Quantity(local_cofp, unit=length_unit, copy=False)
-        local_r_size = astropy.units.Quantity(local_r_size, unit=length_unit, copy=False)
+        local_cofm = unyt.unyt_array(local_cofm, units=unyt.Mpc)
+        local_cofp = unyt.unyt_array(local_cofp, units=unyt.Mpc)
+        local_r_size = unyt.unyt_array(local_r_size, units=unyt.Mpc)
 
         #
         # Compute initial search radius for each halo:
@@ -93,7 +89,7 @@ class SOCatalogue:
         for dim in range(3):
             need_wrap = dist[:,dim] > 0.5*boxsize
             dist[need_wrap, dim] = boxsize - dist[need_wrap, dim]
-        dist = np.linalg.norm(dist)
+        dist = np.sqrt(np.sum(dist**2, axis=1))
 
         # Store the initial search radius
         local_search_radius = (local_r_size*1.01 + dist)
@@ -101,9 +97,11 @@ class SOCatalogue:
         # Compute radius to read in about each halo:
         # this is the maximum radius we'll search to reach the required overdensity
         local_read_radius = local_search_radius.copy()
-        min_radius = 5.0*length_unit
+        min_radius = 5.0*unyt.Mpc
         ind = local_read_radius < min_radius
         local_read_radius[ind] = min_radius
+
+        length_unit = local_cofm.units
 
         # Free some arrays we don't need
         del dist
@@ -120,8 +118,14 @@ class SOCatalogue:
         del local_cofp
         if comm_rank == 0:
             self.nr_halos = len(search_radius)
-            self.search_radius = astropy.units.Quantity(search_radius, unit=length_unit, copy=False)
-            self.read_radius = astropy.units.Quantity(read_radius, unit=length_unit, copy=False)
-            self.centre = astropy.units.Quantity(centre, unit=length_unit, copy=False)
+            self.search_radius = unyt.unyt_array(search_radius, units=length_unit)
+            self.read_radius = unyt.unyt_array(read_radius, units=length_unit)
+            self.centre = unyt.unyt_array(centre, units=length_unit)
             self.index = np.arange(self.nr_halos, dtype=int)
 
+            # Add cosmological information
+            a_scale_exponent = 1.0 # For comoving positions
+            cosmo_factor = o.cosmo_factor(o.a**a_scale_exponent, scale_factor=a)
+            self.search_radius = o.cosmo_array(self.search_radius, cosmo_factor=cosmo_factor, comoving=True)
+            self.read_radius = o.cosmo_array(self.read_radius, cosmo_factor=cosmo_factor, comoving=True)
+            self.centre = o.cosmo_array(self.centre, cosmo_factor=cosmo_factor, comoving=True)

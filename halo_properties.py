@@ -3,7 +3,7 @@
 import numpy as np
 
 from dataset_names import mass_dataset
-import astropy.units as u
+from cosmo_array import cosmo_array_like, cosmo_array_scalar, cosmo_array_zeros
 
 class HaloProperty:
     def __init__(self):
@@ -40,7 +40,7 @@ class SOMasses(HaloProperty):
         data   - contains particle data. E.g. data["PartType1"]["Coordinates"]
                  has the particle coordinates for type 1
 
-        Input particle data arrays are astropy Quantities.
+        Input particle data arrays are swiftsimio cosmo_arrays.
         """
 
         # Make an array of particle masses and radii
@@ -76,10 +76,10 @@ class SOMasses(HaloProperty):
             r200crit = radius[1:][i]
         else:
             # Below threshold at all radii. Need to return zero with correct units attached.
-            m200crit = u.Quantity(0, dtype=cumulative_mass.dtype, unit=cumulative_mass.unit)
-            r200crit = u.Quantity(0, dtype=radius.dtype, unit=radius.unit)
+            m200crit = cosmo_array_scalar(0, a=a, dtype=cumulative_mass.dtype, unit=cumulative_mass.unit)
+            r200crit = cosmo_array_scalar(0, a=a, dtype=radius.dtype, unit=radius.unit)
 
-        # Return value should be a dict containing astropy Quantities (i.e. with units)
+        # Return value should be a dict containing cosmo_arrays (i.e. with units and cosmology)
         # and descriptions. The dict keys will be used as HDF5 dataset names in the output.
         return {
             "r_200_crit" : (r200crit, "Radius within which the density is 200 times the mean"),
@@ -118,7 +118,7 @@ class CentreOfMass(HaloProperty):
         data   - contains particle data. E.g. data["PartType1"]["Coordinates"]
                  has the particle coordinates for type 1
 
-        Input particle data arrays are astropy Quantities.
+        Input particle data arrays are swiftsimio cosmo_arrays.
         """
         
         cofm = None
@@ -154,8 +154,11 @@ class CentreOfMass(HaloProperty):
         # Compute centre of mass
         cofm /= mtot
 
+        # Return number of particles
+        nr_part = cosmo_array_scalar(nr_part, dtype=int)
+
         return {
-            "CentreOfMass" : (cofm, "Centre of mass of particles in the group"),
-            "Mass"         : (mtot, "Total mass of particles in this group"),
-            "NrParticles"  : (u.Quantity(nr_part, unit=None, dtype=int), "Number of bound or unbound particles in this group"),
+            "CentreOfMass" : (cofm,    "Centre of mass of particles in the group"),
+            "Mass"         : (mtot,    "Total mass of particles in this group"),
+            "NrParticles"  : (nr_part, "Number of bound or unbound particles in this group"),
         }

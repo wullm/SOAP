@@ -112,9 +112,8 @@ def identify_datasets(filename, nr_files, ptypes, unit_system, a):
                     for name in infile[group_name]:
                         dset = infile[group_name][name]
                         if "a-scale exponent" in dset.attrs:
-                            units = swift_units.units_from_attributes(dset, unit_system, a)
-                            dtype = dset.dtype.newbyteorder("=")
-                            metadata[ptype][name] = (dset.shape[1:], dtype, units)
+                            cosmo = swift_units.empty_cosmo_array_from_attributes(dset, unit_system, a)
+                            metadata[ptype][name] = cosmo
                     to_find[ptype] = False
                 else:
                     nr_left += 1
@@ -186,12 +185,7 @@ class SWIFTCellGrid:
         for ptype in self.ptypes:
             self.cell[ptype] = self.cell[ptype].reshape(self.dimension)
 
-        #
-        # Scan files to find shape and dtype for all quantities in the snapshot
-        #
-        # Make a dict to store the metadata. Aim is to be able to do
-        # shape, dtype, units = self.snap_metadata[ptype][property_name].
-        #
+        # Scan files to find shape and dtype etc for all quantities in the snapshot.
         self.snap_metadata = identify_datasets(snap_filename, self.nr_files, self.ptypes, self.units, self.a)
         if extra_filename is not None:
             self.extra_metadata = identify_datasets(extra_filename, self.nr_files, self.ptypes, self.units, self.a)
@@ -328,12 +322,19 @@ class SWIFTCellGrid:
         for ptype in property_names:
             data[ptype] = {}
             for name in property_names[ptype]:
+
+                # Get metadata for array to allocate in memory
                 if name in self.snap_metadata[ptype]:
-                    shape, dtype, units = self.snap_metadata[ptype][name]
+                    arr = self.snap_metadata[ptype][name]
                 elif self.extra_metadata is not None and name in self.extra_metadata[ptype]:
-                    shape, dtype, units = self.extra_metadata[ptype][name]
+                    arr = self.extra_metadata[ptype][name]
                 else:
                     raise Exception("Can't find required dataset %s in input file(s)!" % name)
+                shape = arr.shape[1:]
+                dtype = arr.dtype.newbyteorder("=") # Must be native endian for mpi4py
+                units = arr.units
+                cosmo_array_params=(units, arr.cosmo_factor, arr.comoving)
+
                 # Determine size of local array section
                 nr_local = nr_parts[ptype] // comm_size
                 if comm_rank < (nr_parts[ptype] % comm_size):
@@ -342,7 +343,7 @@ class SWIFTCellGrid:
                 global_shape = (nr_parts[ptype],)+shape
                 local_shape  = (nr_local,)+shape
                 # Allocate storage
-                data[ptype][name] = shared_array.SharedArray(local_shape, dtype, comm, units)
+                data[ptype][name] = shared_array.SharedArray(local_shape, dtype, comm, cosmo_array_params)
 
         comm.barrier()
 

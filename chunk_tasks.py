@@ -2,8 +2,9 @@
 
 import time
 import numpy as np
-import astropy.units
 from mpi4py import MPI
+import unyt
+import swiftsimio.objects
 
 import task_queue
 import shared_mesh
@@ -15,21 +16,25 @@ from mask_cells import mask_cells
 
 
 def send_array(comm, arr, dest, tag):
-    """Send an astropy Quantity over MPI"""
-    if hasattr(arr, "unit"):
-        unit = arr.unit
+    """Send an ndarray or cosmo_array over MPI"""
+    cosmo_array = isinstance(arr, swiftsimio.objects.cosmo_array)
+    if cosmo_array:
+        units = arr.units
+        cosmo_factor = arr.cosmo_factor
+        comoving = arr.comoving
     else:
-        unit = None
-    comm.send((arr.dtype, unit, arr.shape), dest=dest, tag=tag)
+        units = None
+        cosmo_factor = None
+        comoving = None
+    comm.send((cosmo_array, arr.dtype, arr.shape, units, cosmo_factor, comoving), dest=dest, tag=tag)
     comm.Send(arr, dest=dest, tag=tag)
 
 def recv_array(comm, src, tag):
-    """Receive an astropy Quantity over MPI"""
-    dtype, unit, shape = comm.recv(source=src, tag=tag)
-    if unit is not None:
-        arr = astropy.units.Quantity(np.ndarray(shape, dtype=dtype), unit=unit)
-    else:
-        arr = np.ndarray(shape, dtype=dtype)
+    """Receive an ndarray or cosmo_array over MPI"""
+    cosmo_array, dtype, shape, units, cosmo_factor, comoving = comm.recv(source=src, tag=tag)
+    arr = np.ndarray(shape, dtype=dtype)
+    if cosmo_array:
+        arr = swiftsimio.objects.cosmo_array(unyt.unyt_array(arr, units=units), cosmo_factor=cosmo_factor, comoving=comoving)
     comm.Recv(arr, source=src, tag=tag)
     return arr
 
@@ -38,25 +43,36 @@ def share_array(comm, arr):
     Take the array on rank 0 of communicator comm and copy it into
     shared memory. All ranks in comm must be on the same node.
     """
+    cosmo_array = isinstance(arr, swiftsimio.objects.cosmo_array)
     comm_rank = comm.Get_rank()
     if comm_rank == 0:
         shape = list(arr.shape)
         dtype = arr.dtype
-        if hasattr(arr, "unit"):
-            unit = arr.unit
+        if cosmo_array:
+            units = arr.units
+            cosmo_factor = arr.cosmo_factor
+            comoving = arr.comoving
         else:
-            unit = None
+            units = None
+            cosmo_factor = None
+            comoving = None
     else:
         shape = None
         dtype = None
-        unit = None
-    shape, dtype, unit = comm.bcast((shape, dtype, unit))
+        units = None
+        cosmo_factor = None
+    shape, dtype, units, cosmo_factor, comoving = comm.bcast((shape, dtype, units, cosmo_factor, comoving))
     if comm_rank > 0:
         shape[0] = 0
-    shared_arr = shared_array.SharedArray(shape, dtype, comm, unit)
+    if cosmo_array:
+        cosmo_array_params = (units, cosmo_factor, comoving)
+    else:
+        cosmo_array_params = None
+    shared_arr = shared_array.SharedArray(shape, dtype, comm, cosmo_array_params)
     if comm_rank == 0:
         shared_arr.full[...] = arr[...]
     shared_arr.sync()
+    comm.barrier()
     return shared_arr
 
 def box_wrap(pos, ref_pos, boxsize):
@@ -75,7 +91,7 @@ class ChunkTaskList:
         task_size = cellgrid.boxsize / chunks_per_dimension
         
         # For each centre, determine integer coords in task grid
-        ipos = np.floor(so_cat.centre / task_size).to(1).value.astype(int)
+        ipos = np.floor(so_cat.centre / task_size).value.astype(int)
         ipos = np.clip(ipos, 0, chunks_per_dimension-1)
 
         # Generate a task ID for each halo

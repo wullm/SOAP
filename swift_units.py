@@ -2,9 +2,14 @@
 
 import swiftsimio.objects as o
 import unyt
+import numpy as np
 
-def units_from_attributes(dset, unit_system, a):
-
+def empty_cosmo_array_from_attributes(dset, unit_system, a):
+    """
+    Given a dataset, return a cosmo_array with the same shape and type but
+    with size zero in the first dimension and with suitable units and
+    cosmological factors.
+    """
     # Determine unyt unit for this quantity
     u = 1.0
     dimensionless = True
@@ -24,10 +29,20 @@ def units_from_attributes(dset, unit_system, a):
     if dimensionless:
         u = None
 
-    # Handle any a factor(s) and return a swiftsimio cosmo_array
+    # Create a numpy array
+    shape = list(dset.shape)
+    shape[0] = 0
+    arr = np.ndarray(shape, dtype=dset.dtype)
+
+    # Wrap in a unyt array
+    arr = unyt.unyt_array(arr, units=u, dtype=dset.dtype)
+
+    # Wrap in a cosmo array
     a_scale_exponent = dset.attrs["a-scale exponent"][0]
     cosmo_factor = o.cosmo_factor(o.a**a_scale_exponent, a)
-    return o.cosmo_array(unyt.unyt_array(1.0, units=u), cosmo_factor=cosmo_factor, comoving=(a_scale_exponent!=0.0))
+    arr = o.cosmo_array(arr, cosmo_factor=cosmo_factor, comoving=(a_scale_exponent!=0.0))
+
+    return arr
 
 def write_unit_attributes(dset, cosmo_array):
     
