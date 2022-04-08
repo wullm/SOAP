@@ -45,6 +45,11 @@ def share_array(comm, arr):
     """
     cosmo_array = isinstance(arr, swiftsimio.objects.cosmo_array)
     comm_rank = comm.Get_rank()
+    shape = None
+    dtype = None
+    units = None
+    cosmo_factor = None
+    comoving = None
     if comm_rank == 0:
         shape = list(arr.shape)
         dtype = arr.dtype
@@ -52,15 +57,6 @@ def share_array(comm, arr):
             units = arr.units
             cosmo_factor = arr.cosmo_factor
             comoving = arr.comoving
-        else:
-            units = None
-            cosmo_factor = None
-            comoving = None
-    else:
-        shape = None
-        dtype = None
-        units = None
-        cosmo_factor = None
     shape, dtype, units, cosmo_factor, comoving = comm.bcast((shape, dtype, units, cosmo_factor, comoving))
     if comm_rank > 0:
         shape[0] = 0

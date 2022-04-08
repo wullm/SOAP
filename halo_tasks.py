@@ -1,10 +1,12 @@
 #!/bin/env python
 
+import unyt
 import numpy as np
 from dataset_names import mass_dataset
 import shared_array
 import time
-from cosmo_array import cosmo_array_like, cosmo_array_scalar
+from cosmo_array import *
+import swiftsimio.objects
 
 def process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
                         boxsize, index, centre, search_radius,
@@ -38,6 +40,7 @@ def process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
         for ptype in data:
             mass = data[ptype][mass_dataset(ptype)]
             pos = data[ptype]["Coordinates"]
+            assert pos.full.comoving
             idx[ptype] = mesh[ptype].query_radius_periodic(centre, current_radius, pos, boxsize)
             mass_total += np.sum(mass.full[idx[ptype]], dtype=float)
 
@@ -108,7 +111,11 @@ def process_halos(comm, data, mesh, halo_prop_list, a, z, cosmo,
             density = halo_prop.critical_density_multiple*critical_density
             if target_density is None or density < target_density:
                 target_density = density
-    
+
+    # Convert target density to a cosmo array
+    target_density = unyt.unyt_array.from_astropy(target_density)
+    target_density = cosmo_array_from_unyt(target_density, a=a, a_exponent=-3.0)
+
     # Allocate shared storage for a single integer and initialize to zero
     if comm.Get_rank() == 0:
         local_shape = (1,)
@@ -145,6 +152,12 @@ def process_halos(comm, data, mesh, halo_prop_list, a, z, cosmo,
             t0_task = time.time()
 
             # Fetch the results for this particular halo
+            # Most arithmetic operations cause cosmo_arrays to lose their metadata, so
+            # check everything is comoving as expected before that happens.
+            assert centres.full.comoving
+            assert search_radii.full.comoving
+            assert read_radii.full.comoving
+            assert target_density.comoving
             results = process_single_halo(mesh, data, halo_prop_list, a, z, cosmo, boxsize,
                                           indexes.full[task_to_do], centres.full[task_to_do,:],
                                           search_radii.full[task_to_do], read_radii.full[task_to_do],

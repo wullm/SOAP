@@ -12,6 +12,7 @@ import sys
 import time
 import numpy as np
 import h5py
+import unyt
 
 import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.parallel_sort as psort
@@ -134,10 +135,7 @@ if __name__ == "__main__":
         local_results = {}
         for name in result[0].keys():
             list_of_arrays = [r[name][0] for r in result]
-            if len(list_of_arrays) > 1:
-                output_array = np.concatenate(list_of_arrays, axis=0)
-            else:
-                output_array = list_of_arrays[0]
+            output_array = unyt.array.uconcatenate(list_of_arrays, axis=0)
             description    = result[0][name][1]
             local_results[name] = [output_array, description]
 

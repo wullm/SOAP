@@ -1,6 +1,7 @@
 #!/bin/env python
 
 import numpy as np
+import unyt
 
 from dataset_names import mass_dataset
 from cosmo_array import cosmo_array_like, cosmo_array_scalar, cosmo_array_zeros
@@ -51,8 +52,8 @@ class SOMasses(HaloProperty):
             pos = data[ptype]["Coordinates"] - centre[None,:]
             r = np.sqrt(np.sum(pos**2, axis=1))
             radius.append(r)
-        mass = np.concatenate(mass)
-        radius = np.concatenate(radius)
+        mass = unyt.array.uconcatenate(mass)
+        radius = unyt.array.uconcatenate(radius)
         nr_parts = mass.shape[0]
 
         # Sort by radius
@@ -65,10 +66,10 @@ class SOMasses(HaloProperty):
         density = cumulative_mass / (4./3.*np.pi*radius**3)
 
         # Find critical density in comoving coordinates
-        critical_density = cosmo.critical_density(z)*(a**3.0)
+        critical_density = unyt.unyt_array.from_astropy(cosmo.critical_density(z)*(a**3.0))
 
         # Check if we ever reach the density threshold
-        if nr_parts > 1 and np.any(density > 200*critical_density):
+        if nr_parts > 1 and np.any(density[1:] > 200*critical_density):
             # Find smallest radius where the density is below the threshold,
             # ignoring the first particle
             i = np.argmax(density[1:] < 200*critical_density)
@@ -155,7 +156,7 @@ class CentreOfMass(HaloProperty):
         cofm /= mtot
 
         # Return number of particles
-        nr_part = cosmo_array_scalar(nr_part, dtype=int)
+        nr_part = cosmo_array_scalar(nr_part, a=a, dtype=int)
 
         return {
             "CentreOfMass" : (cofm,    "Centre of mass of particles in the group"),

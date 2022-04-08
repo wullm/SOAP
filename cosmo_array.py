@@ -40,3 +40,8 @@ def cosmo_array_zeros(shape, dtype, a, units=None, a_exponent=0.0, comoving=Fals
     cosmo_factor = o.cosmo_factor(o.a**a_exponent, a)
     data = o.cosmo_array(data, comoving=comoving, cosmo_factor=cosmo_factor)
     return data
+
+def cosmo_array_from_unyt(arr, a, a_exponent):
+    
+    cosmo_factor = o.cosmo_factor(o.a**a_exponent, a)
+    return o.cosmo_array(arr, comoving=(a_exponent != 0.0), cosmo_factor=cosmo_factor)
