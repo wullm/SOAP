@@ -5,20 +5,19 @@ import numpy as np
 from dataset_names import mass_dataset
 import shared_array
 import time
-from cosmo_array import *
-import swiftsimio.objects
+import unyt
 
-def process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
-                        boxsize, index, centre, search_radius,
+def process_single_halo(mesh, data, halo_prop_list, a, z, critical_density,
+                        mean_density, boxsize, index, centre, search_radius,
                         read_radius, target_density):
     """
     This computes properties for one halo and runs on a single
     MPI rank. Result is a dict of properties of the form
     
-    halo_result[property_name] = (cosmo_array, description)
+    halo_result[property_name] = (unyt_array, description)
 
     where the property_name will be used as the HDF5 dataset name
-    in the output and the units of the cosmo_array determine the unit
+    in the output and the units of the unyt_array determine the unit
     attributes.
 
     Two radii are passed in:
@@ -40,7 +39,6 @@ def process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
         for ptype in data:
             mass = data[ptype][mass_dataset(ptype)]
             pos = data[ptype]["Coordinates"]
-            assert pos.full.comoving
             idx[ptype] = mesh[ptype].query_radius_periodic(centre, current_radius, pos, boxsize)
             mass_total += np.sum(mass.full[idx[ptype]], dtype=float)
 
@@ -77,10 +75,10 @@ def process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
     # Compute properties of this halo        
     halo_result = {}
     for halo_prop in halo_prop_list:
-        halo_result.update(halo_prop.calculate(index, cosmo, a, z, centre, halo_data))
+        halo_result.update(halo_prop.calculate(index, critical_density, mean_density, a, z, centre, halo_data))
 
     # Add the halo index to the result set
-    halo_result["index"] = (cosmo_array_scalar(index, dtype=int, a=a), "Index of this halo in the input catalogue")
+    halo_result["index"] = (unyt.unyt_array(index, dtype=index.dtype), "Index of this halo in the input catalogue")
 
     # Store search radius and density within that radius
     halo_result["search_radius"]            = (current_radius, "Search radius for property calculation")
@@ -90,7 +88,8 @@ def process_single_halo(mesh, data, halo_prop_list, a, z, cosmo,
     return halo_result
 
 
-def process_halos(comm, data, mesh, halo_prop_list, a, z, cosmo,
+def process_halos(comm, data, mesh, halo_prop_list, a, z,
+                  critical_density, mean_density,
                   boxsize, indexes, centres, search_radii, read_radii):
 
     # Compute density threshold at this redshift in comoving units:
@@ -98,8 +97,6 @@ def process_halos(comm, data, mesh, halo_prop_list, a, z, cosmo,
     # We need to find the minimum density required for any of the halo property
     # calculations
     target_density = None
-    critical_density = cosmo.critical_density(z)*(a**3.0)
-    mean_density = critical_density * cosmo.Om(z)
     for halo_prop in halo_prop_list:
         # Ensure target density is no greater than mean density multiple
         if halo_prop.mean_density_multiple is not None:
@@ -111,10 +108,6 @@ def process_halos(comm, data, mesh, halo_prop_list, a, z, cosmo,
             density = halo_prop.critical_density_multiple*critical_density
             if target_density is None or density < target_density:
                 target_density = density
-
-    # Convert target density to a cosmo array
-    target_density = unyt.unyt_array.from_astropy(target_density)
-    target_density = cosmo_array_from_unyt(target_density, a=a, a_exponent=-3.0)
 
     # Allocate shared storage for a single integer and initialize to zero
     if comm.Get_rank() == 0:
@@ -152,40 +145,36 @@ def process_halos(comm, data, mesh, halo_prop_list, a, z, cosmo,
             t0_task = time.time()
 
             # Fetch the results for this particular halo
-            # Most arithmetic operations cause cosmo_arrays to lose their metadata, so
-            # check everything is comoving as expected before that happens.
-            assert centres.full.comoving
-            assert search_radii.full.comoving
-            assert read_radii.full.comoving
-            assert target_density.comoving
-            results = process_single_halo(mesh, data, halo_prop_list, a, z, cosmo, boxsize,
-                                          indexes.full[task_to_do], centres.full[task_to_do,:],
+            results = process_single_halo(mesh, data, halo_prop_list, a, z, critical_density, mean_density,
+                                          boxsize, indexes.full[task_to_do], centres.full[task_to_do,:],
                                           search_radii.full[task_to_do], read_radii.full[task_to_do],
                                           target_density)
 
             # Loop over properties which were calculated
-            for name, (data, description) in results.items():
+            for result_name, (result_data, result_description) in results.items():
 
                 # Create a new array to store this property if necessary
-                if name not in result_arrays:
-                    shape = (nr_halos_this_rank_guess,) + data.shape
-                    arr = cosmo_array_like(data, shape=shape)
-                    result_arrays[name] = [arr, description]
+                if result_name not in result_arrays:
+                    shape = (nr_halos_this_rank_guess,) + result_data.shape
+                    # need to ensure we don't pass a unyt_quantity to empty_like
+                    # because unyt_quantities must be scalars only
+                    arr = np.empty_like(unyt.unyt_array(result_data), shape=shape)
+                    result_arrays[result_name] = [arr, result_description]
 
                 # Find the array to store this result
-                arr, description = result_arrays[name]
+                result_array, result_description = result_arrays[result_name]
 
                 # Ensure the array is large enough
-                if nr_done_this_rank >= arr.shape[0]:
-                    new_shape = list(arr.shape)
+                if nr_done_this_rank >= result_array.shape[0]:
+                    new_shape = list(result_array.shape)
                     new_shape[0] *= 2
-                    new_arr = cosmo_array_like(arr, shape=new_shape)
-                    new_arr[0:arr.shape[0],...] = arr[...]
-                    arr = new_arr
-                    result_arrays[name] = [arr, description]
+                    new_result_array = np.empty_like(unyt.unyt_array(result_array), shape=new_shape)
+                    new_result_array[0:result_array.shape[0],...] = result_array[...]
+                    result_array = new_result_array
+                    result_arrays[result_name] = [result_array, result_description]
                     
                 # Store this property for this halo to the output array
-                arr[nr_done_this_rank,...] = data
+                result_array[nr_done_this_rank,...] = result_data
 
             # Count halos processed on this rank
             nr_done_this_rank += 1
@@ -196,8 +185,8 @@ def process_halos(comm, data, mesh, halo_prop_list, a, z, cosmo,
             break
 
     # Resize output arrays, since they may have been allocated larger than needed
-    for name in results:
-        results[name][0] = results[name][0][:nr_done_this_rank,...]
+    for name in result_arrays:
+        result_arrays[name][0] = result_arrays[name][0][:nr_done_this_rank,...]
 
     # Free the shared task counter
     next_task.free()

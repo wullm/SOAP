@@ -4,7 +4,6 @@ import time
 import numpy as np
 from mpi4py import MPI
 import unyt
-import swiftsimio.objects
 
 import task_queue
 import shared_mesh
@@ -16,25 +15,21 @@ from mask_cells import mask_cells
 
 
 def send_array(comm, arr, dest, tag):
-    """Send an ndarray or cosmo_array over MPI"""
-    cosmo_array = isinstance(arr, swiftsimio.objects.cosmo_array)
-    if cosmo_array:
+    """Send an ndarray or unyt_array over MPI"""
+    unyt_array = isinstance(arr, unyt.unyt_array)
+    if unyt_array:
         units = arr.units
-        cosmo_factor = arr.cosmo_factor
-        comoving = arr.comoving
     else:
         units = None
-        cosmo_factor = None
-        comoving = None
-    comm.send((cosmo_array, arr.dtype, arr.shape, units, cosmo_factor, comoving), dest=dest, tag=tag)
+    comm.send((unyt_array, arr.dtype, arr.shape, units), dest=dest, tag=tag)
     comm.Send(arr, dest=dest, tag=tag)
 
 def recv_array(comm, src, tag):
-    """Receive an ndarray or cosmo_array over MPI"""
-    cosmo_array, dtype, shape, units, cosmo_factor, comoving = comm.recv(source=src, tag=tag)
+    """Receive an ndarray or unyt_array over MPI"""
+    unyt_array, dtype, shape, units = comm.recv(source=src, tag=tag)
     arr = np.ndarray(shape, dtype=dtype)
-    if cosmo_array:
-        arr = swiftsimio.objects.cosmo_array(unyt.unyt_array(arr, units=units), cosmo_factor=cosmo_factor, comoving=comoving)
+    if unyt_array:
+        arr = unyt.unyt_array(arr, units=units)
     comm.Recv(arr, source=src, tag=tag)
     return arr
 
@@ -43,28 +38,20 @@ def share_array(comm, arr):
     Take the array on rank 0 of communicator comm and copy it into
     shared memory. All ranks in comm must be on the same node.
     """
-    cosmo_array = isinstance(arr, swiftsimio.objects.cosmo_array)
+    unyt_array = isinstance(arr, unyt.unyt_array)
     comm_rank = comm.Get_rank()
     shape = None
     dtype = None
     units = None
-    cosmo_factor = None
-    comoving = None
     if comm_rank == 0:
         shape = list(arr.shape)
         dtype = arr.dtype
-        if cosmo_array:
+        if unyt_array:
             units = arr.units
-            cosmo_factor = arr.cosmo_factor
-            comoving = arr.comoving
-    shape, dtype, units, cosmo_factor, comoving = comm.bcast((shape, dtype, units, cosmo_factor, comoving))
+    shape, dtype, units = comm.bcast((shape, dtype, units))
     if comm_rank > 0:
         shape[0] = 0
-    if cosmo_array:
-        cosmo_array_params = (units, cosmo_factor, comoving)
-    else:
-        cosmo_array_params = None
-    shared_arr = shared_array.SharedArray(shape, dtype, comm, cosmo_array_params)
+    shared_arr = shared_array.SharedArray(shape, dtype, comm, units)
     if comm_rank == 0:
         shared_arr.full[...] = arr[...]
     shared_arr.sync()
@@ -160,8 +147,9 @@ class ChunkTask:
         t1_mask = time.time()
         message("identifed %d cells to read in %.2fs" % (nr_cells, t1_mask-t0_mask))
 
-        # Get the cosmology from the input snapshot
-        cosmo = cellgrid.cosmology
+        # Get the cosmology info from the input snapshot
+        critical_density = cellgrid.critical_density
+        mean_density = cellgrid.mean_density
         a = cellgrid.a
         z = cellgrid.z
         boxsize = cellgrid.boxsize
@@ -246,9 +234,9 @@ class ChunkTask:
         # Calculate the halo properties
         t0_halos = time.time()
         nr_halos = len(self.indexes.full)
-        result, total_time, task_time = process_halos(comm, data, mesh, self.halo_prop_list, a, z, cosmo,
-                                                      boxsize, self.indexes, self.centres, self.search_radii,
-                                                      self.read_radii)
+        result, total_time, task_time = process_halos(comm, data, mesh, self.halo_prop_list, a, z, critical_density,
+                                                      mean_density, boxsize, self.indexes, self.centres,
+                                                      self.search_radii, self.read_radii)
         t1_halos = time.time()
         dead_time_fraction = 1.0-comm.allreduce(task_time)/comm.allreduce(total_time)
         message("processing %d halos on %d ranks took %.1fs (dead time frac.=%.2f)" % (nr_halos, comm_size,

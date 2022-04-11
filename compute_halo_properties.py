@@ -91,7 +91,8 @@ if __name__ == "__main__":
 
     # Read in the halo catalogue:
     # All ranks read the file(s) in then gather to rank 0. Also computes search radius for each halo.
-    so_cat = halo_centres.SOCatalogue(comm_world, args["vr_basename"], a, cellgrid.units, cellgrid.boxsize)
+    so_cat = halo_centres.SOCatalogue(comm_world, args["vr_basename"], cellgrid.a_unit,
+                                      cellgrid.snap_unit_registry, cellgrid.boxsize)
 
     # Generate the chunk task list
     if comm_world_rank == 0:
@@ -169,8 +170,10 @@ if __name__ == "__main__":
         for name in names:
             data, description = local_results[name]
             phdf5.collective_write(outfile, name, data, comm_have_results)
-            if hasattr(data, "unit"):
-                swift_units.write_unit_attributes(outfile[name], data.unit)
+            if hasattr(data, "units"):
+                attrs = swift_units.attributes_from_units(data.units)
+                for attr_name, attr_value in attrs.items():
+                    outfile[name].attrs[attr_name] = attr_value
             outfile[name].attrs["Description"] = description
             
         # Finished writing the output

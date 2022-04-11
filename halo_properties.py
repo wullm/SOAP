@@ -4,7 +4,6 @@ import numpy as np
 import unyt
 
 from dataset_names import mass_dataset
-from cosmo_array import cosmo_array_like, cosmo_array_scalar, cosmo_array_zeros
 
 class HaloProperty:
     def __init__(self):
@@ -30,7 +29,7 @@ class SOMasses(HaloProperty):
     mean_density_multiple     = 200.0
     critical_density_multiple = 200.0
 
-    def calculate(self, index, cosmo, a, z, centre, data):
+    def calculate(self, index, critical_density, mean_density, a, z, centre, data):
         """
         Compute spherical masses and overdensities for a halo
 
@@ -41,7 +40,7 @@ class SOMasses(HaloProperty):
         data   - contains particle data. E.g. data["PartType1"]["Coordinates"]
                  has the particle coordinates for type 1
 
-        Input particle data arrays are swiftsimio cosmo_arrays.
+        Input particle data arrays are unyt_arrays.
         """
 
         # Make an array of particle masses and radii
@@ -60,28 +59,31 @@ class SOMasses(HaloProperty):
         order = np.argsort(radius)
         mass = mass[order]
         radius = radius[order]
-
-        # Compute density within radius of each particle
         cumulative_mass = np.cumsum(mass, dtype=np.float64)
+
+        # Compute density within radius of each particle.
+        # Will need to skip any at zero radius.
+        nskip = 0
+        while nskip < len(radius) and radius[nskip] == 0:
+            nskip += 1
+        radius  = radius[nskip:]
+        cumulative_mass = cumulative_mass[nskip:]
+        nr_parts = len(radius)
         density = cumulative_mass / (4./3.*np.pi*radius**3)
 
-        # Find critical density in comoving coordinates
-        critical_density = unyt.unyt_array.from_astropy(cosmo.critical_density(z)*(a**3.0))
-
         # Check if we ever reach the density threshold
-        if nr_parts > 1 and np.any(density[1:] > 200*critical_density):
-            # Find smallest radius where the density is below the threshold,
-            # ignoring the first particle
-            i = np.argmax(density[1:] < 200*critical_density)
-            m200crit = cumulative_mass[1:][i]
-            r200crit = radius[1:][i]
+        if nr_parts > 0 and np.any(density > 200*critical_density):
+            # Find smallest radius where the density is below the threshold
+            i = np.argmax(density < 200*critical_density)
+            m200crit = cumulative_mass[i]
+            r200crit = radius[i]
         else:
             # Below threshold at all radii. Need to return zero with correct units attached.
-            m200crit = cosmo_array_scalar(0, a=a, dtype=cumulative_mass.dtype, unit=cumulative_mass.unit)
-            r200crit = cosmo_array_scalar(0, a=a, dtype=radius.dtype, unit=radius.unit)
+            m200crit = unyt.unyt_array(0, dtype=cumulative_mass.dtype, units=cumulative_mass.units)
+            r200crit = unyt.unyt_array(0, dtype=radius.dtype, units=radius.units)
 
-        # Return value should be a dict containing cosmo_arrays (i.e. with units and cosmology)
-        # and descriptions. The dict keys will be used as HDF5 dataset names in the output.
+        # Return value should be a dict containing unyt_arrays and descriptions.
+        # The dict keys will be used as HDF5 dataset names in the output.
         return {
             "r_200_crit" : (r200crit, "Radius within which the density is 200 times the mean"),
             "m_200_crit" : (m200crit, "Mass within a sphere with density 200 times the mean"),
@@ -108,7 +110,7 @@ class CentreOfMass(HaloProperty):
     mean_density_multiple     = None
     critical_density_multiple = None
 
-    def calculate(self, index, cosmo, a, z, centre, data):
+    def calculate(self, index, critical_density, mean_density, a, z, centre, data):
         """
         Compute centre of mass of bound particles
 
@@ -156,7 +158,7 @@ class CentreOfMass(HaloProperty):
         cofm /= mtot
 
         # Return number of particles
-        nr_part = cosmo_array_scalar(nr_part, a=a, dtype=int)
+        nr_part = unyt.unyt_array(nr_part, dtype=int)
 
         return {
             "CentreOfMass" : (cofm,    "Centre of mass of particles in the group"),

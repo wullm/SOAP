@@ -6,13 +6,19 @@ import numpy as np
 import unyt
 import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.gather_array as g
-import swiftsimio.objects as o
 
 class SOCatalogue:
 
-    def __init__(self, comm, vr_basename, a, unit_system, boxsize):
+    def __init__(self, comm, vr_basename, a_unit, registry, boxsize):
 
         comm_rank = comm.Get_rank()
+
+        # Get SWIFT's definition of physical and comoving Mpc units
+        pMpc = unyt.Unit("pMpc", registry=registry)
+        cMpc = unyt.Unit(a_unit*pMpc, registry=registry)
+
+        # Get expansion factor as a float
+        a = a_unit.base_value
 
         # Here we need to read the centre of mass AND potential minimum:
         # The radius R_size about (Xc, Yc, Zc) contains all particles which
@@ -53,29 +59,26 @@ class SOCatalogue:
             siminfo = None
         units, siminfo = comm.bcast((units, siminfo))
 
-        # Compute conversion factors to comoving Mpc and Msolar (no h in either)
+        # Compute conversion factors to comoving Mpc (no h)
         comoving_or_physical = int(units["Comoving_or_Physical"])
         length_unit_to_kpc = float(units["Length_unit_to_kpc"])
-        mass_unit_to_solarmass = float(units["Mass_unit_to_solarmass"])
         h = float(siminfo["h_val"])
         if comoving_or_physical == 0:
             # Physical units with no h factor
             length_conversion = (1.0/a) * length_unit_to_kpc / 1000.0 # to comoving Mpc
-            mass_conversion = mass_unit_to_solarmass # To solar masses
         else:
             # Comoving 1/h units
             length_conversion = h * length_unit_to_kpc / 1000.0 # to comoving Mpc
-            mass_conversion = h * mass_unit_to_solarmass # To solar masses
 
         # Convert units
         local_cofm *= length_conversion
         local_cofp *= length_conversion
         local_r_size *= length_conversion
 
-        # Add units to local arrays
-        local_cofm = unyt.unyt_array(local_cofm, units=unyt.Mpc)
-        local_cofp = unyt.unyt_array(local_cofp, units=unyt.Mpc)
-        local_r_size = unyt.unyt_array(local_r_size, units=unyt.Mpc)
+        # Add units to local arrays now that everything is in comoving Mpc
+        local_cofm = unyt.unyt_array(local_cofm, units=cMpc)
+        local_cofp = unyt.unyt_array(local_cofp, units=cMpc)
+        local_r_size = unyt.unyt_array(local_r_size, units=cMpc)
 
         #
         # Compute initial search radius for each halo:
@@ -97,10 +100,11 @@ class SOCatalogue:
         # Compute radius to read in about each halo:
         # this is the maximum radius we'll search to reach the required overdensity
         local_read_radius = local_search_radius.copy()
-        min_radius = 5.0*unyt.Mpc
+        min_radius = 5.0*cMpc
         ind = local_read_radius < min_radius
         local_read_radius[ind] = min_radius
 
+        # Store the length unit
         length_unit = local_cofm.units
 
         # Free some arrays we don't need
@@ -122,10 +126,3 @@ class SOCatalogue:
             self.read_radius = unyt.unyt_array(read_radius, units=length_unit)
             self.centre = unyt.unyt_array(centre, units=length_unit)
             self.index = np.arange(self.nr_halos, dtype=int)
-
-            # Add cosmological information
-            a_scale_exponent = 1.0 # For comoving positions
-            cosmo_factor = o.cosmo_factor(o.a**a_scale_exponent, scale_factor=a)
-            self.search_radius = o.cosmo_array(self.search_radius, cosmo_factor=cosmo_factor, comoving=True)
-            self.read_radius = o.cosmo_array(self.read_radius, cosmo_factor=cosmo_factor, comoving=True)
-            self.centre = o.cosmo_array(self.centre, cosmo_factor=cosmo_factor, comoving=True)

@@ -6,7 +6,7 @@ import numpy as np
 import h5py
 import time
 from mpi4py import MPI
-import swiftsimio
+import unyt
 
 import swift_units
 import task_queue
@@ -90,7 +90,7 @@ class ReadTask:
                             np.s_[mem_start:mem_end,...])
 
 
-def identify_datasets(filename, nr_files, ptypes, unit_system, a):
+def identify_datasets(filename, nr_files, ptypes, registry):
     """
     Find units, data type and shape for datasets in snapshot-like files.
     Returns a dict with one entry per particle type. Dict keys are the
@@ -112,8 +112,10 @@ def identify_datasets(filename, nr_files, ptypes, unit_system, a):
                     for name in infile[group_name]:
                         dset = infile[group_name][name]
                         if "a-scale exponent" in dset.attrs:
-                            cosmo = swift_units.empty_cosmo_array_from_attributes(dset, unit_system, a)
-                            metadata[ptype][name] = cosmo
+                            units = swift_units.units_from_attributes(dict(dset.attrs), registry)
+                            dtype = dset.dtype
+                            shape = dset.shape[1:]
+                            metadata[ptype][name] = (units, dtype, shape)
                     to_find[ptype] = False
                 else:
                     nr_left += 1
@@ -126,6 +128,9 @@ def identify_datasets(filename, nr_files, ptypes, unit_system, a):
 
 class SWIFTCellGrid:
     
+    def get_unit(self, dimension):
+        return unyt.Unit(self.snap_unit_registry.unit_system.base_units[dimension], registry=self.snap_unit_registry)
+
     def __init__(self, snap_filename, extra_filename=None):
 
         self.snap_filename = snap_filename
@@ -133,20 +138,38 @@ class SWIFTCellGrid:
         # Option format string to generate name of file(s) with extra datasets
         self.extra_filename = extra_filename
 
-        # Use swiftsimio to get the cosmology, units etc from the snapshot
-        snap = swiftsimio.load(snap_filename % {"file_nr":0})
-        self.cosmology = snap.metadata.cosmology
-        self.units = snap.metadata.units
-        self.boxsize = snap.metadata.boxsize[0]
-        self.a = snap.metadata.a
-        self.z = snap.metadata.z
-        self.nr_files = snap.metadata.header["NumFilesPerSnapshot"][0]
-
-        # Determine which particle types are present
-        self.ptypes = ["PartType%d" % i for i in snap.metadata.present_particle_types]
-        
         # Open the input file
         with h5py.File(snap_filename % {"file_nr":0}, "r") as infile:
+
+            # Get the snapshot unit system
+            self.snap_unit_registry = swift_units.unit_registry_from_snapshot(infile, "Units")
+            self.a_unit = unyt.Unit("a", registry=self.snap_unit_registry)
+            self.a = self.a_unit.base_value
+            self.h_unit = unyt.Unit("h", registry=self.snap_unit_registry)
+            self.h = self.h_unit.base_value
+            self.z = 1.0/self.a-1.0
+
+            # Read cosmology
+            self.cosmology = {}
+            for name in infile["Cosmology"].attrs:
+                self.cosmology[name] = infile["Cosmology"].attrs[name][0]
+
+            # Read the critical density and attach units
+            # This is in internal units, which may not be the same as snapshot units.
+            self.code_unit_registry = swift_units.unit_registry_from_snapshot(infile, "Units")
+            critical_density = float(self.cosmology["Critical density [internal units]"])
+            internal_length_unit = unyt.Unit(self.code_unit_registry.unit_system.base_units[unyt.dimensions.length])
+            internal_mass_unit = unyt.Unit(self.code_unit_registry.unit_system.base_units[unyt.dimensions.mass])
+            internal_density_unit = internal_mass_unit / internal_length_unit**3
+            self.critical_density = unyt.unyt_quantity(critical_density, units=(internal_mass_unit / internal_length_unit**3))
+            self.mean_density = unyt.unyt_quantity(critical_density*self.cosmology["Omega_m"], units=(internal_mass_unit / internal_length_unit**3))
+
+            # Get the box size. Assume it's comoving with no h factors.
+            comoving_length_unit = self.get_unit(unyt.dimensions.length)*self.a_unit
+            self.boxsize = unyt.unyt_quantity(infile["Header"].attrs["BoxSize"][0], units=comoving_length_unit)
+
+            # Get the number of files
+            self.nr_files = infile["Header"].attrs["NumFilesPerSnapshot"][0]
             
             # Read constants
             self.constants = {}
@@ -157,7 +180,7 @@ class SWIFTCellGrid:
             self.ptypes = []
             self.nr_cells  = infile["Cells/Meta-data"].attrs["nr_cells"]
             self.dimension = infile["Cells/Meta-data"].attrs["dimension"]
-            self.cell_size = infile["Cells/Meta-data"].attrs["size"]*self.units.length
+            self.cell_size = unyt.unyt_array(infile["Cells/Meta-data"].attrs["size"], units=comoving_length_unit)
             for name in infile["Cells/Counts"]:
                 self.ptypes.append(name)
                 
@@ -186,9 +209,9 @@ class SWIFTCellGrid:
             self.cell[ptype] = self.cell[ptype].reshape(self.dimension)
 
         # Scan files to find shape and dtype etc for all quantities in the snapshot.
-        self.snap_metadata = identify_datasets(snap_filename, self.nr_files, self.ptypes, self.units, self.a)
+        self.snap_metadata = identify_datasets(snap_filename, self.nr_files, self.ptypes, self.snap_unit_registry)
         if extra_filename is not None:
-            self.extra_metadata = identify_datasets(extra_filename, self.nr_files, self.ptypes, self.units, self.a)
+            self.extra_metadata = identify_datasets(extra_filename, self.nr_files, self.ptypes, self.snap_unit_registry)
 
     def prepare_read(self, ptype, mask):
         """
@@ -244,7 +267,7 @@ class SWIFTCellGrid:
 
     def empty_mask(self):
 
-        return np.zeros(self.dimension, dtype=np.bool)
+        return np.zeros(self.dimension, dtype=bool)
 
     def mask_region(self, mask, pos_min, pos_max):
         imin = np.asarray(np.floor(pos_min/self.cell_size), dtype=int)
@@ -325,15 +348,11 @@ class SWIFTCellGrid:
 
                 # Get metadata for array to allocate in memory
                 if name in self.snap_metadata[ptype]:
-                    arr = self.snap_metadata[ptype][name]
+                    units, dtype, shape = self.snap_metadata[ptype][name]
                 elif self.extra_metadata is not None and name in self.extra_metadata[ptype]:
-                    arr = self.extra_metadata[ptype][name]
+                    units, dtype, shape = self.extra_metadata[ptype][name]
                 else:
                     raise Exception("Can't find required dataset %s in input file(s)!" % name)
-                shape = arr.shape[1:]
-                dtype = arr.dtype.newbyteorder("=") # Must be native endian for mpi4py
-                units = arr.units
-                cosmo_array_params=(units, arr.cosmo_factor, arr.comoving)
 
                 # Determine size of local array section
                 nr_local = nr_parts[ptype] // comm_size
@@ -343,7 +362,7 @@ class SWIFTCellGrid:
                 global_shape = (nr_parts[ptype],)+shape
                 local_shape  = (nr_local,)+shape
                 # Allocate storage
-                data[ptype][name] = shared_array.SharedArray(local_shape, dtype, comm, cosmo_array_params)
+                data[ptype][name] = shared_array.SharedArray(local_shape, dtype, comm, units)
 
         comm.barrier()
 

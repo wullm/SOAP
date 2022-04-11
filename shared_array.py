@@ -2,21 +2,19 @@
 
 from mpi4py import MPI 
 import numpy as np 
-import swiftsimio.objects
 import unyt
 
 class SharedArray:
 
-    def __init__(self, local_shape, dtype, comm, cosmo_array_params=None):
+    def __init__(self, local_shape, dtype, comm, units=None):
 
-        # Extract cosmo_array parameters, if provided
-        if cosmo_array_params is not None:
-            units, cosmo_factor, comoving = cosmo_array_params
-        
         self.comm = comm
         self.dtype = np.dtype(dtype)
         self.win = None
 
+        # Determine units
+        units = units if units is not None else unyt.dimensionless
+        
         # Find the full size of the array
         n = comm.allreduce(local_shape[0])
         full_shape = (n,)+tuple(local_shape[1:])
@@ -45,12 +43,9 @@ class SharedArray:
         buf, itemsize = self.win.Shared_query(comm.Get_rank())
         self.local = np.ndarray(buffer=buf, dtype=self.dtype, shape=local_shape)
 
-        # Wrap the numpy arrays in swiftsimio cosmo_arrays if parameters were provided
-        if cosmo_array_params is not None:
-            self.full = swiftsimio.objects.cosmo_array(unyt.unyt_array(self.full, units=units),
-                                                       cosmo_factor=cosmo_factor, comoving=comoving)
-            self.local = swiftsimio.objects.cosmo_array(unyt.unyt_array(self.local, units=units),
-                                                        cosmo_factor=cosmo_factor, comoving=comoving)
+        # Wrap the numpy arrays in unyt arrays
+        self.full  = unyt.unyt_array(self.full,  units=units)
+        self.local = unyt.unyt_array(self.local, units=units)
 
     def sync(self):
         self.win.Sync()
@@ -64,38 +59,4 @@ class SharedArray:
         self.free()
 
 
-if __name__ == "__main__":
-
-    comm = MPI.COMM_WORLD
-    comm_rank = comm.Get_rank()
-
-    o = swiftsimio.objects
-
-    # Set up comoving Mpc units
-    a_scale_exponent = 1.0
-    scale_factor = 0.5
-    cosmo_factor = o.cosmo_factor(o.a**a_scale_exponent, scale_factor=scale_factor)
-    units = o.cosmo_array(unyt.unyt_array(1.0, units=unyt.Mpc), cosmo_factor=cosmo_factor)
-
-    local_shape = (10,)
-    arr = SharedArray(local_shape, np.float64, comm, units)
-    arr.sync()
-    comm.barrier()
-    arr.sync()
-
-    # Rank 0 writes elements
-    if comm_rank == 0:
-        arr.full[:] = 27
-
-    arr.sync()
-    comm.barrier()
-    arr.sync()
-    
-    # Rank 1 reads
-    if comm_rank == 1:
-        print("Minimum value = ", np.amin(arr.full))
-        print("Maximum value = ", np.amax(arr.full))
-
-    arr.sync()
-    arr.free()
 

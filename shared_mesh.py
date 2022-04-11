@@ -59,7 +59,7 @@ class SharedMesh:
         if comm_rank == 0:
             self.cell_offset.full[0] = 0
             if len(self.cell_offset.full) > 1:
-                np.cumsum(self.cell_count.full[:-1], out=self.cell_offset.full[1:])
+                self.cell_offset.full[1:] = np.cumsum(self.cell_count.full[:-1])
         comm.barrier()
         self.cell_offset.sync()
 
