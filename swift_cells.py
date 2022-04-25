@@ -156,7 +156,7 @@ class SWIFTCellGrid:
 
             # Read the critical density and attach units
             # This is in internal units, which may not be the same as snapshot units.
-            self.code_unit_registry = swift_units.unit_registry_from_snapshot(infile, "Units")
+            self.code_unit_registry = swift_units.unit_registry_from_snapshot(infile, "InternalUnits")
             critical_density = float(self.cosmology["Critical density [internal units]"])
             internal_length_unit = unyt.Unit(self.code_unit_registry.unit_system.base_units[unyt.dimensions.length])
             internal_mass_unit = unyt.Unit(self.code_unit_registry.unit_system.base_units[unyt.dimensions.mass])
