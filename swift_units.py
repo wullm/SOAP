@@ -134,13 +134,13 @@ def attributes_from_units(units):
     powers = units.get_mks_equivalent().dimensions.as_powers_dict()
     
     # Set the attributes
-    attrs["Conversion factor to CGS (not including cosmological corrections)"] = [cgs_factor/(a_val**a_exponent)/(h_val**h_exponent),]
-    attrs["Conversion factor to CGS (including cosmological corrections)"]     = [cgs_factor,]
-    attrs["U_I exponent"] = [powers[unyt.dimensions.current_mks],]
-    attrs["U_L exponent"] = [powers[unyt.dimensions.length],]
-    attrs["U_M exponent"] = [powers[unyt.dimensions.mass],]
-    attrs["U_T exponent"] = [powers[unyt.dimensions.temperature],]
-    attrs["U_t exponent"] = [powers[unyt.dimensions.time],]
+    attrs["Conversion factor to CGS (not including cosmological corrections)"] = [float(cgs_factor/(a_val**a_exponent)/(h_val**h_exponent)),]
+    attrs["Conversion factor to CGS (including cosmological corrections)"]     = [float(cgs_factor),]
+    attrs["U_I exponent"] = [float(powers[unyt.dimensions.current_mks]),]
+    attrs["U_L exponent"] = [float(powers[unyt.dimensions.length]),]
+    attrs["U_M exponent"] = [float(powers[unyt.dimensions.mass]),]
+    attrs["U_T exponent"] = [float(powers[unyt.dimensions.temperature]),]
+    attrs["U_t exponent"] = [float(powers[unyt.dimensions.time]),]
     attrs["a-scale exponent"] = [float(a_exponent),]
     attrs["h-scale exponent"] = [float(h_exponent),]
 
