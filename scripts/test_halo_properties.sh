@@ -2,23 +2,26 @@
 #
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=1
-#SBATCH --tasks-per-node=16
-#SBATCH -J test
-#SBATCH -o ./test.out
-#SBATCH -p cosma8-shm
-#SBATCH -A dp004
+#SBATCH -J test_halo_properties
+#SBATCH -o ./logs/test_halo_properties.%a.out
+#SBATCH -p cosma
+#SBATCH -A durham
 ##SBATCH --exclusive
-#SBATCH -t 0:20:00
+#SBATCH -t 2:00:00
 #
 
 module purge
 module load gnu_comp/11.1.0 openmpi/4.1.1 python/3.10.1
 
-swift_filename=/cosma8/data/dp004/jch/FLAMINGO/BlackHoles/200_w_lightcone/snapshots/flamingo_0013.hdf5
-vr_basename=/cosma8/data/dp004/jch/FLAMINGO/BlackHoles/200_w_lightcone/vr/catalogue_0013/vr_catalogue_0013
-chunks_per_dimension=1
-outfile=/cosma8/data/dp004/jch/FLAMINGO/BlackHoles/200_w_lightcone/halo_properties/halo_properties_0013.hdf5
-extra_filename=/cosma8/data/dp004/jch/FLAMINGO/BlackHoles/200_w_lightcone/group_membership/vr_membership_0013.hdf5
+snapnum=`printf '%04d' ${SLURM_ARRAY_TASK_ID}`
 
-mpirun python3 -m mpi4py \
+basedir="/cosma5/data/jch/HaloProperties/200_w_lightcone/"
+
+swift_filename="${basedir}/snapshots/flamingo_${snapnum}.hdf5"
+vr_basename="${basedir}/vr/catalogue_${snapnum}/vr_catalogue_${snapnum}"
+chunks_per_dimension=1
+outfile="${basedir}/halo_properties/halo_properties_${snapnum}.hdf5"
+extra_filename="${basedir}/group_membership/vr_membership_${snapnum}.hdf5"
+
+mpirun python3 -u -m mpi4py \
     ./compute_halo_properties.py ${swift_filename} ${vr_basename} ${chunks_per_dimension} ${outfile} ${extra_filename}
