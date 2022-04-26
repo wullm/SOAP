@@ -7,9 +7,9 @@ import shared_array
 import time
 import unyt
 
-def process_single_halo(mesh, data, halo_prop_list, a, z, critical_density,
-                        mean_density, boxsize, index, centre, search_radius,
-                        read_radius, target_density):
+def process_single_halo(mesh, unit_registry, data, halo_prop_list, a, z,
+                        critical_density, mean_density, boxsize, index,
+                        centre, search_radius, read_radius, target_density):
     """
     This computes properties for one halo and runs on a single
     MPI rank. Result is a dict of properties of the form
@@ -75,10 +75,10 @@ def process_single_halo(mesh, data, halo_prop_list, a, z, critical_density,
     # Compute properties of this halo        
     halo_result = {}
     for halo_prop in halo_prop_list:
-        halo_result.update(halo_prop.calculate(index, critical_density, mean_density, a, z, centre, halo_data))
+        halo_result.update(halo_prop.calculate(index, unit_registry, critical_density, mean_density, a, z, centre, halo_data))
 
     # Add the halo index to the result set
-    halo_result["index"] = (unyt.unyt_array(index, dtype=index.dtype), "Index of this halo in the input catalogue")
+    halo_result["index"] = (unyt.unyt_array(index, dtype=index.dtype, registry=unit_registry), "Index of this halo in the input catalogue")
 
     # Store search radius and density within that radius
     halo_result["search_radius"]            = (current_radius, "Search radius for property calculation")
@@ -88,9 +88,9 @@ def process_single_halo(mesh, data, halo_prop_list, a, z, critical_density,
     return halo_result
 
 
-def process_halos(comm, data, mesh, halo_prop_list, a, z,
-                  critical_density, mean_density,
-                  boxsize, indexes, centres, search_radii, read_radii):
+def process_halos(comm, unit_registry, data, mesh, halo_prop_list, a, z,
+                  critical_density, mean_density, boxsize, indexes,
+                  centres, search_radii, read_radii):
 
     # Compute density threshold at this redshift in comoving units:
     # This determines the size of the sphere we use for all other SO quantities.
@@ -145,8 +145,9 @@ def process_halos(comm, data, mesh, halo_prop_list, a, z,
             t0_task = time.time()
 
             # Fetch the results for this particular halo
-            results = process_single_halo(mesh, data, halo_prop_list, a, z, critical_density, mean_density,
-                                          boxsize, indexes.full[task_to_do], centres.full[task_to_do,:],
+            results = process_single_halo(mesh, unit_registry, data, halo_prop_list, a, z,
+                                          critical_density, mean_density, boxsize,
+                                          indexes.full[task_to_do], centres.full[task_to_do,:],
                                           search_radii.full[task_to_do], read_radii.full[task_to_do],
                                           target_density)
 
@@ -158,7 +159,7 @@ def process_halos(comm, data, mesh, halo_prop_list, a, z,
                     shape = (nr_halos_this_rank_guess,) + result_data.shape
                     # need to ensure we don't pass a unyt_quantity to empty_like
                     # because unyt_quantities must be scalars only
-                    arr = np.empty_like(unyt.unyt_array(result_data), shape=shape)
+                    arr = np.empty_like(unyt.unyt_array(result_data, registry=unit_registry), shape=shape)
                     result_arrays[result_name] = [arr, result_description]
 
                 # Find the array to store this result
@@ -168,7 +169,7 @@ def process_halos(comm, data, mesh, halo_prop_list, a, z,
                 if nr_done_this_rank >= result_array.shape[0]:
                     new_shape = list(result_array.shape)
                     new_shape[0] *= 2
-                    new_result_array = np.empty_like(unyt.unyt_array(result_array), shape=new_shape)
+                    new_result_array = np.empty_like(unyt.unyt_array(result_array, registry=unit_registry), shape=new_shape)
                     new_result_array[0:result_array.shape[0],...] = result_array[...]
                     result_array = new_result_array
                     result_arrays[result_name] = [result_array, result_description]

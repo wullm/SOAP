@@ -128,8 +128,11 @@ def identify_datasets(filename, nr_files, ptypes, registry):
 
 class SWIFTCellGrid:
     
-    def get_unit(self, dimension):
+    def get_snap_unit(self, dimension):
         return unyt.Unit(self.snap_unit_registry.unit_system.base_units[dimension], registry=self.snap_unit_registry)
+
+    def get_code_unit(self, dimension):
+        return unyt.Unit(self.code_unit_registry.unit_system.base_units[dimension], registry=self.code_unit_registry)
 
     def __init__(self, snap_filename, extra_filename=None):
 
@@ -158,14 +161,14 @@ class SWIFTCellGrid:
             # This is in internal units, which may not be the same as snapshot units.
             self.code_unit_registry = swift_units.unit_registry_from_snapshot(infile, "InternalCodeUnits")
             critical_density = float(self.cosmology["Critical density [internal units]"])
-            internal_length_unit = unyt.Unit(self.code_unit_registry.unit_system.base_units[unyt.dimensions.length])
-            internal_mass_unit = unyt.Unit(self.code_unit_registry.unit_system.base_units[unyt.dimensions.mass])
+            internal_length_unit = self.get_code_unit(unyt.dimensions.length)
+            internal_mass_unit = self.get_code_unit(unyt.dimensions.mass)
             internal_density_unit = internal_mass_unit / internal_length_unit**3
-            self.critical_density = unyt.unyt_quantity(critical_density, units=(internal_mass_unit / internal_length_unit**3))
-            self.mean_density = unyt.unyt_quantity(critical_density*self.cosmology["Omega_m"], units=(internal_mass_unit / internal_length_unit**3))
+            self.critical_density = unyt.unyt_quantity(critical_density, units=internal_density_unit)
+            self.mean_density = self.critical_density*self.cosmology["Omega_m"]
 
             # Get the box size. Assume it's comoving with no h factors.
-            comoving_length_unit = self.get_unit(unyt.dimensions.length)*self.a_unit
+            comoving_length_unit = self.get_snap_unit(unyt.dimensions.length)*self.a_unit
             self.boxsize = unyt.unyt_quantity(infile["Header"].attrs["BoxSize"][0], units=comoving_length_unit)
 
             # Get the number of files

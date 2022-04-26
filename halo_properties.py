@@ -29,7 +29,7 @@ class SOMasses(HaloProperty):
     mean_density_multiple     = 200.0
     critical_density_multiple = 200.0
 
-    def calculate(self, index, critical_density, mean_density, a, z, centre, data):
+    def calculate(self, index, unit_registry, critical_density, mean_density, a, z, centre, data):
         """
         Compute spherical masses and overdensities for a halo
 
@@ -110,7 +110,7 @@ class CentreOfMass(HaloProperty):
     mean_density_multiple     = None
     critical_density_multiple = None
 
-    def calculate(self, index, critical_density, mean_density, a, z, centre, data):
+    def calculate(self, index, unit_registry, critical_density, mean_density, a, z, centre, data):
         """
         Compute centre of mass of bound particles
 
@@ -158,7 +158,7 @@ class CentreOfMass(HaloProperty):
         cofm /= mtot
 
         # Return number of particles
-        nr_part = unyt.unyt_array(nr_part, dtype=int)
+        nr_part = unyt.unyt_array(nr_part, dtype=int, registry=unit_registry)
 
         return {
             "CentreOfMass" : (cofm,    "Centre of mass of particles in the group"),

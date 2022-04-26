@@ -126,3 +126,11 @@ class SOCatalogue:
             self.read_radius = unyt.unyt_array(read_radius, units=length_unit)
             self.centre = unyt.unyt_array(centre, units=length_unit)
             self.index = np.arange(self.nr_halos, dtype=int)
+
+            # # Reduce number of halos for testing
+            # self.nr_halos = 100
+            # self.search_radius = self.search_radius[:self.nr_halos]
+            # self.read_radius   = self.read_radius[:self.nr_halos]
+            # self.centre        = self.centre[:self.nr_halos,:]
+            # self.index         = self.index[:self.nr_halos]
+

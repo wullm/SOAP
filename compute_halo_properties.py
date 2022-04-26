@@ -69,7 +69,10 @@ if __name__ == "__main__":
         print("Starting halo properties calculation on %d MPI ranks" % comm_world_size)
 
     # Make a list of properties to calculate
-    halo_prop_list = [halo_properties.SOMasses(), halo_properties.CentreOfMass()]
+    halo_prop_list = [
+        halo_properties.SOMasses(),
+        halo_properties.CentreOfMass(),
+    ]
 
     # Open the snapshot and read SWIFT cell structure, units etc
     if comm_world_rank == 0:

@@ -234,7 +234,8 @@ class ChunkTask:
         # Calculate the halo properties
         t0_halos = time.time()
         nr_halos = len(self.indexes.full)
-        result, total_time, task_time = process_halos(comm, data, mesh, self.halo_prop_list, a, z, critical_density,
+        result, total_time, task_time = process_halos(comm, cellgrid.snap_unit_registry, data, mesh,
+                                                      self.halo_prop_list, a, z, critical_density,
                                                       mean_density, boxsize, self.indexes, self.centres,
                                                       self.search_radii, self.read_radii)
         t1_halos = time.time()
