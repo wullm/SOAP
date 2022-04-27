@@ -145,7 +145,7 @@ class SWIFTCellGrid:
         with h5py.File(snap_filename % {"file_nr":0}, "r") as infile:
 
             # Get the snapshot unit system
-            self.snap_unit_registry = swift_units.unit_registry_from_snapshot(infile, "Units")
+            self.snap_unit_registry = swift_units.unit_registry_from_snapshot(infile, "snap", "Units")
             self.a_unit = unyt.Unit("a", registry=self.snap_unit_registry)
             self.a = self.a_unit.base_value
             self.h_unit = unyt.Unit("h", registry=self.snap_unit_registry)
@@ -159,7 +159,7 @@ class SWIFTCellGrid:
 
             # Read the critical density and attach units
             # This is in internal units, which may not be the same as snapshot units.
-            self.code_unit_registry = swift_units.unit_registry_from_snapshot(infile, "InternalCodeUnits")
+            self.code_unit_registry = swift_units.unit_registry_from_snapshot(infile, "code", "InternalCodeUnits")
             critical_density = float(self.cosmology["Critical density [internal units]"])
             internal_length_unit = self.get_code_unit(unyt.dimensions.length)
             internal_mass_unit = self.get_code_unit(unyt.dimensions.mass)

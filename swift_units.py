@@ -6,50 +6,48 @@ import numpy
 import h5py
 
 
-def unit_registry_from_snapshot(snap, name="Units"):
-    """
-    Create a new unit registry from a SWIFT snapsnot, using the exact
-    units and physical constants from SWIFT.
-
-    snap: the snapshot file as a h5py.File object
-
-    Returns a unyt UnitRegistry.
-    """
+def unit_registry_from_snapshot(snap, prefix="snap", group_name="Units"):
 
     # Read snapshot metadata
     physical_constants_cgs = {name : float(value) for name, value in snap["PhysicalConstants/CGS"].attrs.items()}
-    snap_units_cgs = {name : float(value) for name, value in snap[name].attrs.items()}
+    snap_units_cgs = {name : float(value) for name, value in snap[group_name].attrs.items()}
     cosmology = {name : float(value) for name, value in snap["Cosmology"].attrs.items()}
-    a = cosmology["Scale-factor"]
-    h = cosmology["h"]
+    a = unyt.unyt_quantity(cosmology["Scale-factor"])
+    h = unyt.unyt_quantity(cosmology["h"])
 
-    # Create a new unit system corresponding to the snapshot units
-    us = unyt.UnitSystem(
-        snap.filename,
-        unyt.unyt_quantity(snap_units_cgs["Unit length in cgs (U_L)"],      units=unyt.cm),
-        unyt.unyt_quantity(snap_units_cgs["Unit mass in cgs (U_M)"],        units=unyt.g),
-        unyt.unyt_quantity(snap_units_cgs["Unit time in cgs (U_t)"],        units=unyt.s),
-        unyt.unyt_quantity(snap_units_cgs["Unit temperature in cgs (U_T)"], unyt.K),
-        unyt.rad,
-        unyt.unyt_quantity(snap_units_cgs["Unit current in cgs (U_I)"],     units=unyt.A),
-    )
+    # Create a new registry
+    reg = unyt.unit_registry.UnitRegistry()
 
-    # Create a new unit registry
-    reg = unyt.UnitRegistry(unit_system=us)
+    # Define base units
+    unyt.define_unit(prefix+"_length",      snap_units_cgs["Unit length in cgs (U_L)"]*unyt.cm,     registry=reg)
+    unyt.define_unit(prefix+"_mass",        snap_units_cgs["Unit mass in cgs (U_M)"]*unyt.g,        registry=reg)
+    unyt.define_unit(prefix+"_time",        snap_units_cgs["Unit time in cgs (U_t)"]*unyt.s,        registry=reg)
+    unyt.define_unit(prefix+"_temperature", snap_units_cgs["Unit temperature in cgs (U_T)"]*unyt.K, registry=reg)
+    unyt.define_unit(prefix+"_angle",       1.0*unyt.rad,                                           registry=reg)
+    unyt.define_unit(prefix+"_current",     snap_units_cgs["Unit current in cgs (U_I)"]*unyt.A,     registry=reg)
 
     # Add the expansion factor as a dimensionless "unit"
-    reg.add("a", a, dim.dimensionless)
-    reg.add("h", h, dim.dimensionless)
+    unyt.define_unit("a", a, dim.dimensionless, registry=reg)
+    unyt.define_unit("h", h, dim.dimensionless, registry=reg)
+
+    # Create a new unit system using the snapshot units as base units
+    us = unyt.UnitSystem(
+        prefix+"_units",
+        unyt.Unit(prefix+"_length", registry=reg),
+        unyt.Unit(prefix+"_mass", registry=reg),
+        unyt.Unit(prefix+"_time", registry=reg),
+        unyt.Unit(prefix+"_temperature", registry=reg),
+        unyt.Unit(prefix+"_angle", registry=reg),
+        unyt.Unit(prefix+"_current", registry=reg),
+        registry=reg
+    )
+    
+    # Create a registry using this base unit system
+    reg = unyt.unit_registry.UnitRegistry(lut=reg.lut, unit_system=us)
 
     # Add physical length units
     parsec_cgs = physical_constants_cgs["parsec"]
-    parsec_si = parsec_cgs/100.0
-    reg.add("pMpc", parsec_si*1.0e6, dim.length)
-
-    # Add mass units
-    solar_mass_cgs = physical_constants_cgs["solar_mass"]
-    solar_mass_si = solar_mass_cgs / 1000.0
-    reg.add("Msun", solar_mass_si, dim.mass)
+    unyt.define_unit("pMpc", 1.0e6*parsec_cgs*unyt.cm, registry=reg)
 
     return reg
 
