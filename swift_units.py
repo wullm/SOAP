@@ -6,11 +6,10 @@ import numpy
 import h5py
 
 
-def unit_registry_from_snapshot(snap, prefix="snap", group_name="Units"):
+def unit_registry_from_snapshot(snap):
 
     # Read snapshot metadata
     physical_constants_cgs = {name : float(value) for name, value in snap["PhysicalConstants/CGS"].attrs.items()}
-    snap_units_cgs = {name : float(value) for name, value in snap[group_name].attrs.items()}
     cosmology = {name : float(value) for name, value in snap["Cosmology"].attrs.items()}
     a = unyt.unyt_quantity(cosmology["Scale-factor"])
     h = unyt.unyt_quantity(cosmology["h"])
@@ -18,13 +17,16 @@ def unit_registry_from_snapshot(snap, prefix="snap", group_name="Units"):
     # Create a new registry
     reg = unyt.unit_registry.UnitRegistry()
 
-    # Define base units
-    unyt.define_unit(prefix+"_length",      snap_units_cgs["Unit length in cgs (U_L)"]*unyt.cm,     registry=reg)
-    unyt.define_unit(prefix+"_mass",        snap_units_cgs["Unit mass in cgs (U_M)"]*unyt.g,        registry=reg)
-    unyt.define_unit(prefix+"_time",        snap_units_cgs["Unit time in cgs (U_t)"]*unyt.s,        registry=reg)
-    unyt.define_unit(prefix+"_temperature", snap_units_cgs["Unit temperature in cgs (U_T)"]*unyt.K, registry=reg)
-    unyt.define_unit(prefix+"_angle",       1.0*unyt.rad,                                           registry=reg)
-    unyt.define_unit(prefix+"_current",     snap_units_cgs["Unit current in cgs (U_I)"]*unyt.A,     registry=reg)
+    # Define code and snapshot base units
+    for group_name, prefix in (("Units", "snap"),
+                               ("InternalCodeUnits", "code")):
+        units_cgs = {name : float(value) for name, value in snap[group_name].attrs.items()}
+        unyt.define_unit(prefix+"_length",      units_cgs["Unit length in cgs (U_L)"]*unyt.cm,     registry=reg)
+        unyt.define_unit(prefix+"_mass",        units_cgs["Unit mass in cgs (U_M)"]*unyt.g,        registry=reg)
+        unyt.define_unit(prefix+"_time",        units_cgs["Unit time in cgs (U_t)"]*unyt.s,        registry=reg)
+        unyt.define_unit(prefix+"_temperature", units_cgs["Unit temperature in cgs (U_T)"]*unyt.K, registry=reg)
+        unyt.define_unit(prefix+"_angle",       1.0*unyt.rad,                                      registry=reg)
+        unyt.define_unit(prefix+"_current",     units_cgs["Unit current in cgs (U_I)"]*unyt.A,     registry=reg)
 
     # Add the expansion factor as a dimensionless "unit"
     unyt.define_unit("a", a, dim.dimensionless, registry=reg)
@@ -32,13 +34,13 @@ def unit_registry_from_snapshot(snap, prefix="snap", group_name="Units"):
 
     # Create a new unit system using the snapshot units as base units
     us = unyt.UnitSystem(
-        prefix+"_units",
-        unyt.Unit(prefix+"_length", registry=reg),
-        unyt.Unit(prefix+"_mass", registry=reg),
-        unyt.Unit(prefix+"_time", registry=reg),
-        unyt.Unit(prefix+"_temperature", registry=reg),
-        unyt.Unit(prefix+"_angle", registry=reg),
-        unyt.Unit(prefix+"_current", registry=reg),
+        "snap_units",
+        unyt.Unit("snap_length", registry=reg),
+        unyt.Unit("snap_mass", registry=reg),
+        unyt.Unit("snap_time", registry=reg),
+        unyt.Unit("snap_temperature", registry=reg),
+        unyt.Unit("snap_angle", registry=reg),
+        unyt.Unit("snap_current", registry=reg),
         registry=reg
     )
     

@@ -128,11 +128,8 @@ def identify_datasets(filename, nr_files, ptypes, registry):
 
 class SWIFTCellGrid:
     
-    def get_snap_unit(self, dimension):
-        return unyt.Unit(self.snap_unit_registry.unit_system.base_units[dimension], registry=self.snap_unit_registry)
-
-    def get_code_unit(self, dimension):
-        return unyt.Unit(self.code_unit_registry.unit_system.base_units[dimension], registry=self.code_unit_registry)
+    def get_unit(self, name):
+        return unyt.Unit(name, registry=self.snap_unit_registry)
 
     def __init__(self, snap_filename, extra_filename=None):
 
@@ -145,10 +142,10 @@ class SWIFTCellGrid:
         with h5py.File(snap_filename % {"file_nr":0}, "r") as infile:
 
             # Get the snapshot unit system
-            self.snap_unit_registry = swift_units.unit_registry_from_snapshot(infile, "snap", "Units")
-            self.a_unit = unyt.Unit("a", registry=self.snap_unit_registry)
+            self.snap_unit_registry = swift_units.unit_registry_from_snapshot(infile)
+            self.a_unit = self.get_unit("a")
             self.a = self.a_unit.base_value
-            self.h_unit = unyt.Unit("h", registry=self.snap_unit_registry)
+            self.h_unit = self.get_unit("h")
             self.h = self.h_unit.base_value
             self.z = 1.0/self.a-1.0
 
@@ -159,16 +156,13 @@ class SWIFTCellGrid:
 
             # Read the critical density and attach units
             # This is in internal units, which may not be the same as snapshot units.
-            self.code_unit_registry = swift_units.unit_registry_from_snapshot(infile, "code", "InternalCodeUnits")
             critical_density = float(self.cosmology["Critical density [internal units]"])
-            internal_length_unit = self.get_code_unit(unyt.dimensions.length)
-            internal_mass_unit = self.get_code_unit(unyt.dimensions.mass)
-            internal_density_unit = internal_mass_unit / internal_length_unit**3
+            internal_density_unit = self.get_unit("code_mass")/(self.get_unit("code_length")**3)
             self.critical_density = unyt.unyt_quantity(critical_density, units=internal_density_unit)
             self.mean_density = self.critical_density*self.cosmology["Omega_m"]
 
             # Get the box size. Assume it's comoving with no h factors.
-            comoving_length_unit = self.get_snap_unit(unyt.dimensions.length)*self.a_unit
+            comoving_length_unit = self.get_unit("snap_length")*self.a_unit
             self.boxsize = unyt.unyt_quantity(infile["Header"].attrs["BoxSize"][0], units=comoving_length_unit)
 
             # Get the number of files
