@@ -47,9 +47,9 @@ def unit_registry_from_snapshot(snap):
     # Create a registry using this base unit system
     reg = unyt.unit_registry.UnitRegistry(lut=reg.lut, unit_system=us)
 
-    # Add physical length units
-    parsec_cgs = physical_constants_cgs["parsec"]
-    unyt.define_unit("pMpc", 1.0e6*parsec_cgs*unyt.cm, registry=reg)
+    # Add some units which might be useful for dealing with VR data
+    unyt.define_unit("swift_mpc",  1.0e6*physical_constants_cgs["parsec"]*unyt.cm, registry=reg)
+    unyt.define_unit("swift_msun", physical_constants_cgs["solar_mass"]*unyt.g, registry=reg)
 
     return reg
 

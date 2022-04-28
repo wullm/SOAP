@@ -22,8 +22,9 @@ class SOCatalogue:
         comm_rank = comm.Get_rank()
 
         # Get SWIFT's definition of physical and comoving Mpc units
-        pMpc = unyt.Unit("pMpc", registry=registry)
-        cMpc = unyt.Unit(a_unit*pMpc, registry=registry)
+        swift_pmpc = unyt.Unit("swift_mpc",       registry=registry)
+        swift_cmpc = unyt.Unit(a_unit*swift_pmpc, registry=registry)
+        swift_msun = unyt.Unit("swift_msun",      registry=registry)
 
         # Get expansion factor as a float
         a = a_unit.base_value
@@ -33,7 +34,7 @@ class SOCatalogue:
         # belong to the group. But we want to compute spherical overdensity
         # quantities about the potential minimum.
         datasets = ("Xcminpot", "Ycminpot", "Zcminpot",
-                    "Xc", "Yc", "Zc", "R_size")
+                    "Xc", "Yc", "Zc", "R_size", "Structuretype")
 
         # Check for single file VR output - will prefer filename without
         # extension if both are present
@@ -55,6 +56,7 @@ class SOCatalogue:
         local_cofm = np.column_stack((data["Xc"], data["Yc"], data["Zc"]))
         local_cofp = np.column_stack((data["Xcminpot"], data["Ycminpot"], data["Zcminpot"]))
         local_r_size = data["R_size"]
+        local_structuretype = data["Structuretype"]
 
         # Extract unit information from the first file
         if comm_rank == 0:
@@ -84,9 +86,10 @@ class SOCatalogue:
         local_r_size *= length_conversion
 
         # Add units to local arrays now that everything is in comoving Mpc
-        local_cofm = unyt.unyt_array(local_cofm, units=cMpc)
-        local_cofp = unyt.unyt_array(local_cofp, units=cMpc)
-        local_r_size = unyt.unyt_array(local_r_size, units=cMpc)
+        local_cofm = unyt.unyt_array(local_cofm, units=swift_cmpc)
+        local_cofp = unyt.unyt_array(local_cofp, units=swift_cmpc)
+        local_r_size = unyt.unyt_array(local_r_size, units=swift_cmpc)
+        local_structuretype = unyt.unyt_array(local_structuretype, dtype=local_structuretype.dtype, units=unyt.dimensionless)
 
         #
         # Compute initial search radius for each halo:
@@ -108,7 +111,7 @@ class SOCatalogue:
         # Compute radius to read in about each halo:
         # this is the maximum radius we'll search to reach the required overdensity
         local_read_radius = local_search_radius.copy()
-        min_radius = 5.0*cMpc
+        min_radius = 5.0*swift_cmpc
         ind = local_read_radius < min_radius
         local_read_radius[ind] = min_radius
         length_unit = local_cofm.units
@@ -118,6 +121,7 @@ class SOCatalogue:
             "search_radius" : gather_to_rank_zero(local_search_radius),
             "read_radius"   : gather_to_rank_zero(local_read_radius),
             "centre"        : gather_to_rank_zero(local_cofp),
+            "Structuretype" : gather_to_rank_zero(local_structuretype),
          }
 
         # # For testing: limit number of halos
