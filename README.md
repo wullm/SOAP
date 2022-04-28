@@ -1,6 +1,23 @@
-# Program to compute halo properties in SWIFT simulations
+# Halo properties in SWIFT simulations
 
-This is an MPI parallel python program to compute halo properties.
+This repository contains two programs which can be used to compute extra
+properties of VELOCIraptor halos in SWIFT snapshots.
+
+These are both written in python and use mpi4py for parallelism.
+
+## Computing halo membership for particles in the snapshot
+
+The first program, vr_group_membership.py, can compute bound and unbound 
+VELOCIraptor halo indexes for all particles in a snapshot. The output
+consists of the same number of files as the snapshot with particle halo
+indexes written out in the same order as the snapshot.
+
+## Computing halo properties
+
+The second program, compute_halo_properties.py, reads the simulation
+snapshot and the output from vr_group_membership.py and uses it to
+calculate halo properties. It works as follows:
+
 The simulation volume is split into chunks. Each compute node reads
 in the particles in one chunk at a time and calculates the properties
 of all halos in that chunk.
@@ -14,29 +31,51 @@ chunk.
 
 ## Usage on COSMA
 
-Load modules:
+### Required modules
+
+The same MPI module which was used to compile mpi4py must be loaded:
 ```
 module load python/3.10.1 gnu_comp/11.1.0 openmpi/4.1.1
 ```
-Set parameters
-```
-# Format string to generate snapshot file names
-swift_filename="./flamingo_0078/flamingo_0078.%(file_nr)d.hdf5"
 
-# Name of the VR .properties file, excluding trailing .N
-vr_basename="./snapshots/VR/catalogue_0078/vr_catalogue_0078.properties"
+### Calculating particle group membership
 
-# Simulation volume is split into chunks_per_dimension^3 pieces
-chunks_per_dimension=3
+The group membership program needs the location of the snapshot file(s),
+the location of the VELOCIraptor catalogue and the name of the output file(s)
+to generate. For example:
+```
+snapnum=0077
+swift_filename="./snapshots/flamingo_${snapnum}/flamingo_${snapnum}.0.hdf5"
+vr_basename="./VR/catalogue_${snapnum}/vr_catalogue_${snapnum}"
+outfile="./group_membership/vr_membership_${snapnum}.%(file_nr)d.hdf5"
 
-# Where to write the output
-outfile=./output.hdf5
+mpirun python3 -u -m mpi4py \
+    ./vr_group_membership.py ${swift_filename} ${vr_basename} ${outfile}
 ```
-To run the code:
+
+See scripts/FLAMINGO/L1000N1800/group_membership_L1000N1800.sh for an example
+batch script.
+
+### Calculating halo properties
+
+To calculate halo properties:
+
 ```
+swift_filename="./snapshots/flamingo_${snapnum}/flamingo_${snapnum}.%(file_nr)d.hdf5"
+extra_filename="./group_membership/vr_membership_${snapnum}.%(file_nr)d.hdf5"
+vr_basename="./VR/catalogue_${snapnum}/vr_catalogue_${snapnum}"
+outfile="./halo_properties/halo_properties_${snapnum}.hdf5"
+chunks_per_dimension=2
+
 mpirun python3 -u -m mpi4py ./compute_halo_properties.py \
-    ${swift_filename} ${vr_basename} ${chunks_per_dimension} ${outfile}
+    ${swift_filename} ${vr_basename} ${chunks_per_dimension} ${outfile} ${extra_filename}
 ```
+
+Here, chunks_per_dimension determines how many chunks the simulation box is
+split into.
+
+See scripts/FLAMINGO/L1000N1800/halo_properties_L1000N1800.sh for an example
+batch script.
 
 ## Adding quantities
 
@@ -48,7 +87,7 @@ attributes:
   * mean_density_multiple - specifies that particles must be read in a sphere of mean density no greater than this multiple of the mean density
   * critical_density_multiple - specifies that particles must be read in a sphere of mean density no greater than this multiple of the critical density
 
-There should also be a __call__ method which implements the calculation
+There should also be a `calculate` method which implements the calculation
 and returns a dict with the calculated properties.
 
 New classes must be added to halo_prop_list in compute_halo_properties.py.
@@ -57,7 +96,7 @@ New classes must be added to halo_prop_list in compute_halo_properties.py.
 
 Possible improvements:
 
-  * Compute or read in VR halo membership to compute sums over bound particles only
   * More flexible domain decomposition (e.g. Gadget style space filling curve)
   * Assign initial search radii to halos individually and repeat part of calculation if too small
   * Compute cells to read halo by halo instead of just using the bounding box
+  * specify multi-file inputs/outputs more consistently!
