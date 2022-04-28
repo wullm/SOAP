@@ -7,6 +7,14 @@ import unyt
 import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.gather_array as g
 
+
+def gather_to_rank_zero(arr):
+    """Gather the specified array on rank 0, preserving units"""
+    units = arr.units
+    arr = g.gather_array(arr.value)
+    return unyt.unyt_array(arr, units=units)
+
+
 class SOCatalogue:
 
     def __init__(self, comm, vr_basename, a_unit, registry, boxsize):
@@ -64,10 +72,10 @@ class SOCatalogue:
         length_unit_to_kpc = float(units["Length_unit_to_kpc"])
         h = float(siminfo["h_val"])
         if comoving_or_physical == 0:
-            # Physical units with no h factor
+            # File contains physical units with no h factor
             length_conversion = (1.0/a) * length_unit_to_kpc / 1000.0 # to comoving Mpc
         else:
-            # Comoving 1/h units
+            # File contains comoving 1/h units
             length_conversion = h * length_unit_to_kpc / 1000.0 # to comoving Mpc
 
         # Convert units
@@ -103,34 +111,25 @@ class SOCatalogue:
         min_radius = 5.0*cMpc
         ind = local_read_radius < min_radius
         local_read_radius[ind] = min_radius
-
-        # Store the length unit
         length_unit = local_cofm.units
 
-        # Free some arrays we don't need
-        del dist
-        del local_cofm
-        del local_r_size
+        # Gather subhalo arrays on rank zero.
+        halo_arrays = {
+            "search_radius" : gather_to_rank_zero(local_search_radius),
+            "read_radius"   : gather_to_rank_zero(local_read_radius),
+            "centre"        : gather_to_rank_zero(local_cofp),
+         }
 
-        # Gather arrays on rank zero.
-        # Will strip units to communicate the arrays then add them back afterwards.
-        search_radius = g.gather_array(local_search_radius.value)
-        read_radius = g.gather_array(local_read_radius.value)
-        del local_search_radius
-        del local_read_radius
-        centre = g.gather_array(local_cofp.value)
-        del local_cofp
+        # # For testing: limit number of halos
+        # if comm_rank == 0:
+        #     nmax = 100
+        #     for name in halo_arrays:
+        #         halo_arrays[name] = halo_arrays[name][:nmax,...]
+
+        # Rank 0 stores the subhalo catalogue
         if comm_rank == 0:
-            self.nr_halos = len(search_radius)
-            self.search_radius = unyt.unyt_array(search_radius, units=length_unit)
-            self.read_radius = unyt.unyt_array(read_radius, units=length_unit)
-            self.centre = unyt.unyt_array(centre, units=length_unit)
-            self.index = np.arange(self.nr_halos, dtype=int)
+            self.nr_halos = len(halo_arrays["search_radius"])
+            self.halo_arrays = halo_arrays
+            self.halo_arrays["index"] = np.arange(self.nr_halos, dtype=int)
 
-            # # Reduce number of halos for testing
-            # self.nr_halos = 100
-            # self.search_radius = self.search_radius[:self.nr_halos]
-            # self.read_radius   = self.read_radius[:self.nr_halos]
-            # self.centre        = self.centre[:self.nr_halos,:]
-            # self.index         = self.index[:self.nr_halos]
 

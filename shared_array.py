@@ -56,6 +56,8 @@ class SharedArray:
             self.win = None
 
     def __del__(self):
+        if self.win is not None:
+            print("ERROR: should not rely on __del__ to free shared memory windows!")
         self.free()
 
 
