@@ -88,9 +88,21 @@ attributes:
   * critical_density_multiple - specifies that particles must be read in a sphere of mean density no greater than this multiple of the critical density
 
 There should also be a `calculate` method which implements the calculation
-and returns a dict with the calculated properties.
+and returns a dict with the calculated properties. The returned values must
+be unyt_arrays or unyt_quantities.
 
 New classes must be added to halo_prop_list in compute_halo_properties.py.
+
+## Units
+
+All particle data are stored in unyt arrays internally. On opening the snapshot
+a unyt UnitSystem is defined which corresponds to the simulation units. When
+particles are read in unyt arrays are created with units based on the
+attributes in the snapshot. These units are propagated through the halo
+property calculations and used to write the unit attributes in the output.
+
+Comoving quantities are handled by defining a dimensionless unit corresponding
+to the expansion factor a.
 
 ## TODO
 
@@ -99,4 +111,6 @@ Possible improvements:
   * More flexible domain decomposition (e.g. Gadget style space filling curve)
   * Assign initial search radii to halos individually and repeat part of calculation if too small
   * Compute cells to read halo by halo instead of just using the bounding box
-  * specify multi-file inputs/outputs more consistently!
+  * Specify multi-file inputs/outputs more consistently
+  * Use swiftsimio cosmo_arrays (may require a more complete wrapping of unyt_array).
+  * Specify on the command line which halo property calculations to do
