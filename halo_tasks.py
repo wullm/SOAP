@@ -39,7 +39,7 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list, a, z,
         for ptype in data:
             mass = data[ptype][mass_dataset(ptype)]
             pos = data[ptype]["Coordinates"]
-            idx[ptype] = mesh[ptype].query_radius_periodic(halo["centre"], current_radius, pos, boxsize)
+            idx[ptype] = mesh[ptype].query_radius_periodic(halo["cofp"], current_radius, pos, boxsize)
             mass_total += np.sum(mass.full[idx[ptype]], dtype=float)
 
         # If we have no target density, there's no need to iterate
@@ -69,18 +69,18 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list, a, z,
     for ptype in particle_data:
         pos = particle_data[ptype]["Coordinates"]
         # Shift halo to box centre, wrap all particles into box, shift halo back
-        offset = halo["centre"] - 0.5*boxsize
+        offset = halo["cofp"] - 0.5*boxsize
         pos[:,:] = ((pos - offset) % boxsize) + offset
 
     # Compute properties of this halo        
     halo_result = {}
     for halo_prop in halo_prop_list:
         halo_result.update(halo_prop.calculate(halo["index"], unit_registry, critical_density, mean_density,
-                                               a, z, halo["centre"], particle_data))
+                                               a, z, halo["cofp"], particle_data))
 
     # Add the halo index to the result set
-    halo_result["index"] = (unyt.unyt_array(halo["index"], dtype=halo["index"].dtype, registry=unit_registry),
-                            "Index of this halo in the input catalogue")
+    halo_result["index"] = (halo["index"], "Index of this halo in the input catalogue")
+    halo_result["ID"]    = (halo["ID"],    "VELOCIraptor halo ID")
 
     # Store search radius and density within that radius
     halo_result["search_radius"]            = (current_radius, "Search radius for property calculation")

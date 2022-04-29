@@ -74,7 +74,7 @@ class ChunkTaskList:
         task_size = cellgrid.boxsize / chunks_per_dimension
         
         # For each centre, determine integer coords in task grid
-        ipos = np.floor(so_cat.halo_arrays["centre"] / task_size).value.astype(int)
+        ipos = np.floor(so_cat.halo_arrays["cofp"] / task_size).value.astype(int)
         ipos = np.clip(ipos, 0, chunks_per_dimension-1)
 
         # Generate a task ID for each halo
@@ -107,7 +107,7 @@ class ChunkTaskList:
 
         # Use number of halos as a rough estimate of cost.
         # Do tasks with the most halos first so we're not waiting for a few big jobs at the end.
-        tasks.sort(key = lambda x: -x.halo_arrays["centre"].shape[0])
+        tasks.sort(key = lambda x: -x.halo_arrays["cofp"].shape[0])
         self.tasks = tasks
 
         
@@ -135,7 +135,7 @@ class ChunkTask:
         comm_size = comm.Get_size()
         
         # Unpack arrays we need
-        centre = self.halo_arrays["centre"]
+        centre = self.halo_arrays["cofp"]
         read_radius = self.halo_arrays["read_radius"]
 
         def message(m):
@@ -237,7 +237,7 @@ class ChunkTask:
 
         # Calculate the halo properties
         t0_halos = time.time()
-        nr_halos = len(self.halo_arrays["index"].full)
+        nr_halos = len(self.halo_arrays["ID"].full)
         result, total_time, task_time = process_halos(comm, cellgrid.snap_unit_registry, data, mesh,
                                                       self.halo_prop_list, a, z, critical_density,
                                                       mean_density, boxsize, self.halo_arrays)

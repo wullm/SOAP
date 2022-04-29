@@ -33,7 +33,9 @@ def get_halo_props_args(comm):
                             help="Splits volume in N**3 chunks and each compute node processes one chunk at a time")
         parser.add_argument("--extra-input", metavar="FORMAT_STRING",
                             help="Format string to generate names of files with additional particle datasets (e.g. halo membership)")
-        parser.add_argument("--max-halos", metavar="N", nargs=1, type=int, default=0,
+
+        parser.add_argument("--centrals-only", action="store_true", help="Only process central halos")
+        parser.add_argument("--max-halos", metavar="N", nargs=1, type=int, default=(0,),
                             help="(For debugging) only process the first N halos in the catalogue")
 
         try:

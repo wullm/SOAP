@@ -17,7 +17,7 @@ def gather_to_rank_zero(arr):
 
 class SOCatalogue:
 
-    def __init__(self, comm, vr_basename, a_unit, registry, boxsize, max_halos):
+    def __init__(self, comm, vr_basename, a_unit, registry, boxsize, max_halos, centrals_only):
 
         comm_rank = comm.Get_rank()
 
@@ -33,8 +33,8 @@ class SOCatalogue:
         # The radius R_size about (Xc, Yc, Zc) contains all particles which
         # belong to the group. But we want to compute spherical overdensity
         # quantities about the potential minimum.
-        datasets = ("Xcminpot", "Ycminpot", "Zcminpot",
-                    "Xc", "Yc", "Zc", "R_size", "Structuretype")
+        datasets = ("Xcminpot", "Ycminpot", "Zcminpot", "Xc", "Yc", "Zc",
+                    "R_size", "Structuretype", "ID")
 
         # Check for single file VR output - will prefer filename without
         # extension if both are present
@@ -50,13 +50,22 @@ class SOCatalogue:
 
         # Read in positions and radius of each halo, distributed over all MPI ranks
         mf = phdf5.MultiFile(filenames, file_nr_dataset="Num_of_files")
-        data = mf.read(datasets)
+        local_halo = mf.read(datasets)
+
+        # Compute array index of each halo
+        nr_local = local_halo["ID"].shape[0]
+        offset = comm.scan(nr_local) - nr_local
+        local_halo["index"] = np.arange(offset, offset+nr_local, dtype=int)
 
         # Combine positions into one array each
-        local_cofm = np.column_stack((data["Xc"], data["Yc"], data["Zc"]))
-        local_cofp = np.column_stack((data["Xcminpot"], data["Ycminpot"], data["Zcminpot"]))
-        local_r_size = data["R_size"]
-        local_structuretype = data["Structuretype"]
+        local_halo["cofm"] = np.column_stack((local_halo["Xc"], local_halo["Yc"], local_halo["Zc"]))
+        del local_halo["Xc"]
+        del local_halo["Yc"]
+        del local_halo["Zc"]
+        local_halo["cofp"] = np.column_stack((local_halo["Xcminpot"], local_halo["Ycminpot"], local_halo["Zcminpot"]))
+        del local_halo["Xcminpot"]
+        del local_halo["Ycminpot"]
+        del local_halo["Zcminpot"]
 
         # Extract unit information from the first file
         if comm_rank == 0:
@@ -80,17 +89,21 @@ class SOCatalogue:
             # File contains comoving 1/h units
             length_conversion = h * length_unit_to_kpc / 1000.0 # to comoving Mpc
 
-        # Convert units
-        local_cofm *= length_conversion
-        local_cofp *= length_conversion
-        local_r_size *= length_conversion
-
-        # Add units to local arrays now that everything is in comoving Mpc
-        local_cofm = unyt.unyt_array(local_cofm, units=swift_cmpc)
-        local_cofp = unyt.unyt_array(local_cofp, units=swift_cmpc)
-        local_r_size = unyt.unyt_array(local_r_size, units=swift_cmpc)
-        local_structuretype = unyt.unyt_array(local_structuretype, dtype=local_structuretype.dtype, units=unyt.dimensionless)
-
+        # Convert units and wrap in unyt_arrays
+        for name in local_halo:
+            dtype = local_halo[name].dtype
+            if name in ("cofm", "cofp", "R_size"):
+                conv_fac = length_conversion
+                units = swift_cmpc
+            elif name in ("Structuretype", "ID", "index"):
+                conv_fac = None
+                units = unyt.dimensionless
+            else:
+                raise Exception("Unrecognized property name: "+name)
+            if conv_fac is not None:
+                local_halo[name] = unyt.unyt_array(local_halo[name]*conv_fac, units=units, dtype=dtype)
+            else:
+                local_halo[name] = unyt.unyt_array(local_halo[name], units=units, dtype=dtype)
         #
         # Compute initial search radius for each halo:
         #
@@ -99,40 +112,42 @@ class SOCatalogue:
         #
         # Find distance from centre of mass to centre of potential,
         # taking the periodic box into account
-        dist = np.abs(local_cofp - local_cofm)
+        dist = np.abs(local_halo["cofp"] - local_halo["cofm"])
         for dim in range(3):
             need_wrap = dist[:,dim] > 0.5*boxsize
             dist[need_wrap, dim] = boxsize - dist[need_wrap, dim]
         dist = np.sqrt(np.sum(dist**2, axis=1))
 
         # Store the initial search radius
-        local_search_radius = (local_r_size*1.01 + dist)
+        local_halo["search_radius"] = (local_halo["R_size"]*1.01 + dist)
 
         # Compute radius to read in about each halo:
         # this is the maximum radius we'll search to reach the required overdensity
-        local_read_radius = local_search_radius.copy()
+        local_halo["read_radius"] = local_halo["search_radius"].copy()
         min_radius = 5.0*swift_cmpc
-        ind = local_read_radius < min_radius
-        local_read_radius[ind] = min_radius
-        length_unit = local_cofm.units
+        ind = local_halo["read_radius"] < min_radius
+        local_halo["read_radius"][ind] = min_radius
 
+        # Discard centrals, if necessary
+        if centrals_only:
+            keep = local_halo["Structuretype"] == 10
+            for name in local_halo:
+                local_halo[name] = local_halo[name][keep,...]
+        
         # Gather subhalo arrays on rank zero.
-        halo_arrays = {
-            "search_radius" : gather_to_rank_zero(local_search_radius),
-            "read_radius"   : gather_to_rank_zero(local_read_radius),
-            "centre"        : gather_to_rank_zero(local_cofp),
-            "Structuretype" : gather_to_rank_zero(local_structuretype),
-         }
+        halo = {}
+        for name in local_halo:
+            halo[name] = gather_to_rank_zero(local_halo[name])
+        del local_halo
 
         # For testing: limit number of halos
         if comm_rank == 0 and max_halos > 0:
-            for name in halo_arrays:
-                halo_arrays[name] = halo_arrays[name][:max_halos,...]
+            for name in halo:
+                halo[name] = halo[name][:max_halos,...]
 
         # Rank 0 stores the subhalo catalogue
         if comm_rank == 0:
-            self.nr_halos = len(halo_arrays["search_radius"])
-            self.halo_arrays = halo_arrays
-            self.halo_arrays["index"] = np.arange(self.nr_halos, dtype=int)
+            self.nr_halos = len(halo["search_radius"])
+            self.halo_arrays = halo
 
 

@@ -87,7 +87,7 @@ if __name__ == "__main__":
     # All ranks read the file(s) in then gather to rank 0. Also computes search radius for each halo.
     so_cat = halo_centres.SOCatalogue(comm_world, args.vr_basename, cellgrid.a_unit,
                                       cellgrid.snap_unit_registry, cellgrid.boxsize,
-                                      args.max_halos[0])
+                                      args.max_halos[0], args.centrals_only)
 
     # Generate the chunk task list
     if comm_world_rank == 0:
@@ -146,9 +146,9 @@ if __name__ == "__main__":
         comm_have_results.barrier()
         t0_sort = time.time()
 
-        idx = psort.parallel_sort(local_results["index"][0], comm=comm_have_results, return_index=True)
+        idx = psort.parallel_sort(local_results["ID"][0], comm=comm_have_results, return_index=True)
         for name in names:
-            if name != "index":
+            if name != "ID":
                 local_results[name][0] = psort.fetch_elements(local_results[name][0], idx, comm=comm_have_results)
         del idx
         comm_have_results.barrier()
