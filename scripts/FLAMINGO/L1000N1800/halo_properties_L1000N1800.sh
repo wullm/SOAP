@@ -33,7 +33,7 @@ basedir="/cosma8/data/dp004/flamingo/Runs/L1000N1800/${sim}/"
 # Where to write the output
 outbase="/cosma8/data/dp004/jch/FLAMINGO/ScienceRuns/${sim}/"
 
-# Generate file names
+# Generate file names for this snapshot
 swift_filename="${basedir}/snapshots/flamingo_${snapnum}/flamingo_${snapnum}.%(file_nr)d.hdf5"
 extra_filename="${outbase}/group_membership/vr_membership_${snapnum}.%(file_nr)d.hdf5"
 vr_basename="${basedir}/VR/catalogue_${snapnum}/vr_catalogue_${snapnum}"
@@ -46,4 +46,6 @@ outdir=`dirname "${outfile}"`
 mkdir -p "${outdir}"
 
 mpirun python3 -u -m mpi4py ./compute_halo_properties.py \
-    ${swift_filename} ${vr_basename} ${chunks_per_dimension} ${outfile} ${extra_filename}
+    ${swift_filename} ${vr_basename} ${outfile} \
+    --chunks-per-dimension=${chunks_per_dimension} \
+    --extra-input=${extra_filename}

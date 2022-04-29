@@ -24,6 +24,7 @@ import swift_units
 import halo_properties
 import task_queue
 import lustre
+import command_line_args
 
 
 def split_comm_world():
@@ -50,17 +51,7 @@ def get_rank_and_size(comm):
 if __name__ == "__main__":
 
     # Read command line parameters
-    args = {}
-    if comm_world_rank == 0:
-        args["swift_filename"] = sys.argv[1] # Name of one snapshot file
-        args["vr_basename"]    = sys.argv[2] # Name of properties file, minus the trailing .N
-        args["chunks_per_dimension"] = int(sys.argv[3]) # Number of chunks to divide volume into
-        args["outfile"]        = sys.argv[4] # Name of the output file
-        if len(sys.argv) > 5:
-            args["extra_filename"] = sys.argv[5] # Additional data file, if any
-        else:
-            args["extra_filename"] = None            
-    args = comm_world.bcast(args)
+    args = command_line_args.get_halo_props_args(comm_world)
 
     # Start the clock
     comm_world.barrier()
@@ -76,7 +67,7 @@ if __name__ == "__main__":
 
     # Open the snapshot and read SWIFT cell structure, units etc
     if comm_world_rank == 0:
-        cellgrid = swift_cells.SWIFTCellGrid(args["swift_filename"], args["extra_filename"])
+        cellgrid = swift_cells.SWIFTCellGrid(args.swift_filename, args.extra_input)
         parsec_cgs = cellgrid.constants["parsec"]
         solar_mass_cgs = cellgrid.constants["solar_mass"]
         a = cellgrid.a
@@ -89,18 +80,18 @@ if __name__ == "__main__":
 
     # Ensure output dir exists
     if comm_world_rank == 0:
-        lustre.ensure_output_dir(args["outfile"])
+        lustre.ensure_output_dir(args.output_file)
     comm_world.barrier()
 
     # Read in the halo catalogue:
     # All ranks read the file(s) in then gather to rank 0. Also computes search radius for each halo.
-    so_cat = halo_centres.SOCatalogue(comm_world, args["vr_basename"], cellgrid.a_unit,
+    so_cat = halo_centres.SOCatalogue(comm_world, args.vr_basename, cellgrid.a_unit,
                                       cellgrid.snap_unit_registry, cellgrid.boxsize)
 
     # Generate the chunk task list
     if comm_world_rank == 0:
         task_list = chunk_tasks.ChunkTaskList(cellgrid, so_cat,
-                                              chunks_per_dimension=args["chunks_per_dimension"],
+                                              chunks_per_dimension=args.chunks_per_dimension[0],
                                               halo_prop_list=halo_prop_list)
         tasks = task_list.tasks
     else:
@@ -167,7 +158,7 @@ if __name__ == "__main__":
         # Open the output file in collective mode
         comm_have_results.barrier()
         t0_write = time.time()
-        outfile = h5py.File(args["outfile"], "w", driver="mpio", comm=comm_have_results)
+        outfile = h5py.File(args.output_file, "w", driver="mpio", comm=comm_have_results)
 
         # Loop over output quantities
         for name in names:

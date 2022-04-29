@@ -45,7 +45,7 @@ the location of the VELOCIraptor catalogue and the name of the output file(s)
 to generate. For example:
 ```
 snapnum=0077
-swift_filename="./snapshots/flamingo_${snapnum}/flamingo_${snapnum}.0.hdf5"
+swift_filename="./snapshots/flamingo_${snapnum}/flamingo_${snapnum}.%(file_nr)d.hdf5"
 vr_basename="./VR/catalogue_${snapnum}/vr_catalogue_${snapnum}"
 outfile="./group_membership/vr_membership_${snapnum}.%(file_nr)d.hdf5"
 
@@ -68,11 +68,13 @@ outfile="./halo_properties/halo_properties_${snapnum}.hdf5"
 chunks_per_dimension=2
 
 mpirun python3 -u -m mpi4py ./compute_halo_properties.py \
-    ${swift_filename} ${vr_basename} ${chunks_per_dimension} ${outfile} ${extra_filename}
+    ${swift_filename} ${vr_basename} ${outfile} \
+    --chunks-per-dimension=${chunks_per_dimension} \
+    --extra-input=${extra_filename}
 ```
 
 Here, chunks_per_dimension determines how many chunks the simulation box is
-split into.
+split into. Ideally it should be set such that one chunk fills a compute node.
 
 See scripts/FLAMINGO/L1000N1800/halo_properties_L1000N1800.sh for an example
 batch script.

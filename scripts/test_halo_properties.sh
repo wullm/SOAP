@@ -24,4 +24,6 @@ outfile="${basedir}/halo_properties/halo_properties_${snapnum}.hdf5"
 extra_filename="${basedir}/group_membership/vr_membership_${snapnum}.hdf5"
 
 mpirun python3 -u -m mpi4py \
-    ./compute_halo_properties.py ${swift_filename} ${vr_basename} ${chunks_per_dimension} ${outfile} ${extra_filename}
+    ./compute_halo_properties.py ${swift_filename} ${vr_basename} ${outfile} \
+    --chunks-per-dimension=${chunks_per_dimension} \
+    --extra-input=${extra_filename}

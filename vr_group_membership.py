@@ -11,6 +11,7 @@ import virgo.mpi.gather_array as ga
 import virgo.mpi.parallel_sort as ps
 
 import lustre
+import command_line_args
 
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
@@ -144,24 +145,21 @@ def find_group_membership(vr_basename):
 
 if __name__ == "__main__":
 
-    args = {}
-    if comm_rank == 0:
-        args["swift_filename"] = sys.argv[1] # Name of one snapshot file
-        args["vr_basename"]    = sys.argv[2] # Name of VR files, minus the trailing .filetype.N
-        args["outfile"]        = sys.argv[3] # Name of the output file
-    args = comm.bcast(args)
+
+    # Read command line parameters
+    args = command_line_args.get_group_membership_args(comm_world)
 
     # Ensure output dir exists
     if comm_rank == 0:
-        lustre.ensure_output_dir(args["outfile"])
+        lustre.ensure_output_dir(args.output_file)
     comm.barrier()
 
     # Find group number for each particle ID in the VR output
-    ids_bound, grnr_bound, ids_unbound, grnr_unbound = find_group_membership(args["vr_basename"])
+    ids_bound, grnr_bound, ids_unbound, grnr_unbound = find_group_membership(args.vr_basename)
 
     # Determine SWIFT particle types which exist in the snapshot
     ptypes = []
-    with h5py.File(args["swift_filename"], "r") as infile:
+    with h5py.File(args.swift_filename % {"file_nr" : 0}, "r") as infile:
         nr_types = infile["Header"].attrs["NumPartTypes"][0]
         numpart_total = (infile["Header"].attrs["NumPart_Total"].astype(np.int64) +
                          infile["Header"].attrs["NumPart_Total_HighWord"].astype(np.int64) << 32)
@@ -170,18 +168,8 @@ if __name__ == "__main__":
             if numpart_total[i] > 0:
                 ptypes.append("PartType%d" % i)
 
-    # Find format string for SWIFT snapshot file names
-    if nr_files > 1:
-        m = re.match(r"(.*)\.[0-9]+\.hdf5", args["swift_filename"])
-        if m is not None:
-            swift_filename_fmt = m.group(1)+".%(file_nr)d.hdf5"
-        else:
-            raise ValueError("Don't understand SWIFT filename")
-    else:
-        swift_filename_fmt = args["swift_filename"]
-
     # Open the snapshot
-    snap_file = virgo.mpi.parallel_hdf5.MultiFile(swift_filename_fmt,
+    snap_file = virgo.mpi.parallel_hdf5.MultiFile(args.swift_filename,
                                                   file_nr_attr=("Header", "NumFilesPerSnapshot"))
 
     # Loop over particle types
@@ -247,7 +235,7 @@ if __name__ == "__main__":
         elements_per_file = snap_file.get_elements_per_file("ParticleIDs", group=ptype)
         output = {"GroupNr_bound"   : swift_grnr_bound,
                   "GroupNr_all"     : swift_grnr_all}
-        snap_file.write(output, elements_per_file, filenames=args["outfile"], mode=mode, group=ptype, attrs=attrs)
+        snap_file.write(output, elements_per_file, filenames=args.output_file, mode=mode, group=ptype, attrs=attrs)
 
     comm.barrier()
     if comm_rank == 0:
