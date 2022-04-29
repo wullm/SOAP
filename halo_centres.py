@@ -17,7 +17,7 @@ def gather_to_rank_zero(arr):
 
 class SOCatalogue:
 
-    def __init__(self, comm, vr_basename, a_unit, registry, boxsize):
+    def __init__(self, comm, vr_basename, a_unit, registry, boxsize, max_halos):
 
         comm_rank = comm.Get_rank()
 
@@ -124,11 +124,10 @@ class SOCatalogue:
             "Structuretype" : gather_to_rank_zero(local_structuretype),
          }
 
-        # # For testing: limit number of halos
-        # if comm_rank == 0:
-        #     nmax = 100
-        #     for name in halo_arrays:
-        #         halo_arrays[name] = halo_arrays[name][:nmax,...]
+        # For testing: limit number of halos
+        if comm_rank == 0 and max_halos > 0:
+            for name in halo_arrays:
+                halo_arrays[name] = halo_arrays[name][:max_halos,...]
 
         # Rank 0 stores the subhalo catalogue
         if comm_rank == 0:

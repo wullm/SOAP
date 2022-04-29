@@ -86,7 +86,8 @@ if __name__ == "__main__":
     # Read in the halo catalogue:
     # All ranks read the file(s) in then gather to rank 0. Also computes search radius for each halo.
     so_cat = halo_centres.SOCatalogue(comm_world, args.vr_basename, cellgrid.a_unit,
-                                      cellgrid.snap_unit_registry, cellgrid.boxsize)
+                                      cellgrid.snap_unit_registry, cellgrid.boxsize,
+                                      args.max_halos[0])
 
     # Generate the chunk task list
     if comm_world_rank == 0:
