@@ -147,7 +147,7 @@ if __name__ == "__main__":
 
 
     # Read command line parameters
-    args = command_line_args.get_group_membership_args(comm_world)
+    args = command_line_args.get_group_membership_args(comm)
 
     # Ensure output dir exists
     if comm_rank == 0:
