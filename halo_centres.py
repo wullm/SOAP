@@ -128,7 +128,7 @@ class SOCatalogue:
         ind = local_halo["read_radius"] < min_radius
         local_halo["read_radius"][ind] = min_radius
 
-        # Discard centrals, if necessary
+        # Discard satellites, if necessary
         if centrals_only:
             keep = local_halo["Structuretype"] == 10
             for name in local_halo:
