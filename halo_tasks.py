@@ -7,7 +7,7 @@ import shared_array
 import time
 import unyt
 
-def process_single_halo(mesh, unit_registry, data, halo_prop_list, a, z,
+def process_single_halo(mesh, unit_registry, data, halo_prop_list,
                         critical_density, mean_density, boxsize, input_halo,
                         target_density):
     """
@@ -75,8 +75,7 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list, a, z,
     # Compute properties of this halo        
     halo_result = {}
     for halo_prop in halo_prop_list:
-        halo_prop.calculate(unit_registry, critical_density, mean_density, a, z,
-                            input_halo, particle_data, halo_result)
+        halo_prop.calculate(input_halo, particle_data, halo_result)
 
     # Add the halo index to the result set
     halo_result["index"] = (input_halo["index"], "Index of this halo in the input catalogue")
@@ -90,7 +89,7 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list, a, z,
     return halo_result
 
 
-def process_halos(comm, unit_registry, data, mesh, halo_prop_list, a, z,
+def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
                   critical_density, mean_density, boxsize, halo_arrays):
     """
     This uses all of the MPI ranks on one compute node to compute halo properties
@@ -161,7 +160,7 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list, a, z,
 
             # Fetch the results for this particular halo
             results = process_single_halo(mesh, unit_registry, data, halo_prop_list,
-                                          a, z, critical_density, mean_density,
+                                          critical_density, mean_density,
                                           boxsize, input_halo, target_density)
 
             # Loop over properties which were calculated

@@ -239,7 +239,7 @@ class ChunkTask:
         t0_halos = time.time()
         nr_halos = len(self.halo_arrays["ID"].full)
         result, total_time, task_time = process_halos(comm, cellgrid.snap_unit_registry, data, mesh,
-                                                      self.halo_prop_list, a, z, critical_density,
+                                                      self.halo_prop_list, critical_density,
                                                       mean_density, boxsize, self.halo_arrays)
         t1_halos = time.time()
         dead_time_fraction = 1.0-comm.allreduce(task_time)/comm.allreduce(total_time)

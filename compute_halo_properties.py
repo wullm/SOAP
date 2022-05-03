@@ -59,12 +59,6 @@ if __name__ == "__main__":
     if comm_world_rank == 0:
         print("Starting halo properties calculation on %d MPI ranks" % comm_world_size)
 
-    # Make a list of properties to calculate
-    halo_prop_list = [
-        halo_properties.SOMasses(),
-        halo_properties.CentreOfMass(),
-    ]
-
     # Open the snapshot and read SWIFT cell structure, units etc
     if comm_world_rank == 0:
         cellgrid = swift_cells.SWIFTCellGrid(args.swift_filename, args.extra_input)
@@ -77,6 +71,12 @@ if __name__ == "__main__":
         solar_mass_cgs = None
         a = None
     cellgrid, parsec_cgs, solar_mass_cgs, a = comm_world.bcast((cellgrid, parsec_cgs, solar_mass_cgs, a))
+
+    # Make a list of properties to calculate
+    halo_prop_list = [
+        halo_properties.SOMasses(cellgrid),
+        halo_properties.CentreOfMass(cellgrid),
+    ]
 
     # Ensure output dir exists
     if comm_world_rank == 0:

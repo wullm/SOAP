@@ -5,9 +5,19 @@ import unyt
 
 from dataset_names import mass_dataset
 
+
 class HaloProperty:
-    def __init__(self):
-        pass
+
+    def __init__(self, cellgrid):
+
+        # Store parameters needed for halo property calculations
+        self.unit_registry    = cellgrid.snap_unit_registry # unyt registry with snapshot units
+        self.critical_density = cellgrid.critical_density   # critical density as unyt_quantity
+        self.mean_density     = cellgrid.mean_density       # mean density as unyt_quantity
+        self.a                = cellgrid.a                  # expansion factor of this snapshot
+        self.z                = cellgrid.z                  # redshift of this snapshot
+        self.boxsize          = cellgrid.boxsize            # boxsize as unyt_quantity
+
 
 class SOMasses(HaloProperty):
     
@@ -29,16 +39,10 @@ class SOMasses(HaloProperty):
     mean_density_multiple     = 200.0
     critical_density_multiple = 200.0
 
-    def calculate(self, unit_registry, critical_density, mean_density, a, z,
-                  input_halo, data, halo_result):
+    def calculate(self, input_halo, data, halo_result):
         """
         Compute spherical masses and overdensities for a halo
 
-        unit_registry    - unyt unit registry defining simulation units
-        critical_density - critical density from the snapshot, as unyt_quantity
-        mean_density     - mean density from the snapshot, as unyt_quantity
-        a                - expansion factor
-        z                - redshift
         input_halo       - dict with halo properties passed in from VR (see
                            halo_centres.py)
         data             - contains particle data. E.g. data["PartType1"]["Coordinates"]
@@ -81,9 +85,9 @@ class SOMasses(HaloProperty):
         density = cumulative_mass / (4./3.*np.pi*radius**3)
 
         # Check if we ever reach the density threshold
-        if nr_parts > 0 and np.any(density > 200*critical_density):
+        if nr_parts > 0 and np.any(density > 200*self.critical_density):
             # Find smallest radius where the density is below the threshold
-            i = np.argmax(density < 200*critical_density)
+            i = np.argmax(density < 200*self.critical_density)
             m200crit = cumulative_mass[i]
             r200crit = radius[i]
         else:
@@ -118,16 +122,10 @@ class CentreOfMass(HaloProperty):
     mean_density_multiple     = None
     critical_density_multiple = None
 
-    def calculate(self, unit_registry, critical_density, mean_density, a, z,
-                  input_halo, data, halo_result):
+    def calculate(self, input_halo, data, halo_result):
         """
         Compute centre of mass of bound particles
 
-        unit_registry    - unyt unit registry defining simulation units
-        critical_density - critical density from the snapshot, as unyt_quantity
-        mean_density     - mean density from the snapshot, as unyt_quantity
-        a                - expansion factor
-        z                - redshift
         input_halo       - dict with halo properties passed in from VR (see
                            halo_centres.py)
         data             - contains particle data. E.g. data["PartType1"]["Coordinates"]
@@ -171,11 +169,12 @@ class CentreOfMass(HaloProperty):
             # Accumulate total number of particles
             nr_part += pos.shape[0]
 
-        # Compute centre of mass
+        # Compute centre of mass and wrap into box
         cofm /= mtot
+        cofm = cofm % self.boxsize
 
         # Return number of particles
-        nr_part = unyt.unyt_array(nr_part, dtype=int, registry=unit_registry)
+        nr_part = unyt.unyt_array(nr_part, dtype=int, registry=self.unit_registry)
 
         # Check consistency with VR (in case we missed some particles)
         if nr_part != input_halo["npart"]:
