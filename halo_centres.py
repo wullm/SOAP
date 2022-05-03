@@ -17,7 +17,24 @@ def gather_to_rank_zero(arr):
 
 class SOCatalogue:
 
-    def __init__(self, comm, vr_basename, a_unit, registry, boxsize, max_halos, centrals_only):
+    def __init__(self, comm, vr_basename, a_unit, registry, boxsize, max_halos,
+                 centrals_only, halo_prop_list):
+        """
+        This reads in the VR catalogues and stores the halo properties in a
+        dict of unyt_arrays, self.halo_arrays, on rank 0 of communicator comm.
+        It also calculates the radii to read in around each halo.
+
+        self.halo_arrays["read_radius"] contains the radius to read in about
+        the potential minimum of each halo.
+
+        self.halo_arrays["search_radius"] contains an initial guess for the
+        radius we need to search to reach the required overdensity. This will
+        be increased up to read_radius if necessary.
+
+        Both read_radius and search_radius will be set to be at least as large
+        as the largest physical_radius_mpc specified by the halo property
+        calculations.
+        """
 
         comm_rank = comm.Get_rank()
 
@@ -28,6 +45,12 @@ class SOCatalogue:
 
         # Get expansion factor as a float
         a = a_unit.base_value
+
+        # Find minimum physical radius to read in
+        physical_radius_mpc = 0.0
+        for halo_prop in halo_prop_list:
+            physical_radius_mpc = max(physical_radius_mpc, halo_prop.physical_radius_mpc)
+        physical_radius_mpc = unyt.unyt_quantity(physical_radius_mpc, units=swift_pmpc)
 
         # Here we need to read the centre of mass AND potential minimum:
         # The radius R_size about (Xc, Yc, Zc) contains all particles which
@@ -127,6 +150,13 @@ class SOCatalogue:
         min_radius = 5.0*swift_cmpc
         ind = local_halo["read_radius"] < min_radius
         local_halo["read_radius"][ind] = min_radius
+
+        # Ensure that both the initial search radius and the radius to read in
+        # are >= the minimum physical radius required by property calculations
+        ind = local_halo["read_radius"] < physical_radius_mpc
+        local_halo["read_radius"][ind] = physical_radius_mpc
+        ind = local_halo["search_radius"] < physical_radius_mpc
+        local_halo["search_radius"][ind] = physical_radius_mpc
 
         # Discard satellites, if necessary
         if centrals_only:

@@ -15,6 +15,7 @@ class HaloProperty:
         self.critical_density = cellgrid.critical_density   # critical density as unyt_quantity
         self.mean_density     = cellgrid.mean_density       # mean density as unyt_quantity
         self.a                = cellgrid.a                  # expansion factor of this snapshot
+        self.a_unit           = cellgrid.a_unit             # Dimensionless unit used to define comoving quantities
         self.z                = cellgrid.z                  # redshift of this snapshot
         self.boxsize          = cellgrid.boxsize            # boxsize as unyt_quantity
 
@@ -38,6 +39,9 @@ class SOMasses(HaloProperty):
     # or equal to the minimum of these densities.
     mean_density_multiple     = 200.0
     critical_density_multiple = 200.0
+
+    # Minimum physical radius to read in (pMpc)
+    physical_radius_mpc = 0.0
 
     def calculate(self, input_halo, data, halo_result):
         """
@@ -121,6 +125,9 @@ class CentreOfMass(HaloProperty):
     # or equal to the minimum of these densities.
     mean_density_multiple     = None
     critical_density_multiple = None
+
+    # Minimum physical radius to read in (pMpc)
+    physical_radius_mpc = 0.0
 
     def calculate(self, input_halo, data, halo_result):
         """
