@@ -25,7 +25,7 @@ import halo_properties
 import task_queue
 import lustre
 import command_line_args
-
+import SO_properties
 
 def split_comm_world():
 
@@ -61,8 +61,14 @@ if __name__ == "__main__":
 
     # Make a list of properties to calculate
     halo_prop_list = [
-        halo_properties.SOMasses(),
-        halo_properties.CentreOfMass(),
+        SO_properties.SOProperties(50., "mean"),
+        SO_properties.SOProperties(100., "mean"),
+        SO_properties.SOProperties(200., "mean"),
+        SO_properties.SOProperties(500., "mean"),
+        SO_properties.SOProperties(50., "crit"),
+        SO_properties.SOProperties(100., "crit"),
+        SO_properties.SOProperties(200., "crit"),
+        SO_properties.SOProperties(500., "crit"),
     ]
 
     # Open the snapshot and read SWIFT cell structure, units etc
