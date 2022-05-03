@@ -8,7 +8,7 @@ import time
 import unyt
 
 def process_single_halo(mesh, unit_registry, data, halo_prop_list, a, z,
-                        critical_density, mean_density, boxsize, halo,
+                        critical_density, mean_density, boxsize, input_halo,
                         target_density):
     """
     This computes properties for one halo and runs on a single
@@ -30,7 +30,7 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list, a, z,
     """
     
     # Loop until we fall below the required density
-    current_radius = halo["search_radius"]
+    current_radius = input_halo["search_radius"]
     while True:
 
         # Find the mass within the search radius
@@ -39,7 +39,7 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list, a, z,
         for ptype in data:
             mass = data[ptype][mass_dataset(ptype)]
             pos = data[ptype]["Coordinates"]
-            idx[ptype] = mesh[ptype].query_radius_periodic(halo["cofp"], current_radius, pos, boxsize)
+            idx[ptype] = mesh[ptype].query_radius_periodic(input_halo["cofp"], current_radius, pos, boxsize)
             mass_total += np.sum(mass.full[idx[ptype]], dtype=float)
 
         # If we have no target density, there's no need to iterate
@@ -51,12 +51,12 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list, a, z,
         if density <= target_density:
             # Reached the density threshold, so we're done
             break
-        elif current_radius >= halo["read_radius"]:
+        elif current_radius >= input_halo["read_radius"]:
             # Still above target density and we've exceeded the region guaranteed to be read in
             raise Exception ("Read radius too small: r=%.2f, density ratio=%.2f" % (current_radius.value, density/target_density))
         else:
             # Need to increase the search radius and try again
-            current_radius = min(current_radius*1.2, halo["read_radius"])
+            current_radius = min(current_radius*1.2, input_halo["read_radius"])
 
     # Extract particles in this halo
     particle_data = {}
@@ -69,18 +69,18 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list, a, z,
     for ptype in particle_data:
         pos = particle_data[ptype]["Coordinates"]
         # Shift halo to box centre, wrap all particles into box, shift halo back
-        offset = halo["cofp"] - 0.5*boxsize
+        offset = input_halo["cofp"] - 0.5*boxsize
         pos[:,:] = ((pos - offset) % boxsize) + offset
 
     # Compute properties of this halo        
     halo_result = {}
     for halo_prop in halo_prop_list:
-        halo_result.update(halo_prop.calculate(halo["index"], unit_registry, critical_density, mean_density,
-                                               a, z, halo["cofp"], particle_data))
+        halo_prop.calculate(unit_registry, critical_density, mean_density, a, z,
+                            input_halo, particle_data, halo_result)
 
     # Add the halo index to the result set
-    halo_result["index"] = (halo["index"], "Index of this halo in the input catalogue")
-    halo_result["ID"]    = (halo["ID"],    "VELOCIraptor halo ID")
+    halo_result["index"] = (input_halo["index"], "Index of this halo in the input catalogue")
+    halo_result["ID"]    = (input_halo["ID"],    "VELOCIraptor halo ID")
 
     # Store search radius and density within that radius
     halo_result["search_radius"]            = (current_radius, "Search radius for property calculation")
@@ -155,14 +155,14 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list, a, z,
             t0_task = time.time()
 
             # Extract this halo's VR information (centre, radius, index etc)
-            halo = {}
+            input_halo = {}
             for name in halo_arrays:
-                halo[name] = halo_arrays[name].full[task_to_do,...].copy()
+                input_halo[name] = halo_arrays[name].full[task_to_do,...].copy()
 
             # Fetch the results for this particular halo
-            results = process_single_halo(mesh, unit_registry, data, halo_prop_list, a, z,
-                                          critical_density, mean_density, boxsize, halo,
-                                          target_density)
+            results = process_single_halo(mesh, unit_registry, data, halo_prop_list,
+                                          a, z, critical_density, mean_density,
+                                          boxsize, input_halo, target_density)
 
             # Loop over properties which were calculated
             for result_name, (result_data, result_description) in results.items():

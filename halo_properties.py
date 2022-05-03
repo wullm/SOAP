@@ -29,19 +29,28 @@ class SOMasses(HaloProperty):
     mean_density_multiple     = 200.0
     critical_density_multiple = 200.0
 
-    def calculate(self, index, unit_registry, critical_density, mean_density, a, z, centre, data):
+    def calculate(self, unit_registry, critical_density, mean_density, a, z,
+                  input_halo, data, halo_result):
         """
         Compute spherical masses and overdensities for a halo
 
-        cosmo  - astropy cosmology object
-        a      - expansion factor
-        z      - redshift
-        centre - coordinates of the halo centre
-        data   - contains particle data. E.g. data["PartType1"]["Coordinates"]
-                 has the particle coordinates for type 1
+        unit_registry    - unyt unit registry defining simulation units
+        critical_density - critical density from the snapshot, as unyt_quantity
+        mean_density     - mean density from the snapshot, as unyt_quantity
+        a                - expansion factor
+        z                - redshift
+        input_halo       - dict with halo properties passed in from VR (see
+                           halo_centres.py)
+        data             - contains particle data. E.g. data["PartType1"]["Coordinates"]
+                           has the particle coordinates for type 1
+        halo_result      - dict with halo properties computed so far. Properties
+                           computed here should be added to halo_result.
 
         Input particle data arrays are unyt_arrays.
         """
+
+        # Look up VR centre of potential for this halo
+        centre = input_halo["cofp"]
 
         # Make an array of particle masses and radii
         mass = []
@@ -82,12 +91,11 @@ class SOMasses(HaloProperty):
             m200crit = unyt.unyt_array(0, dtype=cumulative_mass.dtype, units=cumulative_mass.units)
             r200crit = unyt.unyt_array(0, dtype=radius.dtype, units=radius.units)
 
-        # Return value should be a dict containing unyt_arrays and descriptions.
-        # The dict keys will be used as HDF5 dataset names in the output.
-        return {
+        # Update this halo's properties
+        halo_result.update({
             "r_200_crit" : (r200crit, "Radius within which the density is 200 times the mean"),
             "m_200_crit" : (m200crit, "Mass within a sphere with density 200 times the mean"),
-        }
+        })
 
 
 class CentreOfMass(HaloProperty):
@@ -110,23 +118,32 @@ class CentreOfMass(HaloProperty):
     mean_density_multiple     = None
     critical_density_multiple = None
 
-    def calculate(self, index, unit_registry, critical_density, mean_density, a, z, centre, data):
+    def calculate(self, unit_registry, critical_density, mean_density, a, z,
+                  input_halo, data, halo_result):
         """
         Compute centre of mass of bound particles
 
-        cosmo  - astropy cosmology object
-        a      - expansion factor
-        z      - redshift
-        centre - coordinates of the halo centre
-        data   - contains particle data. E.g. data["PartType1"]["Coordinates"]
-                 has the particle coordinates for type 1
+        unit_registry    - unyt unit registry defining simulation units
+        critical_density - critical density from the snapshot, as unyt_quantity
+        mean_density     - mean density from the snapshot, as unyt_quantity
+        a                - expansion factor
+        z                - redshift
+        input_halo       - dict with halo properties passed in from VR (see
+                           halo_centres.py)
+        data             - contains particle data. E.g. data["PartType1"]["Coordinates"]
+                           has the particle coordinates for type 1
+        halo_result      - dict with halo properties computed so far. Properties
+                           computed here should be added to halo_result.
 
-        Input particle data arrays are swiftsimio cosmo_arrays.
+        Input particle data arrays are unyt_arrays.
         """
         
         cofm = None
         mtot = None
         nr_part = 0
+
+        # Look up array index of this halo in VR catalogue
+        index = input_halo["index"]
 
         # Loop over particle types
         for ptype in data:
@@ -160,8 +177,9 @@ class CentreOfMass(HaloProperty):
         # Return number of particles
         nr_part = unyt.unyt_array(nr_part, dtype=int, registry=unit_registry)
 
-        return {
+        # Update the halo properties
+        halo_result.update({
             "CentreOfMass" : (cofm,    "Centre of mass of particles in the group"),
             "Mass"         : (mtot,    "Total mass of particles in this group"),
-            "NrParticles"  : (nr_part, "Number of bound or unbound particles in this group"),
-        }
+            "NrParticles"  : (nr_part, "Number of bound or unbound particles in this group"),            
+        })

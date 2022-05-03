@@ -90,8 +90,8 @@ attributes:
   * critical_density_multiple - specifies that particles must be read in a sphere of mean density no greater than this multiple of the critical density
 
 There should also be a `calculate` method which implements the calculation
-and returns a dict with the calculated properties. The returned values must
-be unyt_arrays or unyt_quantities.
+and updates the halo_results dict with the calculated properties. The returned
+values must be unyt_arrays or unyt_quantities.
 
 New classes must be added to halo_prop_list in compute_halo_properties.py.
 
