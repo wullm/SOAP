@@ -37,6 +37,7 @@ def get_halo_props_args(comm):
         parser.add_argument("--centrals-only", action="store_true", help="Only process central halos")
         parser.add_argument("--max-halos", metavar="N", nargs=1, type=int, default=(0,),
                             help="(For debugging) only process the first N halos in the catalogue")
+        parser.add_argument("--calculations", nargs="*", help="Which calculations to do (default is to do all)")
 
         try:
             args = parser.parse_args()

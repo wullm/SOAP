@@ -29,12 +29,15 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
     didn't read in a large enough region.
     """
     
+    snap_length = unyt.Unit("snap_length", registry=unit_registry)
+    snap_mass   = unyt.Unit("snap_mass", registry=unit_registry)
+
     # Loop until we fall below the required density
     current_radius = input_halo["search_radius"]
     while True:
 
         # Find the mass within the search radius
-        mass_total = 0.0
+        mass_total = unyt.unyt_quantity(0.0, units=snap_mass)
         idx = {}
         for ptype in data:
             mass = data[ptype][mass_dataset(ptype)]
@@ -42,12 +45,15 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
             idx[ptype] = mesh[ptype].query_radius_periodic(input_halo["cofp"], current_radius, pos, boxsize)
             mass_total += np.sum(mass.full[idx[ptype]], dtype=float)
 
+        # Find mean density in the search radius
+        density = mass_total / (4./3.*np.pi*current_radius**3)
+
         # If we have no target density, there's no need to iterate
         if target_density is None:
+            target_density = unyt.unyt_quantity(0.0, units=snap_mass/snap_length**3)
             break
 
         # Check if we reached the density threshold
-        density = mass_total / (4./3.*np.pi*current_radius**3)
         if density <= target_density:
             # Reached the density threshold, so we're done
             break

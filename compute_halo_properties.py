@@ -72,11 +72,36 @@ if __name__ == "__main__":
         a = None
     cellgrid, parsec_cgs, solar_mass_cgs, a = comm_world.bcast((cellgrid, parsec_cgs, solar_mass_cgs, a))
 
-    # Make a list of properties to calculate
+    # Get the full list of property calculations we can do
     halo_prop_list = [
         halo_properties.SOMasses(cellgrid),
         halo_properties.CentreOfMass(cellgrid),
     ]
+    
+    # Determine which calculations we're doing this time
+    if args.calculations is not None:
+
+        # Check we recognise all the names specified on the command line
+        all_names = [hp.name for hp in halo_prop_list]
+        for calc in args.calculations:
+            if calc not in all_names:
+                raise Exception("Don't recognise calculation name: %s" % calc)
+
+        # Filter out calculations which were not selected
+        halo_prop_list = [hp for hp in halo_prop_list if hp.name in calc]
+
+    if len(halo_prop_list) < 1:
+        raise Exception("Must select at least one halo property calculation!")
+
+    # Report calculations to do
+    if comm_world_rank == 0:
+        print("Halo property calculations enabled:")
+        for hp in halo_prop_list:
+            print("  %s" % hp.name)
+        if args.centrals_only:
+            print("for central halos only")
+        else:
+            print("for central and satellite halos")
 
     # Ensure output dir exists
     if comm_world_rank == 0:

@@ -22,6 +22,9 @@ class HaloProperty:
 
 class SOMasses(HaloProperty):
     
+    # Name of this calculation, used to select on the command line
+    name="so_masses"
+
     # Arrays which must be read in for this calculation.
     # Note that if there are no particles of a given type in the
     # snapshot, that type will not be read in and will not have
@@ -107,6 +110,9 @@ class SOMasses(HaloProperty):
 
 
 class CentreOfMass(HaloProperty):
+
+    # Name of this calculation, used to select on the command line
+    name="centre_of_mass"
     
     # Arrays which must be read in for this calculation.
     # Note that if there are no particles of a given type in the
