@@ -177,9 +177,13 @@ class CentreOfMass(HaloProperty):
         # Return number of particles
         nr_part = unyt.unyt_array(nr_part, dtype=int, registry=unit_registry)
 
+        # Check consistency with VR (in case we missed some particles)
+        if nr_part != input_halo["npart"]:
+            raise Exception("Did not find the expected number of halo particles!")
+
         # Update the halo properties
         halo_result.update({
             "CentreOfMass" : (cofm,    "Centre of mass of particles in the group"),
             "Mass"         : (mtot,    "Total mass of particles in this group"),
-            "NrParticles"  : (nr_part, "Number of bound or unbound particles in this group"),            
+            "NrParticles"  : (nr_part, "Number of bound or unbound particles in this group"),
         })

@@ -34,7 +34,7 @@ class SOCatalogue:
         # belong to the group. But we want to compute spherical overdensity
         # quantities about the potential minimum.
         datasets = ("Xcminpot", "Ycminpot", "Zcminpot", "Xc", "Yc", "Zc",
-                    "R_size", "Structuretype", "ID")
+                    "R_size", "Structuretype", "ID", "npart")
 
         # Check for single file VR output - will prefer filename without
         # extension if both are present
@@ -95,7 +95,7 @@ class SOCatalogue:
             if name in ("cofm", "cofp", "R_size"):
                 conv_fac = length_conversion
                 units = swift_cmpc
-            elif name in ("Structuretype", "ID", "index"):
+            elif name in ("Structuretype", "ID", "index", "npart"):
                 conv_fac = None
                 units = unyt.dimensionless
             else:
