@@ -75,7 +75,7 @@ if __name__ == "__main__":
     # Get the full list of property calculations we can do
     halo_prop_list = [
         halo_properties.SOMasses(cellgrid),
-        halo_properties.CentreOfMass(cellgrid),
+        halo_properties.SubhaloBoundMasses(cellgrid),
     ]
     
     # Determine which calculations we're doing this time

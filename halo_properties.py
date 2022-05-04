@@ -109,10 +109,10 @@ class SOMasses(HaloProperty):
         })
 
 
-class CentreOfMass(HaloProperty):
+class SubhaloBoundMasses(HaloProperty):
 
     # Name of this calculation, used to select on the command line
-    name="centre_of_mass"
+    name="subhalo_bound_masses"
     
     # Arrays which must be read in for this calculation.
     # Note that if there are no particles of a given type in the
@@ -120,10 +120,10 @@ class CentreOfMass(HaloProperty):
     # an entry in the data argument to calculate(), below.
     # (E.g. gas, star or BH particles in DMO runs)
     particle_properties = {
-        "PartType0" : ["Coordinates", "Masses", "GroupNr_all"],
-        "PartType1" : ["Coordinates", "Masses", "GroupNr_all"],
-        "PartType4" : ["Coordinates", "Masses", "GroupNr_all"],
-        "PartType5" : ["Coordinates", "DynamicalMasses", "GroupNr_all"]
+        "PartType0" : ["Coordinates", "Velocities", "Masses", "GroupNr_bound"],
+        "PartType1" : ["Coordinates", "Velocities", "Masses", "GroupNr_bound"],
+        "PartType4" : ["Coordinates", "Velocities", "Masses", "InitialMasses", "GroupNr_bound"],
+        "PartType5" : ["Coordinates", "Velocities", "DynamicalMasses", "SubgridMasses", "GroupNr_bound"]
     }
 
     # This specifies how large a sphere is read in:
@@ -149,53 +149,62 @@ class CentreOfMass(HaloProperty):
         Input particle data arrays are unyt_arrays.
         """
         
-        cofm = None
-        mtot = None
-        nr_part = 0
+        # Storage for properties of each particle type
+        cofm_pos   = {}
+        cofm_vel   = {}
+        total_mass = {}
+        nr_part    = {}
 
         # Look up array index of this halo in VR catalogue
         index = input_halo["index"]
 
+        # Find the simulation mass unit
+        mass_unit = unyt.Unit("snap_mass",   registry=self.unit_registry)
+        zero_mass = unyt.unyt_quantity(0.0, units=mass_unit)
+
         # Loop over particle types
+        total_initial_mass = zero_mass
+        total_subgrid_mass = zero_mass
         for ptype in data:
 
             # Find position and mass of particles in the group
-            grnr = data[ptype]["GroupNr_all"]
+            grnr = data[ptype]["GroupNr_bound"]
             in_halo = (grnr==index)
             pos  = data[ptype]["Coordinates"][in_halo,:]
+            vel  = data[ptype]["Velocities"][in_halo,:]
             mass = data[ptype][mass_dataset(ptype)][in_halo]
 
-            # Accumulate total mass of particles
-            m = np.sum(mass, dtype=float)
-            if mtot is None:
-                mtot = m
-            else:
-                mtot += m
+            # Store total mass of particles of this type
+            total_mass[ptype] = np.sum(mass, dtype=float)
 
-            # Accumulate position*mass for particles in this group
-            pos_mass = np.sum(pos*mass[:,None], axis=0, dtype=float)
-            if cofm is None:
-                cofm = pos_mass
+            # Store centre of mass and velocity for particles of this type
+            if total_mass[ptype] > 0.0:
+                cofm_pos[ptype] = np.sum(pos*mass[:,None], axis=0, dtype=float) / total_mass[ptype]
+                cofm_vel[ptype] = np.sum(vel*mass[:,None], axis=0, dtype=float) / total_mass[ptype]
             else:
-                cofm += pos_mass
+                cofm_pos[ptype] = unyt.unyt_quantity(0.0, units=pos.units, dtype=float)
+                cofm_vel[ptype] = unyt.unyt_quantity(0.0, units=vel.units, dtype=float)
         
-            # Accumulate total number of particles
-            nr_part += pos.shape[0]
+            # Accumulate total number of particles of this type
+            nr_part[ptype] = unyt.unyt_quantity(pos.shape[0], units=unyt.dimensionless, dtype=int)
 
-        # Compute centre of mass and wrap into box
-        cofm /= mtot
-        cofm = cofm % self.boxsize
+            # Total stellar initial mass
+            if ptype == "PartType4":
+                total_initial_mass = np.sum(data[ptype]["InitialMasses"][in_halo], dtype=float)
 
-        # Return number of particles
-        nr_part = unyt.unyt_array(nr_part, dtype=int, registry=self.unit_registry)
+            # Total BH subgrid mass
+            if ptype == "PartType5":
+                total_subgrid_mass = np.sum(data[ptype]["SubgridMasses"][in_halo], dtype=float)
 
-        # Check consistency with VR (in case we missed some particles)
-        if nr_part != input_halo["npart"]:
-            raise Exception("Did not find the expected number of halo particles!")
+        # Box wrap the positions
+        for ptype in cofm_pos:
+            cofm_pos[ptype] = cofm_pos[ptype] % self.boxsize
 
-        # Update the halo properties
-        halo_result.update({
-            "CentreOfMass" : (cofm,    "Centre of mass of particles in the group"),
-            "Mass"         : (mtot,    "Total mass of particles in this group"),
-            "NrParticles"  : (nr_part, "Number of bound or unbound particles in this group"),
-        })
+        # Add these properties to the output
+        for ptype in nr_part:
+            halo_result["NumPart_"+ptype]              = (nr_part[ptype],     "Number of particles of type "+ptype)
+            halo_result["Mass_"+ptype]                 = (total_mass[ptype],  "Total mass of particles of type "+ptype)
+            halo_result["CentreOfMass_"+ptype]         = (cofm_pos[ptype],    "Centre of mass of particles of type "+ptype)
+            halo_result["CentreOfMassVelocity_"+ptype] = (cofm_vel[ptype],    "Centre of mass velocity of particles of type "+ptype)
+        halo_result["StellarInitialMass"]              = (total_initial_mass, "Total initial mass of star particles")
+        halo_result["BHSubgridMass"]                   = (total_subgrid_mass, "Total subgrid mass of black hole particles")
