@@ -207,6 +207,15 @@ if __name__ == "__main__":
         output_file = sub_snapnum(args.output_file, args.snapshot_nr)
         outfile = h5py.File(output_file, "w", driver="mpio", comm=comm_have_results)
 
+        # Write command line parameters
+        params = outfile.create_group("Parameters")
+        params.attrs["swift_filename"] = args.swift_filename
+        params.attrs["vr_basename"]    = args.vr_basename
+        params.attrs["snapshot_nr"]    = args.snapshot_nr
+        params.attrs["centrals_only"]  = 0 if args.centrals_only==False else 1
+        calc_names = sorted([hp.name for hp in halo_prop_list])
+        params.attrs["calculations"] = calc_names
+
         # Ensure any HDF5 groups we need exist
         if comm_have_results.Get_rank() == 0:
             group_names = create_groups.find_groups_to_create(local_results.keys())
