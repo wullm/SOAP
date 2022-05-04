@@ -72,7 +72,13 @@ if __name__ == "__main__":
     if comm_world_rank == 0:
         swift_filename = sub_snapnum(args.swift_filename, args.snapshot_nr)
         extra_input    = sub_snapnum(args.extra_input, args.snapshot_nr)
-        cellgrid = swift_cells.SWIFTCellGrid(swift_filename, extra_input)
+        if args.reference_snapshot is not None:
+            swift_filename_ref = sub_snapnum(args.swift_filename, args.reference_snapshot)
+            extra_input_ref    = sub_snapnum(args.extra_input, args.reference_snapshot)
+        else:
+            swift_filename_ref = None
+            extra_input_ref = None
+        cellgrid = swift_cells.SWIFTCellGrid(swift_filename, extra_input, swift_filename_ref, extra_input_ref)
         parsec_cgs = cellgrid.constants["parsec"]
         solar_mass_cgs = cellgrid.constants["solar_mass"]
         a = cellgrid.a

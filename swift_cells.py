@@ -131,7 +131,7 @@ class SWIFTCellGrid:
     def get_unit(self, name):
         return unyt.Unit(name, registry=self.snap_unit_registry)
 
-    def __init__(self, snap_filename, extra_filename=None):
+    def __init__(self, snap_filename, extra_filename=None, snap_filename_ref=None, extra_filename_ref=None):
 
         self.snap_filename = snap_filename
 
@@ -210,6 +210,20 @@ class SWIFTCellGrid:
         if extra_filename is not None:
             self.extra_metadata = identify_datasets(extra_filename, self.nr_files, self.ptypes, self.snap_unit_registry)
 
+        # Scan reference snapshot for missing particle types (e.g. stars or black holes at high z)
+        self.ptypes_ref = {}
+        if snap_filename_ref is not None:
+            # Determine any particle types present in the reference snapshot but not in the current snapshot
+            with h5py.File(snap_filename_ref % {"file_nr":0}, "r") as infile:
+                for name in infile["Cells/Counts"]:
+                    if name not in self.ptypes:
+                        self.ptypes_ref.append(name)
+            # Scan reference snapshot for properties of additional particle types
+            if len(self.ptypes_ref) > 0:
+                self.snap_metadata_ref = identify_datasets(snap_filename_ref, self.nr_files, self.ptypes_ref, self.snap_unit_registry)
+                if extra_filename_ref is not None:
+                    self.extra_metadata_ref = identify_datasets(extra_filename_ref, self.nr_files, self.ptypes_ref, self.snap_unit_registry)
+
     def prepare_read(self, ptype, mask):
         """
         Determine which ranges of particles we need to read from each file
@@ -285,21 +299,22 @@ class SWIFTCellGrid:
         comm_size = comm.Get_size()
         comm_rank = comm.Get_rank()
 
-        # Make a list of all reads to execute for each particle type
+        # Make a list of all reads to execute for each particle type in this snapshot
         reads_for_type = {}
         for ptype in property_names:
-            reads_for_type[ptype] = self.prepare_read(ptype, mask)
+            if ptype in self.ptypes:
+                reads_for_type[ptype] = self.prepare_read(ptype, mask)
             
         # Find union of file numbers to read for all particle types
         all_file_nrs = []
-        for ptype in property_names:
+        for ptype in reads_for_type:
             all_file_nrs += list(reads_for_type[ptype])
         all_file_nrs = np.unique(all_file_nrs)
         
         # Count particles to read in
-        nr_parts = {ptype : 0 for ptype in property_names}
+        nr_parts = {ptype : 0 for ptype in reads_for_type}
         for file_nr in all_file_nrs:
-            for ptype in property_names:
+            for ptype in reads_for_type:
                 for (file_offset, mem_offset, count) in reads_for_type[ptype][file_nr]:
                     nr_parts[ptype] += count
 
@@ -308,7 +323,7 @@ class SWIFTCellGrid:
         all_tasks = collections.deque()
         for file_nr in all_file_nrs:
             filename = self.snap_filename % {"file_nr" : file_nr}
-            for ptype in property_names:
+            for ptype in reads_for_type:
                 for dataset in property_names[ptype]:
                     if dataset in self.snap_metadata[ptype]:
                         for (file_offset, mem_offset, count) in reads_for_type[ptype][file_nr]:
@@ -318,7 +333,7 @@ class SWIFTCellGrid:
         if self.extra_filename is not None:
             for file_nr in all_file_nrs:
                 filename = self.extra_filename % {"file_nr" : file_nr}
-                for ptype in property_names:
+                for ptype in reads_for_type:
                     for dataset in property_names[ptype]:
                         if dataset in self.extra_metadata[ptype]:
                             for (file_offset, mem_offset, count) in reads_for_type[ptype][file_nr]:
@@ -339,7 +354,7 @@ class SWIFTCellGrid:
 
         # Allocate MPI shared memory for the particle data
         data = {}
-        for ptype in property_names:
+        for ptype in reads_for_type:
             data[ptype] = {}
             for name in property_names[ptype]:
 
@@ -368,10 +383,20 @@ class SWIFTCellGrid:
         task_queue.execute_tasks(tasks, args=(data, cache), comm_all=comm, comm_master=comm,
                                  comm_workers=MPI.COMM_SELF, queue_per_rank=True)
         cache.close()
-        
+
+        # Create empty arrays for particle types which exist in the reference snapshot but not this one
+        for ptype in property_names:
+            if ptype in self.ptypes_ref:
+                for name, (units, dtype, shape) in self.snap_metadata_ref[ptype].items():
+                    local_shape = (0,)+shape
+                    data[ptype][name] = shared_array.SharedArray(local_shape, dtype, comm, units)
+                for name, (units, dtype, shape) in self.extra_metadata_ref[ptype].items():
+                    local_shape = (0,)+shape
+                    data[ptype][name] = shared_array.SharedArray(local_shape, dtype, comm, units)
+
         # Ensure all arrays have been fully written
         comm.barrier()
-        for ptype in property_names:
+        for ptype in reads_for_type:
             for name in property_names[ptype]:
                 data[ptype][name].sync()
         comm.barrier()

@@ -181,11 +181,6 @@ class ChunkTask:
             properties = None
         properties = comm.bcast(properties)
 
-        # Don't try to read particle types which don't exist in the snapshot
-        for ptype in list(properties.keys()):
-            if ptype not in cellgrid.ptypes:
-                del properties[ptype]
-
         # Read in particles in the required region
         comm.barrier()
         t0_read = time.time()
