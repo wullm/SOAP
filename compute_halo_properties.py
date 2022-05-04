@@ -48,6 +48,15 @@ def get_rank_and_size(comm):
         return (comm.Get_rank(), comm.Get_size())
 
 
+def sub_snapnum(filename, snapnum):
+    """
+    Substitute the snapshot number into a filename format string
+    without substituting the file number.
+    """
+    filename = filename.replace("%(file_nr)", "%%(file_nr)")
+    return filename % {"snap_nr" : snapnum}
+
+
 if __name__ == "__main__":
 
     # Read command line parameters
@@ -61,7 +70,9 @@ if __name__ == "__main__":
 
     # Open the snapshot and read SWIFT cell structure, units etc
     if comm_world_rank == 0:
-        cellgrid = swift_cells.SWIFTCellGrid(args.swift_filename, args.extra_input)
+        swift_filename = sub_snapnum(args.swift_filename, args.snapshot_nr)
+        extra_input    = sub_snapnum(args.extra_input, args.snapshot_nr)
+        cellgrid = swift_cells.SWIFTCellGrid(swift_filename, extra_input)
         parsec_cgs = cellgrid.constants["parsec"]
         solar_mass_cgs = cellgrid.constants["solar_mass"]
         a = cellgrid.a
@@ -110,7 +121,8 @@ if __name__ == "__main__":
 
     # Read in the halo catalogue:
     # All ranks read the file(s) in then gather to rank 0. Also computes search radius for each halo.
-    so_cat = halo_centres.SOCatalogue(comm_world, args.vr_basename, cellgrid.a_unit,
+    vr_basename = sub_snapnum(args.vr_basename, args.snapshot_nr)
+    so_cat = halo_centres.SOCatalogue(comm_world, vr_basename, cellgrid.a_unit,
                                       cellgrid.snap_unit_registry, cellgrid.boxsize,
                                       args.max_halos[0], args.centrals_only,
                                       halo_prop_list)
@@ -118,7 +130,7 @@ if __name__ == "__main__":
     # Generate the chunk task list
     if comm_world_rank == 0:
         task_list = chunk_tasks.ChunkTaskList(cellgrid, so_cat,
-                                              chunks_per_dimension=args.chunks_per_dimension[0],
+                                              chunks_per_dimension=args.chunks_per_dimension,
                                               halo_prop_list=halo_prop_list)
         tasks = task_list.tasks
     else:
@@ -185,7 +197,8 @@ if __name__ == "__main__":
         # Open the output file in collective mode
         comm_have_results.barrier()
         t0_write = time.time()
-        outfile = h5py.File(args.output_file, "w", driver="mpio", comm=comm_have_results)
+        output_file = sub_snapnum(args.output_file, args.snapshot_nr)
+        outfile = h5py.File(output_file, "w", driver="mpio", comm=comm_have_results)
 
         # Loop over output quantities
         for name in names:
