@@ -84,13 +84,13 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
         halo_prop.calculate(input_halo, particle_data, halo_result)
 
     # Add the halo index to the result set
-    halo_result["index"] = (input_halo["index"], "Index of this halo in the input catalogue")
-    halo_result["ID"]    = (input_halo["ID"],    "VELOCIraptor halo ID")
+    halo_result["VR/index"] = (input_halo["index"], "Index of this halo in the input catalogue")
+    halo_result["VR/ID"]    = (input_halo["ID"],    "VELOCIraptor halo ID")
 
     # Store search radius and density within that radius
-    halo_result["search_radius"]            = (current_radius, "Search radius for property calculation")
-    halo_result["density_in_search_radius"] = (density,        "Density within the search radius")
-    halo_result["target_density"]           = (target_density, "Target density for property calculation")
+    halo_result["VR/search_radius"]            = (current_radius, "Search radius for property calculation")
+    halo_result["VR/density_in_search_radius"] = (density,        "Density within the search radius")
+    halo_result["VR/target_density"]           = (target_density, "Target density for property calculation")
 
     return halo_result
 

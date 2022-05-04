@@ -104,8 +104,8 @@ class SOMasses(HaloProperty):
 
         # Update this halo's properties
         halo_result.update({
-            "r_200_crit" : (r200crit, "Radius within which the density is 200 times the mean"),
-            "m_200_crit" : (m200crit, "Mass within a sphere with density 200 times the mean"),
+            "SO/r_200_crit" : (r200crit, "Radius within which the density is 200 times the mean"),
+            "SO/m_200_crit" : (m200crit, "Mass within a sphere with density 200 times the mean"),
         })
 
 
@@ -200,17 +200,19 @@ class SubhaloBoundMasses(HaloProperty):
         for ptype in cofm_pos:
             cofm_pos[ptype] = cofm_pos[ptype] % self.boxsize
 
-        # Add these properties to the output
-        for ptype in nr_part:
-            halo_result["NumPart_"+ptype]              = (nr_part[ptype],     "Number of particles of type "+ptype)
-            halo_result["Mass_"+ptype]                 = (total_mass[ptype],  "Total mass of particles of type "+ptype)
-            halo_result["CentreOfMass_"+ptype]         = (cofm_pos[ptype],    "Centre of mass of particles of type "+ptype)
-            halo_result["CentreOfMassVelocity_"+ptype] = (cofm_vel[ptype],    "Centre of mass velocity of particles of type "+ptype)
-        halo_result["StellarInitialMass"]              = (total_initial_mass, "Total initial mass of star particles")
-        halo_result["BHSubgridMass"]                   = (total_subgrid_mass, "Total subgrid mass of black hole particles")
+        # Find total masses
+        total_mass_all = np.sum(unyt.unyt_array([total_mass[ptype] for ptype in data]))
+        nr_part_all    = np.sum(unyt.unyt_array([nr_part[ptype] for ptype in data]))
 
-        # Find total masses and particle numbers
-        halo_result["Mass_All"]    = np.sum(unyt.unyt_array([total_mass[ptype] for ptype in data]))
-        halo_result["NumPart_All"] = np.sum(unyt.unyt_array([nr_part[ptype] for ptype in data]))
-    
-        
+        # Add these properties to the output
+        prefix="BoundParticles/"
+        for ptype in nr_part:
+            halo_result[prefix+"NumPart_"+ptype]              = (nr_part[ptype],     "Number of particles of type "+ptype)
+            halo_result[prefix+"Mass_"+ptype]                 = (total_mass[ptype],  "Total mass of particles of type "+ptype)
+            halo_result[prefix+"CentreOfMass_"+ptype]         = (cofm_pos[ptype],    "Centre of mass of particles of type "+ptype)
+            halo_result[prefix+"CentreOfMassVelocity_"+ptype] = (cofm_vel[ptype],    "Centre of mass velocity of particles of type "+ptype)
+        halo_result[prefix+"StellarInitialMass"]              = (total_initial_mass, "Total initial mass of star particles")
+        halo_result[prefix+"BHSubgridMass"]                   = (total_subgrid_mass, "Total subgrid mass of black hole particles")
+        halo_result[prefix+"Mass_All"]                        = (total_mass_all,     "Total mass of all particle types (excluding neutrinos)")
+        halo_result[prefix+"NumPart_All"]                     = (nr_part_all,        "Total number of particles of all types (excluding neutrinos)")
+

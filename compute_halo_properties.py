@@ -25,6 +25,7 @@ import halo_properties
 import task_queue
 import lustre
 import command_line_args
+import create_groups
 
 
 def split_comm_world():
@@ -190,9 +191,9 @@ if __name__ == "__main__":
         comm_have_results.barrier()
         t0_sort = time.time()
 
-        idx = psort.parallel_sort(local_results["ID"][0], comm=comm_have_results, return_index=True)
+        idx = psort.parallel_sort(local_results["VR/ID"][0], comm=comm_have_results, return_index=True)
         for name in names:
-            if name != "ID":
+            if name != "VR/ID":
                 local_results[name][0] = psort.fetch_elements(local_results[name][0], idx, comm=comm_have_results)
         del idx
         comm_have_results.barrier()
@@ -205,6 +206,15 @@ if __name__ == "__main__":
         t0_write = time.time()
         output_file = sub_snapnum(args.output_file, args.snapshot_nr)
         outfile = h5py.File(output_file, "w", driver="mpio", comm=comm_have_results)
+
+        # Ensure any HDF5 groups we need exist
+        if comm_have_results.Get_rank() == 0:
+            group_names = create_groups.find_groups_to_create(local_results.keys())
+        else:
+            group_names = None
+        group_names = comm_have_results.bcast(group_names)
+        for group_name in group_names:
+            outfile.create_group(group_name)
 
         # Loop over output quantities
         for name in names:
