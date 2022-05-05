@@ -59,7 +59,7 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
             break
         elif current_radius >= input_halo["read_radius"]:
             # Still above target density and we've exceeded the region guaranteed to be read in
-            raise Exception ("Read radius too small: r=%.2f, density ratio=%.2f" % (current_radius.value, density/target_density))
+            return None
         else:
             # Need to increase the search radius and try again
             current_radius = min(current_radius*1.2, input_halo["read_radius"])
@@ -106,7 +106,8 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
     The dict keys are the property names. The values are tuples containing
     (unyt_array, description).
     
-
+    Halos where done=1 are not processed and don't have an entry in the output
+    arrays.
     """
     # Compute density threshold at this redshift in comoving units:
     # This determines the size of the sphere we use for all other SO quantities.
@@ -139,11 +140,14 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
     comm.barrier()
     t0_all = time.time()
 
+    # Count halos to do
+    nr_halos_left = comm.allreduce(np.sum(halo_arrays["done"].local==0))
+
     # Loop until all halos are done
     result_arrays = {}
     nr_halos = len(halo_arrays["index"].full)
     nr_done_this_rank = 0
-    nr_halos_this_rank_guess = int(nr_halos / comm.Get_size() * 1.5)
+    nr_halos_this_rank_guess = int(nr_halos_left / comm.Get_size() * 1.5)
     task_time = 0.0
     while True:
 
@@ -160,48 +164,60 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
         if task_to_do < nr_halos:
             t0_task = time.time()
 
-            # Extract this halo's VR information (centre, radius, index etc)
-            input_halo = {}
-            for name in halo_arrays:
-                input_halo[name] = halo_arrays[name].full[task_to_do,...].copy()
+            # Skip halos we already did
+            if halo_arrays["done"].full[task_to_do] == 0:
 
-            # Fetch the results for this particular halo
-            results = process_single_halo(mesh, unit_registry, data, halo_prop_list,
-                                          critical_density, mean_density,
-                                          boxsize, input_halo, target_density)
+                # Extract this halo's VR information (centre, radius, index etc)
+                input_halo = {}
+                for name in halo_arrays:
+                    input_halo[name] = halo_arrays[name].full[task_to_do,...].copy()
 
-            # Loop over properties which were calculated
-            for result_name, (result_data, result_description) in results.items():
-
-                # Create a new array to store this property if necessary
-                if result_name not in result_arrays:
-                    shape = (nr_halos_this_rank_guess,) + result_data.shape
-                    # need to ensure we don't pass a unyt_quantity to empty_like
-                    # because unyt_quantities must be scalars only
-                    arr = np.empty_like(unyt.unyt_array(result_data, registry=unit_registry), shape=shape)
-                    result_arrays[result_name] = [arr, result_description]
-
-                # Find the array to store this result
-                result_array, result_description = result_arrays[result_name]
-
-                # Ensure the array is large enough
-                if nr_done_this_rank >= result_array.shape[0]:
-                    new_shape = list(result_array.shape)
-                    new_shape[0] *= 2
-                    new_result_array = np.empty_like(unyt.unyt_array(result_array, registry=unit_registry), shape=new_shape)
-                    new_result_array[0:result_array.shape[0],...] = result_array[...]
-                    result_array = new_result_array
-                    result_arrays[result_name] = [result_array, result_description]
+                # Fetch the results for this particular halo
+                results = process_single_halo(mesh, unit_registry, data, halo_prop_list,
+                                              critical_density, mean_density,
+                                              boxsize, input_halo, target_density)
+                if results is not None:
                     
-                # Store this property for this halo to the output array
-                result_array[nr_done_this_rank,...] = result_data
+                    # Loop over properties which were calculated
+                    for result_name, (result_data, result_description) in results.items():
 
-            # Count halos processed on this rank
-            nr_done_this_rank += 1
-                    
+                        # Create a new array to store this property if necessary
+                        if result_name not in result_arrays:
+                            shape = (nr_halos_this_rank_guess,) + result_data.shape
+                            # need to ensure we don't pass a unyt_quantity to empty_like
+                            # because unyt_quantities must be scalars only
+                            arr = np.empty_like(unyt.unyt_array(result_data, registry=unit_registry), shape=shape)
+                            result_arrays[result_name] = [arr, result_description]
+
+                        # Find the array to store this result
+                        result_array, result_description = result_arrays[result_name]
+
+                        # Ensure the array is large enough
+                        if nr_done_this_rank >= result_array.shape[0]:
+                            new_shape = list(result_array.shape)
+                            new_shape[0] *= 2
+                            new_result_array = np.empty_like(unyt.unyt_array(result_array, registry=unit_registry), shape=new_shape)
+                            new_result_array[0:result_array.shape[0],...] = result_array[...]
+                            result_array = new_result_array
+                            result_arrays[result_name] = [result_array, result_description]
+
+                        # Store this property for this halo to the output array
+                        result_array[nr_done_this_rank,...] = result_data
+
+                    # Count halos processed on this rank
+                    nr_done_this_rank += 1
+
+                    # Flag this halo as done
+                    halo_arrays["done"].full[task_to_do] = 1
+    
+                else:
+                    # We didn't read in a large enough region
+                    halo_arrays["read_radius"].full[task_to_do] *= 2.0
+
             t1_task = time.time()
             task_time += (t1_task-t0_task)
         else:
+            # We ran out of halos to do
             break
 
     # Resize output arrays, since they may have been allocated larger than needed
@@ -211,8 +227,12 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
     # Free the shared task counter
     next_task.free()
 
+    # Count halos left to do
+    comm.barrier()
+    nr_halos_left = comm.allreduce(np.sum(halo_arrays["done"].local==0))
+
     # Stop the clock
     comm.barrier()
     t1_all = time.time()
     
-    return result_arrays, t1_all-t0_all, task_time
+    return result_arrays, t1_all-t0_all, task_time, nr_halos_left

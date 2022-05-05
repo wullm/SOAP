@@ -165,6 +165,11 @@ if __name__ == "__main__":
                                       comm_all=comm_world, comm_master=comm_inter_node,
                                       comm_workers=comm_intra_node, task_type=chunk_tasks.ChunkTask)
 
+    # The result list has one element per chunk processed. Each element is itself a
+    # list of result sets, with one element per iteration that was required.
+    # Flatten this so we just have a list of result sets on each MPI rank.
+    result = [item for sublist in result for item in sublist]
+
     # Make a communicator which only contains tasks which have results
     colour = 0 if len(result) > 0 else 1
     comm_have_results = comm_world.Split(colour, comm_world_rank)

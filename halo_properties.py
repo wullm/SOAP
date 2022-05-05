@@ -40,8 +40,8 @@ class SOMasses(HaloProperty):
     # This specifies how large a sphere is read in:
     # Will ensure we have a sphere with a mean density less than
     # or equal to the minimum of these densities.
-    mean_density_multiple     = 200.0
-    critical_density_multiple = 200.0
+    mean_density_multiple     = 50.0
+    critical_density_multiple = 50.0
 
     # Minimum physical radius to read in (pMpc)
     physical_radius_mpc = 0.0
