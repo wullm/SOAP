@@ -2,7 +2,7 @@
 
 from mpi4py import MPI
 
-def mask_cells(comm, cellgrid, centre, radius):
+def mask_cells(comm, cellgrid, centre, radius, done):
     """
     Flag all cells which need to be read in to ensure we have
     all particles within the specified radii of the halo centres.
@@ -27,9 +27,10 @@ def mask_cells(comm, cellgrid, centre, radius):
     for halo_nr in range(first_halo, first_halo+nr_halos_local):
         
         # Flag cells around this halo
-        pos_min = centre[halo_nr,:] - radius[halo_nr] - 0.5*cellgrid.cell_size
-        pos_max = centre[halo_nr,:] + radius[halo_nr] + 0.5*cellgrid.cell_size
-        cellgrid.mask_region(mask, pos_min, pos_max)
+        if done[halo_nr] == 0:
+            pos_min = centre[halo_nr,:] - radius[halo_nr] - 0.5*cellgrid.cell_size
+            pos_max = centre[halo_nr,:] + radius[halo_nr] + 0.5*cellgrid.cell_size
+            cellgrid.mask_region(mask, pos_min, pos_max)
 
     # Combine masks
     comm.Allreduce(MPI.IN_PLACE, mask, op=MPI.LOR)

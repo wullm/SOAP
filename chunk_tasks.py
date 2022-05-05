@@ -13,6 +13,8 @@ from dataset_names import mass_dataset
 from halo_tasks import process_halos
 from mask_cells import mask_cells
 
+# Will label messages with time since run start
+time_start = time.time()
 
 def send_array(comm, arr, dest, tag):
     """Send an ndarray or unyt_array over MPI"""
@@ -62,7 +64,6 @@ def box_wrap(pos, ref_pos, boxsize):
     shift = ref_pos[None,:] - 0.5*boxsize
     return (pos - shift) % boxsize + shift
 
-time_start = time.time()
 
 class ChunkTaskList:
     """
@@ -101,6 +102,9 @@ class ChunkTaskList:
             task_halo_arrays = {}
             for name in sorted_halo_arrays:
                 task_halo_arrays[name] = sorted_halo_arrays[name][offset:offset+count,...]
+            
+            # Add an array to flag halos which have been processed
+            task_halo_arrays["done"] = unyt.unyt_array(np.zeros(count, dtype=np.int8), dtype=np.int8)
 
             # Create the task for this chunk
             tasks.append(ChunkTask(task_halo_arrays, halo_prop_list)) 
@@ -133,122 +137,139 @@ class ChunkTask:
 
         comm_rank = comm.Get_rank()
         comm_size = comm.Get_size()
+
+        all_results = []
         
         # Unpack arrays we need
         centre = self.halo_arrays["cofp"]
         read_radius = self.halo_arrays["read_radius"]
+        done = self.halo_arrays["done"]
 
         def message(m):
             if inter_node_rank >= 0:
                 print("[%8.1fs] %d: %s" % (time.time()-time_start, inter_node_rank, m))
+
+        # Repeat until all halos have been done
+        task_time_all_iterations = 0.0
+        while True:
         
-        # Find the region we need to read in, allowing for particles outside their cells
-        comm.barrier()
-        t0_mask = time.time()
-        mask = mask_cells(comm, cellgrid, centre.full, read_radius.full)
-        nr_cells = np.sum(mask==True)
-        comm.barrier()
-        t1_mask = time.time()
-        message("identifed %d cells to read in %.2fs" % (nr_cells, t1_mask-t0_mask))
+            # Find the region we need to read in, allowing for particles outside their cells
+            comm.barrier()
+            t0_mask = time.time()
+            mask = mask_cells(comm, cellgrid, centre.full, read_radius.full, done.full)
+            nr_cells = np.sum(mask==True)
+            comm.barrier()
+            t1_mask = time.time()
+            message("identified %d cells to read in %.2fs" % (nr_cells, t1_mask-t0_mask))
 
-        # Get the cosmology info from the input snapshot
-        critical_density = cellgrid.critical_density
-        mean_density = cellgrid.mean_density
-        a = cellgrid.a
-        z = cellgrid.z
-        boxsize = cellgrid.boxsize
+            # Get the cosmology info from the input snapshot
+            critical_density = cellgrid.critical_density
+            mean_density = cellgrid.mean_density
+            a = cellgrid.a
+            z = cellgrid.z
+            boxsize = cellgrid.boxsize
 
-        # Find reference position for box wrapping:
-        # Coordinates will be wrapped in order to minimize the size of the volume we place
-        # the mesh over. TODO: use a tree instead so that this isn't necessary.
-        pos_min = np.amin(centre.full, axis=0)
-        pos_max = np.amax(centre.full, axis=0)
-        ref_pos = (pos_min+pos_max)/2
+            # Find reference position for box wrapping:
+            # Coordinates will be wrapped in order to minimize the size of the volume we place
+            # the mesh over. TODO: use a tree instead so that this isn't necessary.
+            pos_min = np.amin(centre.full, axis=0)
+            pos_max = np.amax(centre.full, axis=0)
+            ref_pos = (pos_min+pos_max)/2
 
-        # Find all particle properties we need to read in:
-        # For each particle type this is the union of the quantities
-        # needed for each calculation.
-        if comm_rank == 0:
-            properties = {}
-            for halo_prop in self.halo_prop_list:
-                for ptype in halo_prop.particle_properties:
-                    if ptype not in properties:
-                        properties[ptype] = set()
-                    properties[ptype] = properties[ptype].union(halo_prop.particle_properties[ptype])
+            # Find all particle properties we need to read in:
+            # For each particle type this is the union of the quantities
+            # needed for each calculation.
+            if comm_rank == 0:
+                properties = {}
+                for halo_prop in self.halo_prop_list:
+                    for ptype in halo_prop.particle_properties:
+                        if ptype not in properties:
+                            properties[ptype] = set()
+                        properties[ptype] = properties[ptype].union(halo_prop.particle_properties[ptype])
+                for ptype in properties:
+                    properties[ptype] = list(properties[ptype])
+            else:
+                properties = None
+            properties = comm.bcast(properties)
+
+            # Read in particles in the required region
+            comm.barrier()
+            t0_read = time.time()
+            data = cellgrid.read_masked_cells_to_shared_memory(properties, mask, comm)
+            comm.barrier()
+            t1_read = time.time()
+
+            # Count how many particles we read in
+            nr_parts = 0
+            for ptype in data:
+                name = mass_dataset(ptype)
+                nr_parts += data[ptype][name].full.shape[0]
+            if nr_parts == 0:
+                # Should be impossible: all halos have particles!
+                raise Exception("Task has zero particles?!")
+
+            # Compute number of bytes read
+            nr_bytes = 0
+            for ptype in data:
+                for name in data[ptype]:
+                    nr_bytes += data[ptype][name].full.nbytes
+            nr_mb = nr_bytes/(1024**2)
+            rate = nr_mb/(t1_read-t0_read)
+            message("read in %d particles in %.1fs = %.1fMB/s (uncompressed)" % (nr_parts, t1_read-t0_read, rate))
+
+            # Do periodic shift of particles to copies nearest the reference point
+            for ptype in data:
+                if "Coordinates" in data[ptype]:
+                    data[ptype]["Coordinates"].local[:] = box_wrap(data[ptype]["Coordinates"].local[:], ref_pos, boxsize)
+
+            # Build the mesh for each particle type
+            comm.barrier()
+            t0_mesh = time.time()
+            mesh = {}
             for ptype in properties:
-                properties[ptype] = list(properties[ptype])
-        else:
-            properties = None
-        properties = comm.bcast(properties)
+                # Find the particle coordinates
+                pos = data[ptype]["Coordinates"]
+                nr_parts_type = pos.full.shape[0]
+                # Compute mesh resolution to give roughly fixed number of particles per cell
+                target_nr_per_cell = 1000
+                max_resolution = 256
+                resolution = int((nr_parts_type/target_nr_per_cell)**(1./3.))
+                resolution = min(max(resolution, 1), max_resolution)
+                # Build the mesh for this particle type
+                mesh[ptype] = shared_mesh.SharedMesh(comm, pos, resolution)
+            comm.barrier()
+            t1_mesh = time.time()
+            message("constructing shared mesh took %.1fs" % (t1_mesh-t0_mesh))
 
-        # Read in particles in the required region
-        comm.barrier()
-        t0_read = time.time()
-        data = cellgrid.read_masked_cells_to_shared_memory(properties, mask, comm)
-        comm.barrier()
-        t1_read = time.time()
+            # Calculate the halo properties
+            t0_halos = time.time()
+            nr_halos = len(self.halo_arrays["ID"].full)
+            result, total_time, task_time, nr_left, nr_done = process_halos(comm, cellgrid.snap_unit_registry, data, mesh,
+                                                                            self.halo_prop_list, critical_density,
+                                                                            mean_density, boxsize, self.halo_arrays)
+            all_results.append(result)
+            t1_halos = time.time()
+            task_time_all_iterations += task_time
+            dead_time_fraction = 1.0-comm.allreduce(task_time)/comm.allreduce(total_time)
+            message("processing %d of %d halos on %d ranks took %.1fs (dead time frac.=%.2f)" % (nr_done, nr_halos, comm_size,
+                                                                                                 t1_halos-t0_halos,
+                                                                                                 dead_time_fraction))
+            # Free the shared particle data
+            for ptype in data:
+                for name in data[ptype]:
+                    data[ptype][name].free()
+            del data
 
-        # Count how many particles we read in
-        nr_parts = 0
-        for ptype in data:
-            name = mass_dataset(ptype)
-            nr_parts += data[ptype][name].full.shape[0]
-        if nr_parts == 0:
-            # Should be impossible: all halos have particles!
-            raise Exception("Task has zero particles?!")
+            # Free the shared mesh
+            for ptype in mesh:
+                mesh[ptype].free()
+            del mesh
 
-        # Compute number of bytes read
-        nr_bytes = 0
-        for ptype in data:
-            for name in data[ptype]:
-                nr_bytes += data[ptype][name].full.nbytes
-        nr_mb = nr_bytes/(1024**2)
-        rate = nr_mb/(t1_read-t0_read)
-        message("read in %d particles in %.1fs = %.1fMB/s (uncompressed)" % (nr_parts, t1_read-t0_read, rate))
-
-        # Do periodic shift of particles to copies nearest the reference point
-        for ptype in data:
-            if "Coordinates" in data[ptype]:
-                data[ptype]["Coordinates"].local[:] = box_wrap(data[ptype]["Coordinates"].local[:], ref_pos, boxsize)
-
-        # Build the mesh for each particle type
-        comm.barrier()
-        t0_mesh = time.time()
-        mesh = {}
-        for ptype in properties:
-            # Find the particle coordinates
-            pos = data[ptype]["Coordinates"]
-            nr_parts_type = pos.full.shape[0]
-            # Compute mesh resolution to give roughly fixed number of particles per cell
-            target_nr_per_cell = 1000
-            max_resolution = 256
-            resolution = int((nr_parts_type/target_nr_per_cell)**(1./3.))
-            resolution = min(max(resolution, 1), max_resolution)
-            # Build the mesh for this particle type
-            mesh[ptype] = shared_mesh.SharedMesh(comm, pos, resolution)
-        comm.barrier()
-        t1_mesh = time.time()
-        message("constructing shared mesh took %.1fs" % (t1_mesh-t0_mesh))
-
-        # Calculate the halo properties
-        t0_halos = time.time()
-        nr_halos = len(self.halo_arrays["ID"].full)
-        result, total_time, task_time = process_halos(comm, cellgrid.snap_unit_registry, data, mesh,
-                                                      self.halo_prop_list, critical_density,
-                                                      mean_density, boxsize, self.halo_arrays)
-        t1_halos = time.time()
-        dead_time_fraction = 1.0-comm.allreduce(task_time)/comm.allreduce(total_time)
-        message("processing %d halos on %d ranks took %.1fs (dead time frac.=%.2f)" % (nr_halos, comm_size,
-                                                                                       t1_halos-t0_halos,
-                                                                                       dead_time_fraction))
-        # Free the shared particle data
-        for ptype in data:
-            for name in data[ptype]:
-                data[ptype][name].free()
-
-        # Free the shared mesh
-        for ptype in mesh:
-            mesh[ptype].free()
+            # Check if we're done
+            if nr_left == 0:
+                break
+            else:
+                message("need to repeat chunk for %d halos" % nr_left)
 
         # Free shared halo catalogue
         if self.shared:
@@ -256,9 +277,9 @@ class ChunkTask:
                 self.halo_arrays[name].free()
 
         # Store time taken for this task
-        timings.append(task_time)
+        timings.append(task_time_all_iterations)
 
-        return result
+        return all_results
 
     @classmethod
     def bcast(cls, comm, instance):
