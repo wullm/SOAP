@@ -26,7 +26,8 @@ import task_queue
 import lustre
 import command_line_args
 import create_groups
-
+import SO_properties
+import subhalo_properties
 
 def split_comm_world():
 
@@ -92,8 +93,15 @@ if __name__ == "__main__":
 
     # Get the full list of property calculations we can do
     halo_prop_list = [
-        halo_properties.SOMasses(cellgrid),
-        halo_properties.SubhaloBoundMasses(cellgrid),
+        subhalo_properties.SubhaloBoundMasses(cellgrid),
+        SO_properties.SOProperties(cellgrid, 50., "mean"),
+        SO_properties.SOProperties(cellgrid, 100., "mean"),
+        SO_properties.SOProperties(cellgrid, 200., "mean"),
+        SO_properties.SOProperties(cellgrid, 500., "mean"),
+        SO_properties.SOProperties(cellgrid, 50., "crit"),
+        SO_properties.SOProperties(cellgrid, 100., "crit"),
+        SO_properties.SOProperties(cellgrid, 200., "crit"),
+        SO_properties.SOProperties(cellgrid, 500., "crit"),
     ]
     
     # Determine which calculations we're doing this time
