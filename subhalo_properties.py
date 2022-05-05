@@ -71,6 +71,12 @@ class SubhaloMasses(HaloProperty):
         # Loop over particle types
         total_initial_mass = zero_mass.copy()
         total_subgrid_mass = zero_mass.copy()
+        pos_times_mass = None
+        pos_units = None
+        pos_dtype = None
+        vel_times_mass = None
+        vel_units = None
+        vel_dtype = None
         for ptype in data:
 
             # Find position and mass of particles in the group
@@ -80,16 +86,15 @@ class SubhaloMasses(HaloProperty):
             vel  = data[ptype]["Velocities"][in_halo,:]
             mass = data[ptype][mass_dataset(ptype)][in_halo]
 
+            # Record the position and velocity units
+            if pos_units is None:
+                pos_units = pos.units
+                pos_dtype = pos.dtype
+                vel_units = vel.units
+                vel_dtype = vel.dtype
+
             # Store total mass of particles of this type
             total_mass[ptype] = np.sum(mass, dtype=float)
-
-            # Store centre of mass and velocity for particles of this type
-            if total_mass[ptype] > 0.0:
-                cofm_pos[ptype] = np.sum(pos*mass[:,None], axis=0, dtype=float) / total_mass[ptype]
-                cofm_vel[ptype] = np.sum(vel*mass[:,None], axis=0, dtype=float) / total_mass[ptype]
-            else:
-                cofm_pos[ptype] = unyt.unyt_array((0,0,0), units=pos.units, dtype=float)
-                cofm_vel[ptype] = unyt.unyt_array((0,0,0), units=vel.units, dtype=float)
         
             # Accumulate total number of particles of this type
             nr_part[ptype] = unyt.unyt_quantity(pos.shape[0], units=unyt.dimensionless, dtype=int)
@@ -102,13 +107,33 @@ class SubhaloMasses(HaloProperty):
             if ptype == "PartType5":
                 total_subgrid_mass = np.sum(data[ptype]["SubgridMasses"][in_halo], dtype=float)
 
-        # Box wrap the positions
-        for ptype in cofm_pos:
-            cofm_pos[ptype] = cofm_pos[ptype] % self.boxsize
+            # Accumulate pos*mass for centre of mass
+            if pos_times_mass is None:
+                pos_times_mass = (pos*mass[:, None]).sum(axis=0)
+            else:
+                pos_times_mass += (pos*mass[:, None]).sum(axis=0)
+
+            # Accumulate vel*mass for centre of mass velocity
+            if vel_times_mass is None:
+                vel_times_mass = (vel*mass[:, None]).sum(axis=0)
+            else:
+                vel_times_mass += (vel*mass[:, None]).sum(axis=0)
 
         # Find total masses
         total_mass_all = np.sum(unyt.unyt_array([total_mass[ptype] for ptype in data]))
         nr_part_all    = np.sum(unyt.unyt_array([nr_part[ptype] for ptype in data]))
+
+        # Compute centre of mass
+        if pos_times_mass is not None:
+            cofm_pos = (pos_times_mass / total_mass_all) % self.boxsize
+        else:
+            cofm_pos = unyt.unyt_array((0,0,0), units=pos_units, dtype=pos_dtype)
+
+        # Compute centre of mass velocity
+        if vel_times_mass is not None:
+            cofm_vel = vel_times_mass / total_mass_all
+        else:
+            cofm_vel = unyt.unyt_array((0,0,0), units=vel_units, dtype=vel_dtype)
 
         # Add these properties to the output
         if self.bound_only:
@@ -120,10 +145,10 @@ class SubhaloMasses(HaloProperty):
         for ptype in nr_part:
             halo_result[f"{prefix}/NumPart_{ptype}"]              = (nr_part[ptype],     f"Number of particles of type {ptype} {label}")
             halo_result[f"{prefix}/Mass_{ptype}"]                 = (total_mass[ptype],  f"Total mass of particles of type {ptype} {label}")
-            halo_result[f"{prefix}/CentreOfMass_{ptype}"]         = (cofm_pos[ptype],    f"Centre of mass of particles of type {ptype} {label}")
-            halo_result[f"{prefix}/CentreOfMassVelocity_{ptype}"] = (cofm_vel[ptype],    f"Centre of mass velocity of particles of type {ptype} {label}")
         halo_result[f"{prefix}/StellarInitialMass"]               = (total_initial_mass, "Total initial mass of star particles {label}")
         halo_result[f"{prefix}/BHSubgridMass"]                    = (total_subgrid_mass, "Total subgrid mass of black hole particles {label}")
         halo_result[f"{prefix}/Mass_All"]                         = (total_mass_all,     "Total mass of all particle types (excluding neutrinos) {label}")
         halo_result[f"{prefix}/NumPart_All"]                      = (nr_part_all,        "Total number of particles of all types (excluding neutrinos) {label}")
+        halo_result[f"{prefix}/CentreOfMass"]                     = (cofm_pos,           "Centre of mass position {label}")
+        halo_result[f"{prefix}/CentreOfMassVelocity"]             = (cofm_vel,           "Centre of mass velocity {label}")
 
