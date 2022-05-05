@@ -61,14 +61,15 @@ batch script.
 To calculate halo properties:
 
 ```
-swift_filename="./snapshots/flamingo_${snapnum}/flamingo_${snapnum}.%(file_nr)d.hdf5"
-extra_filename="./group_membership/vr_membership_${snapnum}.%(file_nr)d.hdf5"
-vr_basename="./VR/catalogue_${snapnum}/vr_catalogue_${snapnum}"
-outfile="./halo_properties/halo_properties_${snapnum}.hdf5"
+swift_filename="./snapshots/flamingo_${snapnum}/flamingo_%(snap_nr)04d.%(file_nr)d.hdf5"
+extra_filename="./group_membership/vr_membership_%(snap_nr)04d.%(file_nr)d.hdf5"
+vr_basename="./VR/catalogue_${snapnum}/vr_catalogue_%(snap_nr)04d"
+outfile="./halo_properties/halo_properties_%(snap_nr)04d.hdf5"
 chunks_per_dimension=2
+snapnum=77
 
 mpirun python3 -u -m mpi4py ./compute_halo_properties.py \
-    ${swift_filename} ${vr_basename} ${outfile} \
+    ${swift_filename} ${vr_basename} ${outfile} ${snapnum} \
     --chunks-per-dimension=${chunks_per_dimension} \
     --extra-input=${extra_filename} \
     --calculations so_masses centre_of_mass
@@ -91,6 +92,8 @@ attributes:
   * particle_properties - specifies which particle properties should be read in. This is a dict with one entry per particle type named "PartType0", "PartType1" etc. Each entry is a list of the names of the properties needed for that particle type.
   * mean_density_multiple - specifies that particles must be read in a sphere of mean density no greater than this multiple of the mean density
   * critical_density_multiple - specifies that particles must be read in a sphere of mean density no greater than this multiple of the critical density
+  * physical_radius_mpc - minimum physical radius to read in, in Mpc
+  * name - a string which is used to select this calculation with the --calculations command line flag
 
 There should also be a `calculate` method which implements the calculation
 and updates the halo_results dict with the calculated properties. The returned
@@ -108,6 +111,17 @@ property calculations and used to write the unit attributes in the output.
 
 Comoving quantities are handled by defining a dimensionless unit corresponding
 to the expansion factor a.
+
+## Debugging
+
+For debugging it might be helpful to run on one MPI rank in the python debugger
+and reduce the run time by limiting the number of halo to process with the
+`--max-halos` flag:
+```
+python3 -m pdb ./compute_halo_properties.py --max-halos=10 ...
+```
+This works with OpenMPI at least, which will run single rank jobs without using
+mpirun.
 
 ## TODO
 
