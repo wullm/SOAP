@@ -150,9 +150,14 @@ class SOProperties(HaloProperty):
             gas_temperatures = Tgas[gas_selection]
             Tgas_selection = gas_temperatures > 1.0e5 * unyt.K
             MhotgasSO = gas_masses[Tgas_selection].sum()
-            TgasSO = (
-                gas_temperatures[Tgas_selection] * gas_masses[Tgas_selection]
-            ).sum() / MhotgasSO
+
+            if np.any(Tgas_selection):
+                TgasSO = (
+                    gas_temperatures[Tgas_selection] * gas_masses[Tgas_selection]
+                ).sum() / MhotgasSO
+            else:
+                # Handle the case where there is no gas above 1e5K
+                TgasSO = unyt.unyt_array(0.0, dtype=gas_temperatures.dtype, units=gas_temperatures.units)
 
             XraylumSO = Xray_lum[gas_selection].sum()
             XrayphlumSO = Xray_phlum[gas_selection].sum()
