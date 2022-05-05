@@ -13,6 +13,8 @@ from dataset_names import mass_dataset
 from halo_tasks import process_halos
 from mask_cells import mask_cells
 
+# Will label messages with time since run start
+time_start = time.time()
 
 def send_array(comm, arr, dest, tag):
     """Send an ndarray or unyt_array over MPI"""
@@ -62,7 +64,6 @@ def box_wrap(pos, ref_pos, boxsize):
     shift = ref_pos[None,:] - 0.5*boxsize
     return (pos - shift) % boxsize + shift
 
-time_start = time.time()
 
 class ChunkTaskList:
     """
@@ -149,6 +150,7 @@ class ChunkTask:
                 print("[%8.1fs] %d: %s" % (time.time()-time_start, inter_node_rank, m))
 
         # Repeat until all halos have been done
+        task_time_all_iterations = 0.0
         while True:
         
             # Find the region we need to read in, allowing for particles outside their cells
@@ -158,7 +160,7 @@ class ChunkTask:
             nr_cells = np.sum(mask==True)
             comm.barrier()
             t1_mask = time.time()
-            message("identifed %d cells to read in %.2fs" % (nr_cells, t1_mask-t0_mask))
+            message("identified %d cells to read in %.2fs" % (nr_cells, t1_mask-t0_mask))
 
             # Get the cosmology info from the input snapshot
             critical_density = cellgrid.critical_density
@@ -242,15 +244,16 @@ class ChunkTask:
             # Calculate the halo properties
             t0_halos = time.time()
             nr_halos = len(self.halo_arrays["ID"].full)
-            result, total_time, task_time, nr_left = process_halos(comm, cellgrid.snap_unit_registry, data, mesh,
-                                                                   self.halo_prop_list, critical_density,
-                                                                   mean_density, boxsize, self.halo_arrays)
+            result, total_time, task_time, nr_left, nr_done = process_halos(comm, cellgrid.snap_unit_registry, data, mesh,
+                                                                            self.halo_prop_list, critical_density,
+                                                                            mean_density, boxsize, self.halo_arrays)
             all_results.append(result)
             t1_halos = time.time()
+            task_time_all_iterations += task_time
             dead_time_fraction = 1.0-comm.allreduce(task_time)/comm.allreduce(total_time)
-            message("processing %d halos on %d ranks took %.1fs (dead time frac.=%.2f)" % (nr_halos, comm_size,
-                                                                                           t1_halos-t0_halos,
-                                                                                           dead_time_fraction))
+            message("processing %d of %d halos on %d ranks took %.1fs (dead time frac.=%.2f)" % (nr_done, nr_halos, comm_size,
+                                                                                                 t1_halos-t0_halos,
+                                                                                                 dead_time_fraction))
             # Free the shared particle data
             for ptype in data:
                 for name in data[ptype]:
@@ -274,7 +277,7 @@ class ChunkTask:
                 self.halo_arrays[name].free()
 
         # Store time taken for this task
-        timings.append(task_time)
+        timings.append(task_time_all_iterations)
 
         return all_results
 

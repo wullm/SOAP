@@ -27,6 +27,8 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
     radius within which we have all of the particles. If we find that
     the density within read_radius is above the threshold, then we
     didn't read in a large enough region.
+
+    Returns None if we need to try again with a larger region.
     """
     
     snap_length = unyt.Unit("snap_length", registry=unit_registry)
@@ -106,8 +108,11 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
     The dict keys are the property names. The values are tuples containing
     (unyt_array, description).
     
-    Halos where done=1 are not processed and don't have an entry in the output
-    arrays.
+    Halos where done=1 are not processed and don't generate an entry in the
+    output arrays.
+
+    If a halo can't be processed because we didn't read enough particles,
+    its read_radius is doubled but no entry is generated in the output.
     """
     # Compute density threshold at this redshift in comoving units:
     # This determines the size of the sphere we use for all other SO quantities.
@@ -235,4 +240,4 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
     comm.barrier()
     t1_all = time.time()
     
-    return result_arrays, t1_all-t0_all, task_time, nr_halos_left
+    return result_arrays, t1_all-t0_all, task_time, nr_halos_left, comm.allreduce(nr_done_this_rank)
