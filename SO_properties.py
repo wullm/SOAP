@@ -156,7 +156,7 @@ class SOProperties(HaloProperty):
                     gas_temperatures[Tgas_selection] * gas_masses[Tgas_selection]
                 ).sum() / MhotgasSO
             else:
-                # Handle the case where there is no gas above 1e5K
+                # Handle the case where there is no hot gas
                 TgasSO = unyt.unyt_array(0.0, dtype=gas_temperatures.dtype, units=gas_temperatures.units)
 
             XraylumSO = Xray_lum[gas_selection].sum()
@@ -192,43 +192,43 @@ class SOProperties(HaloProperty):
         # Return value should be a dict containing unyt_arrays and descriptions.
         # The dict keys will be used as HDF5 dataset names in the output.
         halo_result.update({
-            f"r_{name}": (rSO, f"Radius {label}"),
-            f"m_{name}": (mSO, f"Mass within a sphere {label}"),
-            f"com_{name}": (comSO, f"Centre of mass within a sphere {label}"),
-            f"vcom_{name}": (
+            f"SO/{name}/r": (rSO, f"Radius {label}"),
+            f"SO/{name}/m": (mSO, f"Mass within a sphere {label}"),
+            f"SO/{name}/com": (comSO, f"Centre of mass within a sphere {label}"),
+            f"SO/{name}/vcom": (
                 vcomSO,
                 f"Centre of mass velocity within a sphere {label}",
             ),
-            f"Mgas_{name}": (MgasSO, f"Total gas mass within a sphere {label}"),
-            f"Mdm_{name}": (MdmSO, f"Total DM mass within a sphere {label}"),
-            f"Mstar_{name}": (MstarSO, f"Total stellar mass within a sphere {label}"),
-            f"MBHdyn_{name}": (
+            f"SO/{name}/Mgas": (MgasSO, f"Total gas mass within a sphere {label}"),
+            f"SO/{name}/Mdm": (MdmSO, f"Total DM mass within a sphere {label}"),
+            f"SO/{name}/Mstar": (MstarSO, f"Total stellar mass within a sphere {label}"),
+            f"SO/{name}/MBHdyn": (
                 MBHdynSO,
                 f"Total dynamical BH mass within a sphere {label}",
             ),
-            f"Mstarinit_{name}": (
+            f"SO/{name}/Mstarinit": (
                 MstarinitSO,
                 f"Total initial stellar mass with a sphere {label}",
             ),
-            f"MBHsub_{name}": (
+            f"SO/{name}/MBHsub": (
                 MBHsubSO,
                 f"Total sub-grid BH mass within a sphere {label}",
             ),
-            f"Mhotgas_{name}": (
+            f"SO/{name}/Mhotgas": (
                 MhotgasSO,
                 f"Total mass of gas with T > 1e5 K within a sphere {label}",
             ),
-            f"Tgas_{name}": (
+            f"SO/{name}/Tgas": (
                 TgasSO,
                 f"Mass-weighted average temperature of gas with T > 1e5 K within a sphere {label}",
             ),
-            f"Xraylum_{name}": (
+            f"SO/{name}/Xraylum": (
                 XraylumSO,
                 f"Total Xray luminosity within a sphere {label}",
             ),
-            f"Xrayphlum_{name}": (
+            f"SO/{name}/Xrayphlum": (
                 XrayphlumSO,
                 f"Total Xray photon luminosity within a sphere {label}",
             ),
-            f"compY_{name}": (compYSO, f"Total Compton y within a sphere {label}"),
+            f"SO/{name}/compY": (compYSO, f"Total Compton y within a sphere {label}"),
         })

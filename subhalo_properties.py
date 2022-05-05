@@ -35,7 +35,7 @@ class SubhaloBoundMasses(HaloProperty):
 
     def calculate(self, input_halo, data, halo_result):
         """
-        Compute centre of mass of bound particles
+        Compute centre of mass etc of bound particles
 
         input_halo       - dict with halo properties passed in from VR (see
                            halo_centres.py)
@@ -105,12 +105,12 @@ class SubhaloBoundMasses(HaloProperty):
         # Add these properties to the output
         prefix="BoundParticles/"
         for ptype in nr_part:
-            halo_result[prefix+"NumPart_"+ptype]              = (nr_part[ptype],     "Number of particles of type "+ptype)
-            halo_result[prefix+"Mass_"+ptype]                 = (total_mass[ptype],  "Total mass of particles of type "+ptype)
-            halo_result[prefix+"CentreOfMass_"+ptype]         = (cofm_pos[ptype],    "Centre of mass of particles of type "+ptype)
-            halo_result[prefix+"CentreOfMassVelocity_"+ptype] = (cofm_vel[ptype],    "Centre of mass velocity of particles of type "+ptype)
-        halo_result[prefix+"StellarInitialMass"]              = (total_initial_mass, "Total initial mass of star particles")
-        halo_result[prefix+"BHSubgridMass"]                   = (total_subgrid_mass, "Total subgrid mass of black hole particles")
-        halo_result[prefix+"Mass_All"]                        = (total_mass_all,     "Total mass of all particle types (excluding neutrinos)")
-        halo_result[prefix+"NumPart_All"]                     = (nr_part_all,        "Total number of particles of all types (excluding neutrinos)")
+            halo_result[f"{prefix}/NumPart_{ptype}"]              = (nr_part[ptype],     f"Number of particles of type {ptype}")
+            halo_result[f"{prefix}/Mass_{ptype}"]                 = (total_mass[ptype],  f"Total mass of particles of type {ptype}")
+            halo_result[f"{prefix}/CentreOfMass_{ptype}"]         = (cofm_pos[ptype],    f"Centre of mass of particles of type {ptype}")
+            halo_result[f"{prefix}/CentreOfMassVelocity_{ptype}"] = (cofm_vel[ptype],    f"Centre of mass velocity of particles of type {ptype}")
+        halo_result[f"{prefix}/StellarInitialMass"]               = (total_initial_mass, "Total initial mass of star particles")
+        halo_result[f"{prefix}/BHSubgridMass"]                    = (total_subgrid_mass, "Total subgrid mass of black hole particles")
+        halo_result[f"{prefix}/Mass_All"]                         = (total_mass_all,     "Total mass of all particle types (excluding neutrinos)")
+        halo_result[f"{prefix}/NumPart_All"]                      = (nr_part_all,        "Total number of particles of all types (excluding neutrinos)")
 
