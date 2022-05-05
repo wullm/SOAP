@@ -7,31 +7,39 @@ from halo_properties import HaloProperty
 from dataset_names import mass_dataset
 
 
-class SubhaloBoundMasses(HaloProperty):
+class SubhaloMasses(HaloProperty):
 
-    # Name of this calculation, used to select on the command line
-    name="subhalo_bound_masses"
+    def __init__(self, cellgrid, bound_only=True):
+        super().__init__(cellgrid)
 
-    # Arrays which must be read in for this calculation.
-    # Note that if there are no particles of a given type in the
-    # snapshot, that type will not be read in and will not have
-    # an entry in the data argument to calculate(), below.
-    # (E.g. gas, star or BH particles in DMO runs)
-    particle_properties = {
-        "PartType0" : ["Coordinates", "Velocities", "Masses", "GroupNr_bound"],
-        "PartType1" : ["Coordinates", "Velocities", "Masses", "GroupNr_bound"],
-        "PartType4" : ["Coordinates", "Velocities", "Masses", "InitialMasses", "GroupNr_bound"],
-        "PartType5" : ["Coordinates", "Velocities", "DynamicalMasses", "SubgridMasses", "GroupNr_bound"]
-    }
+        self.bound_only = bound_only
 
-    # This specifies how large a sphere is read in:
-    # Will ensure we have a sphere with a mean density less than
-    # or equal to the minimum of these densities.
-    mean_density_multiple     = None
-    critical_density_multiple = None
+        # This specifies how large a sphere is read in:
+        self.mean_density_multiple = None
+        self.critical_density_multiple = None
 
-    # Minimum physical radius to read in (pMpc)
-    physical_radius_mpc = 0.0
+        # Minimum physical radius to read in (pMpc)
+        self.physical_radius_mpc = 0.0
+
+        # Give this calculation a name so we can select it on the command line
+        if bound_only:
+            self.grnr = "GroupNr_bound"
+            self.name = "subhalo_masses_bound"
+        else:
+            self.grnr = "GroupNr_all"
+            self.name = "subhalo_masses_all"            
+
+        # Arrays which must be read in for this calculation.
+        # Note that if there are no particles of a given type in the
+        # snapshot, that type will not be read in and will not have
+        # an entry in the data argument to calculate(), below.
+        # (E.g. gas, star or BH particles in DMO runs)
+        self.particle_properties = {
+            "PartType0" : ["Coordinates", "Velocities", "Masses", self.grnr],
+            "PartType1" : ["Coordinates", "Velocities", "Masses", self.grnr],
+            "PartType4" : ["Coordinates", "Velocities", "Masses", "InitialMasses", self.grnr],
+            "PartType5" : ["Coordinates", "Velocities", "DynamicalMasses", "SubgridMasses", self.grnr]
+        }
 
     def calculate(self, input_halo, data, halo_result):
         """
@@ -66,7 +74,7 @@ class SubhaloBoundMasses(HaloProperty):
         for ptype in data:
 
             # Find position and mass of particles in the group
-            grnr = data[ptype]["GroupNr_bound"]
+            grnr = data[ptype][self.grnr]
             in_halo = (grnr==index)
             pos  = data[ptype]["Coordinates"][in_halo,:]
             vel  = data[ptype]["Velocities"][in_halo,:]
@@ -103,14 +111,19 @@ class SubhaloBoundMasses(HaloProperty):
         nr_part_all    = np.sum(unyt.unyt_array([nr_part[ptype] for ptype in data]))
 
         # Add these properties to the output
-        prefix="BoundParticles/"
+        if self.bound_only:
+            prefix="BoundSubhaloParticles/"
+            label="which are bound to the halo"
+        else:
+            prefix="AllSubhaloParticles"
+            label="which are bound or unbound"
         for ptype in nr_part:
-            halo_result[f"{prefix}/NumPart_{ptype}"]              = (nr_part[ptype],     f"Number of particles of type {ptype}")
-            halo_result[f"{prefix}/Mass_{ptype}"]                 = (total_mass[ptype],  f"Total mass of particles of type {ptype}")
-            halo_result[f"{prefix}/CentreOfMass_{ptype}"]         = (cofm_pos[ptype],    f"Centre of mass of particles of type {ptype}")
-            halo_result[f"{prefix}/CentreOfMassVelocity_{ptype}"] = (cofm_vel[ptype],    f"Centre of mass velocity of particles of type {ptype}")
-        halo_result[f"{prefix}/StellarInitialMass"]               = (total_initial_mass, "Total initial mass of star particles")
-        halo_result[f"{prefix}/BHSubgridMass"]                    = (total_subgrid_mass, "Total subgrid mass of black hole particles")
-        halo_result[f"{prefix}/Mass_All"]                         = (total_mass_all,     "Total mass of all particle types (excluding neutrinos)")
-        halo_result[f"{prefix}/NumPart_All"]                      = (nr_part_all,        "Total number of particles of all types (excluding neutrinos)")
+            halo_result[f"{prefix}/NumPart_{ptype}"]              = (nr_part[ptype],     f"Number of particles of type {ptype} {label}")
+            halo_result[f"{prefix}/Mass_{ptype}"]                 = (total_mass[ptype],  f"Total mass of particles of type {ptype} {label}")
+            halo_result[f"{prefix}/CentreOfMass_{ptype}"]         = (cofm_pos[ptype],    f"Centre of mass of particles of type {ptype} {label}")
+            halo_result[f"{prefix}/CentreOfMassVelocity_{ptype}"] = (cofm_vel[ptype],    f"Centre of mass velocity of particles of type {ptype} {label}")
+        halo_result[f"{prefix}/StellarInitialMass"]               = (total_initial_mass, "Total initial mass of star particles {label}")
+        halo_result[f"{prefix}/BHSubgridMass"]                    = (total_subgrid_mass, "Total subgrid mass of black hole particles {label}")
+        halo_result[f"{prefix}/Mass_All"]                         = (total_mass_all,     "Total mass of all particle types (excluding neutrinos) {label}")
+        halo_result[f"{prefix}/NumPart_All"]                      = (nr_part_all,        "Total number of particles of all types (excluding neutrinos) {label}")
 

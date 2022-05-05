@@ -93,7 +93,8 @@ if __name__ == "__main__":
 
     # Get the full list of property calculations we can do
     halo_prop_list = [
-        subhalo_properties.SubhaloBoundMasses(cellgrid),
+        subhalo_properties.SubhaloMasses(cellgrid, bound_only=True),
+        subhalo_properties.SubhaloMasses(cellgrid, bound_only=False),
         SO_properties.SOProperties(cellgrid, 50., "mean"),
         SO_properties.SOProperties(cellgrid, 100., "mean"),
         SO_properties.SOProperties(cellgrid, 200., "mean"),
