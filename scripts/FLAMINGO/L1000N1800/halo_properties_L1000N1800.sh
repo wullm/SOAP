@@ -6,9 +6,9 @@
 # Job name determines which of the L1000N1800 runs we process.
 # Array job index is the snapshot number to do. Submit with (for example):
 #
-# sbatch -J HYDRO_FIDUCIAL --array=78 ./halo_properties_L1000N1800.sh
+# sbatch -J HYDRO_FIDUCIAL --array=77 ./halo_properties_L1000N1800.sh
 #
-#SBATCH --nodes=4
+#SBATCH --nodes=3
 #SBATCH --cpus-per-task=1
 #SBATCH -J test_halo_props
 #SBATCH -o ./logs/halo_properties_L1000N1800_%x.%a.out
@@ -25,16 +25,16 @@ module load gnu_comp/11.1.0 openmpi/4.1.1 python/3.10.1
 sim="L1000N1800/${SLURM_JOB_NAME}"
 
 # Input simulation location
-basedir="/cosma8/data/dp004/flamingo/Runs/L1000N1800/${sim}/"
+basedir="/cosma8/data/dp004/flamingo/Runs/${sim}/"
 
 # Where to write the output
 outbase="/cosma8/data/dp004/jch/FLAMINGO/ScienceRuns/${sim}/"
 
 # Generate file names for this snapshot
 swift_filename="${basedir}/snapshots/flamingo_%(snap_nr)04d/flamingo_%(snap_nr)04d.%(file_nr)d.hdf5"
-extra_filename="${outbase}/group_membership/vr_membership_%(snap_nr)04d.%(file_nr)d.hdf5"
+extra_filename="${outbase}/group_membership/group_membership_%(snap_nr)04d/vr_membership_%(snap_nr)04d.%(file_nr)d.hdf5"
 vr_basename="${basedir}/VR/catalogue_%(snap_nr)04d/vr_catalogue_%(snap_nr)04d"
-outfile="${outbase}/${sim}/halo_properties/halo_properties_%(snap_nr)04d.hdf5"
+outfile="${outbase}/halo_properties/halo_properties_%(snap_nr)04d.hdf5"
 
 chunks_per_dimension=2
 

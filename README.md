@@ -118,10 +118,13 @@ For debugging it might be helpful to run on one MPI rank in the python debugger
 and reduce the run time by limiting the number of halo to process with the
 `--max-halos` flag:
 ```
-python3 -m pdb ./compute_halo_properties.py --max-halos=10 ...
+python3 -Werror -m pdb ./compute_halo_properties.py --max-halos=10 ...
 ```
 This works with OpenMPI at least, which will run single rank jobs without using
 mpirun.
+
+The `-Werror` flag is useful for making pdb stop on warnings. E.g. division by
+zero in the halo property calculations will be caught.
 
 ## TODO
 

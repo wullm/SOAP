@@ -35,7 +35,7 @@ outbase="/cosma8/data/dp004/jch/FLAMINGO/ScienceRuns/${sim}/"
 # Generate input and output file names
 swift_filename="${basedir}/snapshots/flamingo_${snapnum}/flamingo_${snapnum}.%(file_nr)d.hdf5"
 vr_basename="${basedir}/VR/catalogue_${snapnum}/vr_catalogue_${snapnum}"
-outfile="${outbase}/group_membership/vr_membership_${snapnum}.%(file_nr)d.hdf5"
+outfile="${outbase}/group_membership/group_membership_${snapnum}/vr_membership_${snapnum}.%(file_nr)d.hdf5"
 
 # Create output directory
 outdir=`dirname "${outfile}"`
