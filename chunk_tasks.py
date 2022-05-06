@@ -12,6 +12,7 @@ import halo_tasks
 from dataset_names import mass_dataset
 from halo_tasks import process_halos
 from mask_cells import mask_cells
+import memory_use
 
 # Will label messages with time since run start
 time_start = time.time()
@@ -240,6 +241,11 @@ class ChunkTask:
             comm.barrier()
             t1_mesh = time.time()
             message("constructing shared mesh took %.1fs" % (t1_mesh-t0_mesh))
+
+            # Report remaining memory after particles have been read in and mesh has been built
+            total_mem_gb, free_mem_gb = memory_use.get_memory_use()
+            if total_mem_gb is not None:
+                message("node has %.1fGB of %.1fGB memory free" % (free_mem_gb, total_mem_gb))
 
             # Calculate the halo properties
             t0_halos = time.time()
