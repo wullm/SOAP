@@ -156,7 +156,7 @@ if __name__ == "__main__":
     # Generate the chunk task list
     if comm_world_rank == 0:
         task_list = chunk_tasks.ChunkTaskList(cellgrid, so_cat,
-                                              chunks_per_dimension=args.chunks_per_dimension,
+                                              nr_chunks=args.chunks,
                                               halo_prop_list=halo_prop_list)
         tasks = task_list.tasks
     else:

@@ -17,11 +17,11 @@ basedir="/cosma5/data/jch/HaloProperties/200_w_lightcone/"
 
 swift_filename="${basedir}/snapshots/flamingo_%(snap_nr)04d.hdf5"
 vr_basename="${basedir}/vr/catalogue_%(snap_nr)04d/vr_catalogue_%(snap_nr)04d"
-chunks_per_dimension=1
+nr_chunks=1
 outfile="${basedir}/halo_properties/halo_properties_%(snap_nr)04d.hdf5"
 extra_filename="${basedir}/group_membership/vr_membership_%(snap_nr)04d.hdf5"
 
 mpirun python3 -u -m mpi4py \
     ./compute_halo_properties.py ${swift_filename} ${vr_basename} ${outfile} ${SLURM_ARRAY_TASK_ID} \
-    --chunks-per-dimension=${chunks_per_dimension} \
+    --chunks=${nr_chunks} \
     --extra-input=${extra_filename}

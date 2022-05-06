@@ -65,17 +65,17 @@ swift_filename="./snapshots/flamingo_${snapnum}/flamingo_%(snap_nr)04d.%(file_nr
 extra_filename="./group_membership/vr_membership_%(snap_nr)04d.%(file_nr)d.hdf5"
 vr_basename="./VR/catalogue_${snapnum}/vr_catalogue_%(snap_nr)04d"
 outfile="./halo_properties/halo_properties_%(snap_nr)04d.hdf5"
-chunks_per_dimension=2
+nr_chunks=4
 snapnum=77
 
 mpirun python3 -u -m mpi4py ./compute_halo_properties.py \
     ${swift_filename} ${vr_basename} ${outfile} ${snapnum} \
-    --chunks-per-dimension=${chunks_per_dimension} \
+    --chunks=${nr_chunks} \
     --extra-input=${extra_filename} \
     --calculations so_masses centre_of_mass
 ```
 
-Here, chunks_per_dimension determines how many chunks the simulation box is
+Here, `--chunks` determines how many chunks the simulation box is
 split into. Ideally it should be set such that one chunk fills a compute node.
 The `--calculations` flag specifies which calculations should be carried out.
 The possible calculation names are defined in halo_properties.py.

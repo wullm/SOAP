@@ -13,6 +13,7 @@ from dataset_names import mass_dataset
 from halo_tasks import process_halos
 from mask_cells import mask_cells
 import memory_use
+import domain_decomposition
 
 # Will label messages with time since run start
 time_start = time.time()
@@ -70,20 +71,12 @@ class ChunkTaskList:
     """
     Stores a list of ChunkTasks to be executed.
     """
-    def __init__(self, cellgrid, so_cat, chunks_per_dimension, halo_prop_list):
+    def __init__(self, cellgrid, so_cat, nr_chunks, halo_prop_list):
 
-        # Find size of volume associated with each task
-        task_size = cellgrid.boxsize / chunks_per_dimension
-        
-        # For each centre, determine integer coords in task grid
-        ipos = np.floor(so_cat.halo_arrays["cofp"] / task_size).value.astype(int)
-        ipos = np.clip(ipos, 0, chunks_per_dimension-1)
-
-        # Generate a task ID for each halo
-        nx = np.amax(ipos[:,0]) + 1
-        ny = np.amax(ipos[:,1]) + 1
-        nz = np.amax(ipos[:,2]) + 1
-        task_id = ipos[:,2] * nx * ny + ipos[:,1] * nx + ipos[:,0] 
+        # Assign the input halos to chunk tasks
+        task_id = domain_decomposition.grid_decomposition(cellgrid.boxsize,
+                                                          so_cat.halo_arrays["cofp"],
+                                                          nr_chunks)
 
         # Sort the halos by task ID
         idx = np.argsort(task_id)

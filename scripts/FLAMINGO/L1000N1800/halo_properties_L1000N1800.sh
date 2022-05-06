@@ -8,7 +8,7 @@
 #
 # sbatch -J HYDRO_FIDUCIAL --array=77 ./halo_properties_L1000N1800.sh
 #
-#SBATCH --nodes=3
+#SBATCH --nodes=2
 #SBATCH --cpus-per-task=1
 #SBATCH -J test_halo_props
 #SBATCH -o ./logs/halo_properties_L1000N1800_%x.%a.out
@@ -36,7 +36,7 @@ extra_filename="${outbase}/group_membership/group_membership_%(snap_nr)04d/vr_me
 vr_basename="${basedir}/VR/catalogue_%(snap_nr)04d/vr_catalogue_%(snap_nr)04d"
 outfile="${outbase}/halo_properties/halo_properties_%(snap_nr)04d.hdf5"
 
-chunks_per_dimension=2
+nr_chunks=4
 
 # Create output directory
 outdir=`dirname "${outfile}"`
@@ -44,5 +44,5 @@ mkdir -p "${outdir}"
 
 mpirun python3 -u -m mpi4py ./compute_halo_properties.py \
     ${swift_filename} ${vr_basename} ${outfile} ${SLURM_ARRAY_TASK_ID} \
-    --chunks-per-dimension=${chunks_per_dimension} \
+    --chunks=${nr_chunks} \
     --extra-input=${extra_filename}
