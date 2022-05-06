@@ -89,7 +89,7 @@ class SOProperties(HaloProperty):
         # Sort by radius
         order = np.argsort(radius)
         ordered_radius = radius[order]
-        cumulative_mass = np.cumsum(mass[order], dtype=np.float64)
+        cumulative_mass = np.cumsum(mass[order], dtype=np.float64).astype(mass.dtype)
 
         # Compute density within radius of each particle.
         # Will need to skip any at zero radius.

@@ -197,6 +197,14 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
                         # Find the array to store this result
                         result_array, result_description = result_arrays[result_name]
 
+                        # Consistency check: data type, units and shape should match the existing array
+                        if result_data.units != result_array.units:
+                            raise Exception(f"Result units are inconsistent for quantity {result_name}")
+                        if result_data.dtype != result_array.dtype:
+                            raise Exception(f"Result dtypes are inconsistent for quantity {result_name}")
+                        if result_data.shape != result_array.shape[1:]:
+                            raise Exception(f"Result shapes are inconsistent for quantity {result_name}")                            
+
                         # Ensure the array is large enough
                         if nr_done_this_rank >= result_array.shape[0]:
                             new_shape = list(result_array.shape)
