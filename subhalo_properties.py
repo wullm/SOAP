@@ -124,13 +124,13 @@ class SubhaloMasses(HaloProperty):
         nr_part_all    = np.sum(unyt.unyt_array([nr_part[ptype] for ptype in data]))
 
         # Compute centre of mass
-        if pos_times_mass is not None:
+        if total_mass_all > 0:
             cofm_pos = (pos_times_mass / total_mass_all) % self.boxsize
         else:
             cofm_pos = unyt.unyt_array((0,0,0), units=pos_units, dtype=pos_dtype)
 
         # Compute centre of mass velocity
-        if vel_times_mass is not None:
+        if total_mass_all > 0:
             cofm_vel = vel_times_mass / total_mass_all
         else:
             cofm_vel = unyt.unyt_array((0,0,0), units=vel_units, dtype=vel_dtype)
