@@ -67,8 +67,18 @@ if __name__ == "__main__":
     # Start the clock
     comm_world.barrier()
     t0 = time.time()
+
+    # Split MPI ranks according to which node they are on.
+    # Only the first rank on each node belongs to comm_inter_node.
+    # Others have comm_inter_node=MPI_COMM_NULL and inter_node_rank=-1.
+    comm_intra_node, comm_inter_node = split_comm_world()
+    intra_node_rank, intra_node_size = get_rank_and_size(comm_intra_node)
+    inter_node_rank, inter_node_size = get_rank_and_size(comm_inter_node)
+
+    # Report number of ranks, compute nodes etc
     if comm_world_rank == 0:
         print("Starting halo properties calculation on %d MPI ranks" % comm_world_size)
+        print("Can process %d chunks in parallel using %d ranks per chunk" % (inter_node_size, intra_node_size))
 
     # Open the snapshot and read SWIFT cell structure, units etc
     if comm_world_rank == 0:
@@ -160,13 +170,6 @@ if __name__ == "__main__":
 
     # We no longer need the VR catalogue, since halo centres etc are stored in the chunk tasks
     del so_cat
-
-    # Split MPI ranks according to which node they are on.
-    # Only the first rank on each node belongs to comm_inter_node.
-    # Others have comm_inter_node=MPI_COMM_NULL and inter_node_rank=-1.
-    comm_intra_node, comm_inter_node = split_comm_world()
-    intra_node_rank, intra_node_size = get_rank_and_size(comm_intra_node)
-    inter_node_rank, inter_node_size = get_rank_and_size(comm_inter_node)
 
     # Execute the chunk tasks
     timings = []
