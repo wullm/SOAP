@@ -1,11 +1,14 @@
 #!/bin/env python
 
-import unyt
+import time
+
 import numpy as np
+import unyt
+
 from dataset_names import mass_dataset
 import shared_array
-import time
-import unyt
+import result_set
+
 
 def process_single_halo(mesh, unit_registry, data, halo_prop_list,
                         critical_density, mean_density, boxsize, input_halo,
@@ -141,6 +144,9 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
         next_task.full[0] = 0
     next_task.sync()
 
+    # Make a ResultSet to store the output
+    all_results = result_set.ResultSet()
+
     # Start the clock
     comm.barrier()
     t0_all = time.time()
@@ -182,47 +188,10 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
                                               critical_density, mean_density,
                                               boxsize, input_halo, target_density)
                 if results is not None:
-                    
-                    # Loop over properties which were calculated
-                    for result_name, (result_data, result_description) in results.items():
-
-                        # Create a new array to store this property if necessary
-                        if result_name not in result_arrays:
-                            shape = (nr_halos_this_rank_guess,) + result_data.shape
-                            # need to ensure we don't pass a unyt_quantity to empty_like
-                            # because unyt_quantities must be scalars only
-                            arr = np.empty_like(unyt.unyt_array(result_data, registry=unit_registry), shape=shape)
-                            result_arrays[result_name] = [arr, result_description]
-
-                        # Find the array to store this result
-                        result_array, result_description = result_arrays[result_name]
-
-                        # Consistency check: data type, units and shape should match the existing array
-                        if result_data.units != result_array.units:
-                            raise Exception(f"Result units are inconsistent for quantity {result_name}")
-                        if result_data.dtype != result_array.dtype:
-                            raise Exception(f"Result dtypes are inconsistent for quantity {result_name}")
-                        if result_data.shape != result_array.shape[1:]:
-                            raise Exception(f"Result shapes are inconsistent for quantity {result_name}")                            
-
-                        # Ensure the array is large enough
-                        if nr_done_this_rank >= result_array.shape[0]:
-                            new_shape = list(result_array.shape)
-                            new_shape[0] *= 2
-                            new_result_array = np.empty_like(unyt.unyt_array(result_array, registry=unit_registry), shape=new_shape)
-                            new_result_array[0:result_array.shape[0],...] = result_array[...]
-                            result_array = new_result_array
-                            result_arrays[result_name] = [result_array, result_description]
-
-                        # Store this property for this halo to the output array
-                        result_array[nr_done_this_rank,...] = result_data
-
-                    # Count halos processed on this rank
+                    # Store results and flag this halo as done
+                    all_results.append(results)
                     nr_done_this_rank += 1
-
-                    # Flag this halo as done
                     halo_arrays["done"].full[task_to_do] = 1
-    
                 else:
                     # We didn't read in a large enough region
                     halo_arrays["read_radius"].full[task_to_do] *= 2.0
@@ -234,8 +203,7 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
             break
 
     # Resize output arrays, since they may have been allocated larger than needed
-    for name in result_arrays:
-        result_arrays[name][0] = result_arrays[name][0][:nr_done_this_rank,...]
+    all_results.trim()
 
     # Free the shared task counter
     next_task.free()
@@ -248,4 +216,4 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
     comm.barrier()
     t1_all = time.time()
     
-    return result_arrays, t1_all-t0_all, task_time, nr_halos_left, comm.allreduce(nr_done_this_rank)
+    return all_results, t1_all-t0_all, task_time, nr_halos_left, comm.allreduce(nr_done_this_rank)

@@ -97,7 +97,7 @@ class SubhaloMasses(HaloProperty):
             total_mass[ptype] = np.sum(mass, dtype=float)
         
             # Accumulate total number of particles of this type
-            nr_part[ptype] = unyt.unyt_quantity(pos.shape[0], units=unyt.dimensionless, dtype=int)
+            nr_part[ptype] = unyt.unyt_quantity(pos.shape[0], units=unyt.dimensionless, dtype=int, registry=self.unit_registry)
 
             # Total stellar initial mass
             if ptype == "PartType4":

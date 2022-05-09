@@ -124,9 +124,9 @@ class SOCatalogue:
             else:
                 raise Exception("Unrecognized property name: "+name)
             if conv_fac is not None:
-                local_halo[name] = unyt.unyt_array(local_halo[name]*conv_fac, units=units, dtype=dtype)
+                local_halo[name] = unyt.unyt_array(local_halo[name]*conv_fac, units=units, dtype=dtype, registry=registry)
             else:
-                local_halo[name] = unyt.unyt_array(local_halo[name], units=units, dtype=dtype)
+                local_halo[name] = unyt.unyt_array(local_halo[name], units=units, dtype=dtype, registry=registry)
         #
         # Compute initial search radius for each halo:
         #

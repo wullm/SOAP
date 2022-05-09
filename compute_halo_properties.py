@@ -14,9 +14,6 @@ import numpy as np
 import h5py
 import unyt
 
-import virgo.mpi.parallel_hdf5 as phdf5
-import virgo.mpi.parallel_sort as psort
-
 import halo_centres
 import swift_cells
 import chunk_tasks
@@ -25,9 +22,10 @@ import halo_properties
 import task_queue
 import lustre
 import command_line_args
-import create_groups
 import SO_properties
 import subhalo_properties
+import result_set
+
 
 def split_comm_world():
 
@@ -173,46 +171,29 @@ if __name__ == "__main__":
 
     # Execute the chunk tasks
     timings = []
-    result = task_queue.execute_tasks(tasks, args=(cellgrid, comm_intra_node, inter_node_rank, timings),
-                                      comm_all=comm_world, comm_master=comm_inter_node,
-                                      comm_workers=comm_intra_node, task_type=chunk_tasks.ChunkTask)
+    local_results = task_queue.execute_tasks(tasks, args=(cellgrid, comm_intra_node, inter_node_rank, timings),
+                                             comm_all=comm_world, comm_master=comm_inter_node,
+                                             comm_workers=comm_intra_node, task_type=chunk_tasks.ChunkTask)
 
     # The result list has one element per chunk processed. Each element is itself a
     # list of result sets, with one element per iteration that was required.
     # Flatten this so we just have a list of result sets on each MPI rank.
-    result = [item for sublist in result for item in sublist]
+    local_results = [item for sublist in local_results for item in sublist]
 
     # Make a communicator which only contains tasks which have results
-    colour = 0 if len(result) > 0 else 1
+    colour = 0 if len(local_results) > 0 else 1
     comm_have_results = comm_world.Split(colour, comm_world_rank)
     
     # Only tasks with results are involved in writing the output file
-    if len(result) > 0:
-
+    if len(local_results) > 0:
+        
         # Combine results on this MPI rank so that we have one array per quantity calculated.
-        local_results = {}
-        for name in result[0].keys():
-            list_of_arrays = [r[name][0] for r in result]
-            output_array = unyt.array.uconcatenate(list_of_arrays, axis=0)
-            description    = result[0][name][1]
-            local_results[name] = [output_array, description]
-
-        # Get the full list of property names, in consistent order between ranks
-        if comm_have_results.Get_rank() == 0:
-            names = list(local_results.keys())
-        else:
-            names = None
-        names = comm_have_results.bcast(names)
+        local_results = result_set.concatenate(local_results)
 
         # Sort all arrays by halo index
         comm_have_results.barrier()
         t0_sort = time.time()
-
-        idx = psort.parallel_sort(local_results["VR/ID"][0], comm=comm_have_results, return_index=True)
-        for name in names:
-            if name != "VR/ID":
-                local_results[name][0] = psort.fetch_elements(local_results[name][0], idx, comm=comm_have_results)
-        del idx
+        local_results.parallel_sort("VR/ID", comm_have_results)
         comm_have_results.barrier()
         t1_sort = time.time()
         if comm_have_results.Get_rank() == 0:
@@ -233,24 +214,8 @@ if __name__ == "__main__":
         calc_names = sorted([hp.name for hp in halo_prop_list])
         params.attrs["calculations"] = calc_names
 
-        # Ensure any HDF5 groups we need exist
-        if comm_have_results.Get_rank() == 0:
-            group_names = create_groups.find_groups_to_create(local_results.keys())
-        else:
-            group_names = None
-        group_names = comm_have_results.bcast(group_names)
-        for group_name in group_names:
-            outfile.create_group(group_name)
-
-        # Loop over output quantities
-        for name in names:
-            data, description = local_results[name]
-            phdf5.collective_write(outfile, name, data, comm_have_results)
-            if hasattr(data, "units"):
-                attrs = swift_units.attributes_from_units(data.units)
-                for attr_name, attr_value in attrs.items():
-                    outfile[name].attrs[attr_name] = attr_value
-            outfile[name].attrs["Description"] = description
+        # Write the halo property arrays
+        local_results.collective_write(outfile, comm_have_results)
             
         # Finished writing the output
         outfile.close()
