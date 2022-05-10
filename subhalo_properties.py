@@ -54,7 +54,7 @@ class SubhaloMasses(HaloProperty):
 
         Input particle data arrays are unyt_arrays.
         """
-        
+
         # Storage for properties of each particle type
         cofm_pos   = {}
         cofm_vel   = {}
@@ -77,6 +77,7 @@ class SubhaloMasses(HaloProperty):
         vel_times_mass = None
         vel_units = None
         vel_dtype = None
+        mass_dtype = None
         for ptype in data:
 
             # Find position and mass of particles in the group
@@ -85,6 +86,10 @@ class SubhaloMasses(HaloProperty):
             pos  = data[ptype]["Coordinates"][in_halo,:]
             vel  = data[ptype]["Velocities"][in_halo,:]
             mass = data[ptype][mass_dataset(ptype)][in_halo]
+
+            # Record mass data type
+            if mass_dtype is None:
+                mass_dtype = mass.dtype
 
             # Record the position and velocity units
             if pos_units is None:
@@ -97,7 +102,8 @@ class SubhaloMasses(HaloProperty):
             total_mass[ptype] = np.sum(mass, dtype=float)
         
             # Accumulate total number of particles of this type
-            nr_part[ptype] = unyt.unyt_quantity(pos.shape[0], units=unyt.dimensionless, dtype=int, registry=self.unit_registry)
+            nr_part[ptype] = unyt.unyt_quantity(pos.shape[0], units=unyt.dimensionless,
+                                                dtype=int, registry=self.unit_registry)
 
             # Total stellar initial mass
             if ptype == "PartType4":
@@ -109,19 +115,23 @@ class SubhaloMasses(HaloProperty):
 
             # Accumulate pos*mass for centre of mass
             if pos_times_mass is None:
-                pos_times_mass = (pos*mass[:, None]).sum(axis=0)
+                pos_times_mass = (pos*mass[:, None]).sum(axis=0, dtype=float)
             else:
-                pos_times_mass += (pos*mass[:, None]).sum(axis=0)
+                pos_times_mass += (pos*mass[:, None]).sum(axis=0, dtype=float)
 
             # Accumulate vel*mass for centre of mass velocity
             if vel_times_mass is None:
-                vel_times_mass = (vel*mass[:, None]).sum(axis=0)
+                vel_times_mass = (vel*mass[:, None]).sum(axis=0, dtype=float)
             else:
-                vel_times_mass += (vel*mass[:, None]).sum(axis=0)
+                vel_times_mass += (vel*mass[:, None]).sum(axis=0, dtype=float)
 
         # Find total masses
-        total_mass_all = np.sum(unyt.unyt_array([total_mass[ptype] for ptype in data]))
+        total_mass_all = np.sum(unyt.unyt_array([total_mass[ptype] for ptype in data])).astype(mass_dtype)
         nr_part_all    = np.sum(unyt.unyt_array([nr_part[ptype] for ptype in data]))
+
+        # Convert masses to output data type
+        total_initial_mass = total_initial_mass.astype(mass_dtype)
+        total_subgrid_mass = total_subgrid_mass.astype(mass_dtype)
 
         # Compute centre of mass
         if total_mass_all > 0:
