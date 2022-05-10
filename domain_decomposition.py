@@ -11,6 +11,8 @@ def grid_decomposition(boxsize, centres, nr_chunks):
     Returns chunk index for each input halo centre.
     """
 
+    print("Using cubic grid domain decomposition")
+
     # Determine number of chunks per dimension
     chunks_per_dimension = 1
     while chunks_per_dimension**3 < nr_chunks:
@@ -37,42 +39,61 @@ def grid_decomposition(boxsize, centres, nr_chunks):
 def peano_decomposition(boxsize, centres, nr_chunks):
     """
     Gadget style domain decomposition using Peano-Hilbert curve.
-    Allows arbitrary number of chunks.
+    Allows an arbitrary number of chunks and tries to put equal
+    numbers of halos in each chunk.
 
     Returns chunk index for each input halo centre.
 
     TODO: take into account halo masses for load balancing?
           parallelize this?
-    """
     
+    Will not work well for zoom simulations. Could use a grid
+    which just covers the zoom region?
+    """
+
     # Find size of grid to use to calculate PH keys
     bits_per_dimension = 10
     cells_per_dimension = 2**bits_per_dimension
     grid_size = boxsize / cells_per_dimension
-    
-    # Find integer coordinates of the halos
+    nr_cells = cells_per_dimension**3
+    nr_halos = centres.shape[0]
+    print(f"Using Peano domain decomposition with bits={bits_per_dimension}")
+
+    # Find integer coordinates of the halos in the cell grid
     ipos = np.floor(centres / grid_size).value.astype(int)
     ipos = np.clip(ipos, 0, cells_per_dimension-1)
     
-    # Get PH keys
+    # Get PH keys for the halos
     phkey = peano.peano_hilbert_keys(ipos[:,0], ipos[:,1], ipos[:,2], bits_per_dimension)
 
-    # Get sorting index of halos by PH key
-    order = np.argsort(phkey)
+    # Count cumulative number of halos in each PH cell
+    halos_per_cell = np.bincount(phkey, minlength=nr_cells)
+    cumulative_halos_per_cell = np.cumsum(halos_per_cell)
 
-    # Assign halos to chunk tasks:
-    # Put a roughly equal number of halos in each chunk.
-    nr_halos = centres.shape[0]
-    task_id = -np.ones(nr_halos, dtype=int)
+    # Decide how many halos we want to put in each chunk
     halos_per_chunk = nr_halos // nr_chunks
-    for chunk_nr in range(nr_chunks):
-        i1 = halos_per_chunk*chunk_nr
-        if chunk_nr == nr_chunks-1:
-            i2 = nr_halos - 1
+    halos_per_chunk = np.ones(nr_chunks, dtype=int) * halos_per_chunk
+    halos_per_chunk[:nr_halos % nr_chunks] += 1
+    assert np.sum(halos_per_chunk) == nr_halos
+    cumulative_halos_per_chunk = np.cumsum(halos_per_chunk) - halos_per_chunk
+
+    # Associate a chunk index with each PH cell
+    cell_task_id = -np.ones(nr_cells, dtype=int)
+    first_cell_in_chunk = np.searchsorted(cumulative_halos_per_cell, cumulative_halos_per_chunk)
+    first_cell_in_chunk[0] = 0
+    for i in range(nr_chunks):
+        i1 = first_cell_in_chunk[i]
+        if i < nr_chunks-1:
+            i2 = first_cell_in_chunk[i+1]
         else:
-            i2 = i1 + halos_per_chunk
-        task_id[order[i1:i2]] = chunk_nr
+            i2 = nr_cells
+        cell_task_id[i1:i2] = i
+    assert np.all(cell_task_id >= 0)
+
+    # For each halo, find the chunk index of the PH cell it belongs to
+    task_id = cell_task_id[phkey]
     assert np.all(task_id >= 0)
+    assert np.all(task_id < nr_chunks)
 
     return task_id
 

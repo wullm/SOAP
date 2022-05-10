@@ -74,9 +74,9 @@ class ChunkTaskList:
     def __init__(self, cellgrid, so_cat, nr_chunks, halo_prop_list):
 
         # Assign the input halos to chunk tasks
-        task_id = domain_decomposition.grid_decomposition(cellgrid.boxsize,
-                                                          so_cat.halo_arrays["cofp"],
-                                                          nr_chunks)
+        task_id = domain_decomposition.peano_decomposition(cellgrid.boxsize,
+                                                           so_cat.halo_arrays["cofp"],
+                                                           nr_chunks)
 
         # Sort the halos by task ID
         idx = np.argsort(task_id)
@@ -87,10 +87,10 @@ class ChunkTaskList:
 
         # Find groups of halos with the same task ID
         unique_ids, offsets, counts = np.unique(task_id, return_index=True, return_counts=True)
-        
+
         # Create the task list
         tasks = []
-        for offset, count in zip(offsets, counts):
+        for chunk_nr, (offset, count) in enumerate(zip(offsets, counts)):
 
             # Make the halo catalogue for this chunk
             task_halo_arrays = {}
@@ -102,6 +102,9 @@ class ChunkTaskList:
 
             # Create the task for this chunk
             tasks.append(ChunkTask(task_halo_arrays, halo_prop_list)) 
+
+            # Report the size of the task
+            print(f"Chunk {chunk_nr} has {count} halos")
 
         # Use number of halos as a rough estimate of cost.
         # Do tasks with the most halos first so we're not waiting for a few big jobs at the end.
