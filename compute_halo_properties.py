@@ -211,6 +211,9 @@ if __name__ == "__main__":
         output_file = sub_snapnum(args.output_file, args.snapshot_nr)
         outfile = h5py.File(output_file, "w", driver="mpio", comm=comm_have_results)
 
+        # Write metadata copied from snapshot
+        cellgrid.write_metadata(outfile.create_group("SWIFT"))
+
         # Write command line parameters
         params = outfile.create_group("Parameters")
         params.attrs["swift_filename"] = args.swift_filename

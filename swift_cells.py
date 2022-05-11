@@ -154,6 +154,14 @@ class SWIFTCellGrid:
             for name in infile["Cosmology"].attrs:
                 self.cosmology[name] = infile["Cosmology"].attrs[name][0]
 
+            # Store units groups
+            self.swift_units_group = {}
+            for name in infile["Units"].attrs:
+                self.swift_units_group[name] = infile["Units"].attrs[name][0]
+            self.swift_internal_units_group = {}
+            for name in infile["InternalCodeUnits"].attrs:
+                self.swift_internal_units_group[name] = infile["InternalCodeUnits"].attrs[name][0]
+
             # Read the critical density and attach units
             # This is in internal units, which may not be the same as snapshot units.
             critical_density = float(self.cosmology["Critical density [internal units]"])
@@ -403,3 +411,27 @@ class SWIFTCellGrid:
 
         return data
 
+    def write_metadata(self, group):
+        """
+        Write simulation information etc to the specified HDF5 group
+        """
+
+        # Write cosmology
+        cosmo = group.create_group("Cosmology")
+        for name, value in self.cosmology.items():
+            cosmo.attrs[name] = [value,]
+
+        # Write physical constants
+        const = group.create_group("PhysicalConstants")
+        const = const.create_group("CGS")
+        for name, value in self.constants.items():
+            const.attrs[name] = [value,]
+
+        # Write units
+        units = group.create_group("Units")
+        for name, value in self.swift_units_group.items():
+            units.attrs[name] = [value,]
+        units = group.create_group("InternalCodeUnits")
+        for name, value in self.swift_internal_units_group.items():
+            units.attrs[name] = [value,]
+        
