@@ -25,7 +25,13 @@ class SOProperties(HaloProperty):
             "ComptonYParameters",
         ],
         "PartType1": ["Coordinates", "Masses", "Velocities"],
-        "PartType4": ["Coordinates", "Masses", "InitialMasses", "Velocities"],
+        "PartType4": [
+            "Coordinates",
+            "Masses",
+            "InitialMasses",
+            "Velocities",
+            "Luminosities",
+        ],
         "PartType5": [
             "Coordinates",
             "DynamicalMasses",
@@ -133,6 +139,7 @@ class SOProperties(HaloProperty):
             r2 = ordered_radius[i]
             logrho1 = np.log10(density[i - 1].to(reference_density.units))
             logrho2 = np.log10(density[i].to(reference_density.units))
+            # preserve the unyt_array dtype and units by using '+=' instead of assignment
             rSO += r2 + (r2 - r1) * (np.log10(reference_density) - logrho2) / (
                 logrho2 - logrho1
             )
@@ -168,9 +175,22 @@ class SOProperties(HaloProperty):
             [0.0, 0.0, 0.0], dtype=np.float32, units="km/s", registry=reg
         )
         BHmaxAR = unyt.unyt_array(0.0, dtype=np.float32, units="Msun/yr", registry=reg)
+        Lstar = unyt.unyt_array(
+            [0.0] * 9, dtype=np.float32, units="dimensionless", registry=reg
+        )
+        Jgas = unyt.unyt_array(
+            [0.0, 0.0, 0.0], dtype=np.float32, units="Msun*kpc*km/s", registry=reg
+        )
+        JDM = unyt.unyt_array(
+            [0.0, 0.0, 0.0], dtype=np.float32, units="Msun*kpc*km/s", registry=reg
+        )
+        Jstar = unyt.unyt_array(
+            [0.0, 0.0, 0.0], dtype=np.float32, units="Msun*kpc*km/s", registry=reg
+        )
 
         if rSO > 0.0 * radius.units:
             gas_selection = radius[types == "PartType0"] < rSO
+            dm_selection = radius[types == "PartType1"] < rSO
             star_selection = radius[types == "PartType4"] < rSO
             bh_selection = radius[types == "PartType5"] < rSO
 
@@ -184,11 +204,31 @@ class SOProperties(HaloProperty):
             comSO[:] = (mass[:, None] * position).sum(axis=0) / mass.sum()
             comSO[:] += centre
             vcomSO[:] = (mass[:, None] * velocity).sum(axis=0) / mass.sum()
+
             gas_masses = mass[types == "PartType0"]
-            # preserve the unyt_array dtype and units by using '+=' instead of assignment
+            gas_relpos = position[types == "PartType0"][:, :] - comSO[None, :]
+            gas_relvel = velocity[types == "PartType0"][:, :] - vcomSO[None, :]
             MgasSO += gas_masses.sum()
-            MdmSO += mass[types == "PartType1"].sum()
-            MstarSO += mass[types == "PartType4"].sum()
+            Jgas[:] = (
+                gas_masses[:, None] * unyt.array.ucross(gas_relpos, gas_relvel)
+            ).sum(axis=0)
+
+            dm_masses = mass[types == "PartType1"]
+            dm_relpos = position[types == "PartType1"][:, :] - comSO[None, :]
+            dm_relvel = velocity[types == "PartType1"][:, :] - vcomSO[None, :]
+            MdmSO += dm_masses.sum()
+            JDM[:] = (dm_masses[:, None] * unyt.array.ucross(dm_relpos, dm_relvel)).sum(
+                axis=0
+            )
+
+            star_masses = mass[types == "PartType4"]
+            star_relpos = position[types == "PartType4"][:, :] - comSO[None, :]
+            star_relvel = velocity[types == "PartType4"][:, :] - vcomSO[None, :]
+            MstarSO += star_masses.sum()
+            Jstar[:] = (
+                star_masses[:, None] * unyt.array.ucross(star_relpos, star_relvel)
+            ).sum(axis=0)
+
             MBHdynSO += mass[types == "PartType5"].sum()
 
             # gas specific properties. We (can) only do these if we have gas.
@@ -213,6 +253,7 @@ class SOProperties(HaloProperty):
             # star specific properties
             if np.any(star_selection):
                 MstarinitSO += data["PartType4"]["InitialMasses"][star_selection].sum()
+                Lstar[:] = data["PartType4"]["Luminosities"][star_selection].sum()
 
             # BH specific properties
             if np.any(bh_selection):
@@ -293,6 +334,22 @@ class SOProperties(HaloProperty):
                 f"SO/{name}/BHmaxAR": (
                     BHmaxAR,
                     f"Accretion rate of most massive BH within a sphere {label}",
+                ),
+                f"SO/{name}/Lstar": (
+                    Lstar,
+                    f"Total stellar luminosity within a sphere {label}",
+                ),
+                f"SO/{name}/Jgas": (
+                    Jgas,
+                    f"Total angular momentum of gas within a sphere {label}",
+                ),
+                f"SO/{name}/JDM": (
+                    JDM,
+                    f"Total angular momentum of DM within a sphere {label}",
+                ),
+                f"SO/{name}/Jstar": (
+                    Jstar,
+                    f"Total angular momentum of stars within a sphere {label}",
                 ),
             }
         )
