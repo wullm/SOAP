@@ -117,6 +117,11 @@ class SOProperties(HaloProperty):
             name = f"{self.mean_density_multiple:.0f}_mean"
             label = f"within which the density is {self.mean_density_multiple:.0f} times the mean value"
 
+        reg = mass.units.registry
+
+        mSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
+        rSO = unyt.unyt_array(0.0, dtype=np.float32, units="Mpc", registry=reg)
+
         # Check if we ever reach the density threshold
         if nr_parts > 0 and np.any(density > reference_density):
             # Find smallest radius where the density is below the threshold
@@ -128,30 +133,13 @@ class SOProperties(HaloProperty):
             r2 = ordered_radius[i]
             logrho1 = np.log10(density[i - 1].to(reference_density.units))
             logrho2 = np.log10(density[i].to(reference_density.units))
-            rSO = r2 + (r2 - r1) * (np.log10(reference_density) - logrho2) / (
+            rSO += r2 + (r2 - r1) * (np.log10(reference_density) - logrho2) / (
                 logrho2 - logrho1
             )
             if rSO > r2 or rSO < r1:
                 raise RuntimeError(f"Interpolation failed!")
-            mSO = 4.0 / 3.0 * np.pi * rSO ** 3 * reference_density
-            # unyt might decide to use weird co-moving units. Force sensible units.
-            rSO.convert_to_units(radius.units)
-            mSO.convert_to_units(cumulative_mass.units)
-        else:
-            # Below threshold at all radii. Need to return zero with correct units attached.
-            mSO = unyt.unyt_array(
-                0, dtype=cumulative_mass.dtype, units=cumulative_mass.units
-            )
-            rSO = unyt.unyt_array(0, dtype=radius.dtype, units=radius.units)
+            mSO += 4.0 / 3.0 * np.pi * rSO ** 3 * reference_density
 
-        Tgas = data["PartType0"]["Temperatures"]
-        Xray_lum = data["PartType0"]["XrayLuminosities"]
-        Xray_phlum = data["PartType0"]["XrayPhotonLuminosities"]
-        compY = data["PartType0"]["ComptonYParameters"]
-        BHAR = data["PartType5"]["AccretionRates"]
-        BHID = data["PartType5"]["ParticleIDs"]
-
-        reg = mass.units.registry
         comSO = unyt.unyt_array(
             [0.0, 0.0, 0.0], dtype=np.float32, units="Mpc", registry=reg
         )
@@ -203,30 +191,39 @@ class SOProperties(HaloProperty):
             MstarSO += mass[types == "PartType4"].sum()
             MBHdynSO += mass[types == "PartType5"].sum()
 
-            gas_temperatures = Tgas[gas_selection]
-            Tgas_selection = gas_temperatures > 1.0e5 * unyt.K
-            MhotgasSO += gas_masses[Tgas_selection].sum()
+            # gas specific properties. We (can) only do these if we have gas.
+            # (remember that "PartType0" might not be part of 'data' at all)
+            if np.any(gas_selection):
+                gas_temperatures = data["PartType0"]["Temperatures"][gas_selection]
+                Tgas_selection = gas_temperatures > 1.0e5 * unyt.K
+                MhotgasSO += gas_masses[Tgas_selection].sum()
 
-            if np.any(Tgas_selection):
-                TgasSO += (
-                    gas_temperatures[Tgas_selection] * gas_masses[Tgas_selection]
-                ).sum() / MhotgasSO
+                if np.any(Tgas_selection):
+                    TgasSO += (
+                        gas_temperatures[Tgas_selection] * gas_masses[Tgas_selection]
+                    ).sum() / MhotgasSO
 
-            XraylumSO += Xray_lum[gas_selection].sum()
-            XrayphlumSO += Xray_phlum[gas_selection].sum()
+                XraylumSO += data["PartType0"]["XrayLuminosities"][gas_selection].sum()
+                XrayphlumSO += data["PartType0"]["XrayPhotonLuminosities"][
+                    gas_selection
+                ].sum()
 
-            compYSO += compY[gas_selection].sum()
+                compYSO += data["PartType0"]["ComptonYParameters"][gas_selection].sum()
 
-            MstarinitSO += data["PartType4"]["InitialMasses"][star_selection].sum()
-            MBHsubSO += data["PartType5"]["SubgridMasses"][bh_selection].sum()
+            # star specific properties
+            if np.any(star_selection):
+                MstarinitSO += data["PartType4"]["InitialMasses"][star_selection].sum()
 
+            # BH specific properties
             if np.any(bh_selection):
+                MBHsubSO += data["PartType5"]["SubgridMasses"][bh_selection].sum()
+
                 iBHmax = np.argmax(data["PartType5"]["SubgridMasses"][bh_selection])
                 BHmaxM += data["PartType5"]["SubgridMasses"][bh_selection][iBHmax]
-                BHmaxID += BHID[bh_selection][iBHmax]
+                BHmaxID += data["PartType5"]["ParticleIDs"][bh_selection][iBHmax]
                 BHmaxpos += data["PartType5"]["Coordinates"][bh_selection][iBHmax]
                 BHmaxvel += data["PartType5"]["Velocities"][bh_selection][iBHmax]
-                BHmaxAR += BHAR[bh_selection][iBHmax]
+                BHmaxAR += data["PartType5"]["AccretionRates"][bh_selection][iBHmax]
 
         # Return value should be a dict containing unyt_arrays and descriptions.
         # The dict keys will be used as HDF5 dataset names in the output.
