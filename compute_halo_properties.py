@@ -111,6 +111,12 @@ if __name__ == "__main__":
         SO_properties.SOProperties(cellgrid, 100., "crit"),
         SO_properties.SOProperties(cellgrid, 200., "crit"),
         SO_properties.SOProperties(cellgrid, 500., "crit"),
+        SO_properties.SOProperties(cellgrid, 10., "physical"),
+        SO_properties.SOProperties(cellgrid, 30., "physical"),
+        SO_properties.SOProperties(cellgrid, 50., "physical"),
+        SO_properties.SOProperties(cellgrid, 100., "physical"),
+        SO_properties.SOProperties(cellgrid, 300., "physical"),
+        SO_properties.SOProperties(cellgrid, 500., "physical"),
     ]
     
     # Determine which calculations we're doing this time

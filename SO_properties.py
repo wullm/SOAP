@@ -45,19 +45,23 @@ class SOProperties(HaloProperty):
         ],
     }
 
-    # Minimum physical radius to read in (pMpc)
-    physical_radius_mpc = 0.0
-
     def __init__(self, cellgrid, SOval, type="mean"):
         super().__init__(cellgrid)
 
-        if not type in ["mean", "crit"]:
+        if not type in ["mean", "crit", "physical"]:
             raise AttributeError(f"Unknown SO type: {type}!")
         self.type = type
 
         # This specifies how large a sphere is read in:
-        self.mean_density_multiple = SOval
-        self.critical_density_multiple = SOval
+        if type in ["mean", "crit"]:
+            self.mean_density_multiple = SOval
+            self.critical_density_multiple = SOval
+            self.physical_radius_mpc = 0.0
+        elif type == "physical":
+            # use a large multiple to avoid reading in too many particles
+            self.mean_density_multiple = 1000.0
+            self.critical_density_multiple = 1000.0
+            self.physical_radius_mpc = 0.001 * SOval
 
         # Give this calculation a name so we can select it on the command line
         self.name = "SO_%d_%s" % (SOval, type)
@@ -100,7 +104,6 @@ class SOProperties(HaloProperty):
         position = unyt.array.uconcatenate(position)
         velocity = unyt.array.uconcatenate(velocity)
         types = np.concatenate(types)
-        nr_parts = mass.shape[0]
 
         # Sort by radius
         order = np.argsort(radius)
@@ -125,6 +128,10 @@ class SOProperties(HaloProperty):
             reference_density = self.mean_density_multiple * self.mean_density
             name = f"{self.mean_density_multiple:.0f}_mean"
             label = f"within which the density is {self.mean_density_multiple:.0f} times the mean value"
+        elif self.type == "physical":
+            reference_density = 0.0
+            name = f"{1000. * self.physical_radius_mpc:.0f}_kpc"
+            label = f"with a radius of {1000. * self.physical_radius_mpc:.0f} kpc"
 
         reg = mass.units.registry
 
@@ -189,23 +196,40 @@ class SOProperties(HaloProperty):
         )
 
         # Check if we ever reach the density threshold
-        if nr_parts > 0 and np.any(density > reference_density):
-            # Find smallest radius where the density is below the threshold
-            i = np.argmax(density <= reference_density)
-            # Interpolate to get the actual radius
-            if i == 0:
-                raise RuntimeError("This should not happen!")
-            r1 = ordered_radius[i - 1]
-            r2 = ordered_radius[i]
-            logrho1 = np.log10(density[i - 1].to(reference_density.units))
-            logrho2 = np.log10(density[i].to(reference_density.units))
-            # preserve the unyt_array dtype and units by using '+=' instead of assignment
-            rSO += r2 + (r2 - r1) * (np.log10(reference_density) - logrho2) / (
-                logrho2 - logrho1
-            )
-            if rSO > r2 or rSO < r1:
-                raise RuntimeError(f"Interpolation failed!")
-            mSO += 4.0 / 3.0 * np.pi * rSO ** 3 * reference_density
+        if reference_density > 0.0 * reference_density:
+            if nr_parts > 0 and np.any(density > reference_density):
+                # Find smallest radius where the density is below the threshold
+                i = np.argmax(density <= reference_density)
+                # Interpolate to get the actual radius
+                if i == 0:
+                    raise RuntimeError("This should not happen!")
+                r1 = ordered_radius[i - 1]
+                r2 = ordered_radius[i]
+                logrho1 = np.log10(density[i - 1].to(reference_density.units))
+                logrho2 = np.log10(density[i].to(reference_density.units))
+                # preserve the unyt_array dtype and units by using '+=' instead of assignment
+                rSO += r2 + (r2 - r1) * (np.log10(reference_density) - logrho2) / (
+                    logrho2 - logrho1
+                )
+                if rSO > r2 or rSO < r1:
+                    raise RuntimeError(f"Interpolation failed!")
+                mSO += 4.0 / 3.0 * np.pi * rSO ** 3 * reference_density
+        elif self.physical_radius_mpc > 0.0:
+            rSO += self.physical_radius_mpc * unyt.Mpc
+            if nr_parts > 0:
+                # find the enclosed mass using interpolation
+                i = np.argmax(ordered_radius > rSO)
+                if i == 0:
+                    # we only have particles in the centre, so we cannot interpolate
+                    mSO += cumulative_mass[i]
+                else:
+                    r1 = ordered_radius[i - 1]
+                    r2 = ordered_radius[i]
+                    M1 = cumulative_mass[i - 1]
+                    M2 = cumulative_mass[i]
+                    mSO += M1 + (rSO - r1) / (r2 - r1) * (M2 - M1)
+        else:
+            raise RuntimeError("Should not happen!")
 
         if rSO > 0.0 * radius.units:
             gas_selection = radius[types == "PartType0"] < rSO
