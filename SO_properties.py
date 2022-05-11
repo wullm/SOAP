@@ -45,6 +45,171 @@ class SOProperties(HaloProperty):
         ],
     }
 
+    # List of properties that get computed
+    # For each property, we have the following columns:
+    #  - name: Name of the property within calculate() and in the output file
+    #  - shape: Shape of this property for a single halo (1: scalar, 3: vector...)
+    #  - dtype: Data type that will be used. Should have enough precision to avoid over/underflow
+    #  - unit: Units that will be used internally and for the output.
+    #  - description: Description string that will be used to describe the property in the output.
+    #                 Should contain a "{label}" entry that will be adjusted to describe the sphere for this
+    #                 particular type of SO.
+    SO_properties = [
+        # global properties
+        ("r", 1, np.float32, "Mpc", "Radius of a sphere {label}"),
+        ("m", 1, np.float32, "Msun", "Mass within a sphere {label}"),
+        ("com", 3, np.float32, "Mpc", "Centre of mass within a sphere {label}"),
+        (
+            "vcom",
+            3,
+            np.float32,
+            "km/s",
+            "Centre of mass velocity within a sphere {label}",
+        ),
+        # gas properties
+        ("Mgas", 1, np.float32, "Msun", "Total gas mass within a sphere {label}"),
+        (
+            "Jgas",
+            3,
+            np.float32,
+            "Msun*kpc*km/s",
+            "Total angular momentum of gas within a sphere {label}",
+        ),
+        (
+            "Mgasmetal",
+            1,
+            np.float32,
+            "Msun",
+            "Total metal mass of gas within a sphere {label}",
+        ),
+        (
+            "Mhotgas",
+            1,
+            np.float32,
+            "Msun",
+            "Total mass of gas with T > 1e5 K within a sphere {label}",
+        ),
+        (
+            "Tgas",
+            1,
+            np.float32,
+            "K",
+            "Mass-weighted average temperature of gas with T > 1e5 K within a sphere {label}",
+        ),
+        (
+            "Xraylum",
+            3,
+            np.float64,
+            "erg/s",
+            "Total Xray luminosity within a sphere {label}",
+        ),
+        (
+            "Xrayphlum",
+            3,
+            np.float64,
+            "1/s",
+            "Total Xray photon luminosity within a sphere {label}",
+        ),
+        ("compY", 1, np.float64, "cm**2", "Total Compton y within a sphere {label}"),
+        # DM properties
+        ("MDM", 1, np.float32, "Msun", "Total DM mass within a sphere {label}"),
+        (
+            "JDM",
+            3,
+            np.float32,
+            "Msun*kpc*km/s",
+            "Total angular momentum of DM within a sphere {label}",
+        ),
+        # stellar properties
+        ("Mstar", 1, np.float32, "Msun", "Total stellar mass within a sphere {label}"),
+        (
+            "Jstar",
+            3,
+            np.float32,
+            "Msun*kpc*km/s",
+            "Total angular momentum of stars within a sphere {label}",
+        ),
+        (
+            "Mstarinit",
+            1,
+            np.float32,
+            "Msun",
+            "Total initial stellar mass with a sphere {label}",
+        ),
+        (
+            "Mstarmetal",
+            1,
+            np.float32,
+            "Msun",
+            "Total metal mass of stars within a sphere {label}",
+        ),
+        (
+            "Lstar",
+            9,
+            np.float32,
+            "dimensionless",
+            "Total stellar luminosity within a sphere {label}",
+        ),
+        # BH properties
+        (
+            "MBHdyn",
+            1,
+            np.float32,
+            "Msun",
+            "Total dynamical BH mass within a sphere {label}",
+        ),
+        (
+            "MBHsub",
+            1,
+            np.float32,
+            "Msun",
+            "Total sub-grid BH mass within a sphere {label}",
+        ),
+        (
+            "BHlasteventa",
+            1,
+            np.float32,
+            "dimensionless",
+            "Last AGN feedback event within a sphere {label}",
+        ),
+        ("BHmaxM", 1, np.float32, "Msun", "Maximum BH mass within a sphere {label}"),
+        (
+            "BHmaxID",
+            1,
+            np.uint64,
+            "dimensionless",
+            "ID of most massive BH within a sphere {label}",
+        ),
+        (
+            "BHmaxpos",
+            3,
+            np.float32,
+            "Mpc",
+            "Position of most massive BH within a sphere {label}",
+        ),
+        (
+            "BHmaxvel",
+            3,
+            np.float32,
+            "km/s",
+            "Velocity of most massive BH within a sphere {label}",
+        ),
+        (
+            "BHmaxAR",
+            1,
+            np.float32,
+            "Msun/yr",
+            "Accretion rate of most massive BH within a sphere {label}",
+        ),
+        (
+            "BHmaxlasteventa",
+            1,
+            np.float32,
+            "dimensionless",
+            "Last AGN feedback event of the most massive BH within a sphere {label}",
+        ),
+    ]
+
     def __init__(self, cellgrid, SOval, type="mean"):
         super().__init__(cellgrid)
 
@@ -94,7 +259,7 @@ class SOProperties(HaloProperty):
                 self.critical_density_multiple * self.critical_density
             )
             self.SO_name = "BN98"
-            self.label = "within which the density is {self.critical_density_multiple:.2f} times the critical value"
+            self.label = f"within which the density is {self.critical_density_multiple:.2f} times the critical value"
 
     def calculate(self, input_halo, data, halo_result):
         """
@@ -152,65 +317,18 @@ class SOProperties(HaloProperty):
 
         reg = mass.units.registry
 
+        SO = {}
         # declare all the variables we will compute
         # we set them to 0 in case a particular variable cannot be computed
         # all variables are defined with physical units and an appropriate dtype
         # we need to use the custom unit registry so that everything can be converted
         # back to snapshot units in the end
-        rSO = unyt.unyt_array(0.0, dtype=np.float32, units="Mpc", registry=reg)
-        mSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
-        comSO = unyt.unyt_array(
-            [0.0, 0.0, 0.0], dtype=np.float32, units="Mpc", registry=reg
-        )
-        vcomSO = unyt.unyt_array(
-            [0.0, 0.0, 0.0], dtype=np.float32, units="km/s", registry=reg
-        )
-
-        MgasSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
-        Jgas = unyt.unyt_array(
-            [0.0, 0.0, 0.0], dtype=np.float32, units="Msun*kpc*km/s", registry=reg
-        )
-        MhotgasSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
-        TgasSO = unyt.unyt_array(0.0, dtype=np.float32, units="K", registry=reg)
-        Mgasmetal = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
-        XraylumSO = unyt.unyt_array(0.0, dtype=np.float64, units="erg/s", registry=reg)
-        XrayphlumSO = unyt.unyt_array(0.0, dtype=np.float64, units="1/s", registry=reg)
-        compYSO = unyt.unyt_array(0.0, dtype=np.float64, units="cm**2", registry=reg)
-
-        MdmSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
-        JDM = unyt.unyt_array(
-            [0.0, 0.0, 0.0], dtype=np.float32, units="Msun*kpc*km/s", registry=reg
-        )
-
-        MstarSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
-        Jstar = unyt.unyt_array(
-            [0.0, 0.0, 0.0], dtype=np.float32, units="Msun*kpc*km/s", registry=reg
-        )
-        MstarinitSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
-        Mstarmetal = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
-        Lstar = unyt.unyt_array(
-            [0.0] * 9, dtype=np.float32, units="dimensionless", registry=reg
-        )
-
-        MBHdynSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
-        MBHsubSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
-        BHlasteventa = unyt.unyt_array(
-            0.0, dtype=np.float32, units="dimensionless", registry=reg
-        )
-        BHmaxM = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
-        BHmaxID = unyt.unyt_array(
-            0.0, dtype=np.uint64, units="dimensionless", registry=reg
-        )
-        BHmaxpos = unyt.unyt_array(
-            [0.0, 0.0, 0.0], dtype=np.float32, units="Mpc", registry=reg
-        )
-        BHmaxvel = unyt.unyt_array(
-            [0.0, 0.0, 0.0], dtype=np.float32, units="km/s", registry=reg
-        )
-        BHmaxAR = unyt.unyt_array(0.0, dtype=np.float32, units="Msun/yr", registry=reg)
-        BHmaxlasteventa = unyt.unyt_array(
-            0.0, dtype=np.float32, units="dimensionless", registry=reg
-        )
+        for name, shape, dtype, unit, _ in self.SO_properties:
+            if shape > 1:
+                val = [0.0] * shape
+            else:
+                val = 0.0
+            SO[name] = unyt.unyt_array(val, dtype=dtype, units=unit, registry=reg)
 
         # Check if we ever reach the density threshold
         if self.reference_density > 0.0 * self.reference_density:
@@ -225,232 +343,142 @@ class SOProperties(HaloProperty):
                 logrho1 = np.log10(density[i - 1].to(self.reference_density.units))
                 logrho2 = np.log10(density[i].to(self.reference_density.units))
                 # preserve the unyt_array dtype and units by using '+=' instead of assignment
-                rSO += r2 + (r2 - r1) * (np.log10(self.reference_density) - logrho2) / (
-                    logrho2 - logrho1
-                )
-                if rSO > r2 or rSO < r1:
+                SO["r"] += r2 + (r2 - r1) * (
+                    np.log10(self.reference_density) - logrho2
+                ) / (logrho2 - logrho1)
+                if SO["r"] > r2 or SO["r"] < r1:
                     raise RuntimeError(f"Interpolation failed!")
-                mSO += 4.0 / 3.0 * np.pi * rSO ** 3 * self.reference_density
+                SO["m"] += 4.0 / 3.0 * np.pi * SO["r"] ** 3 * self.reference_density
         elif self.physical_radius_mpc > 0.0:
-            rSO += self.physical_radius_mpc * unyt.Mpc
+            SO["r"] += self.physical_radius_mpc * unyt.Mpc
             if nr_parts > 0:
                 # find the enclosed mass using interpolation
-                i = np.argmax(ordered_radius > rSO)
+                i = np.argmax(ordered_radius > SO["r"])
                 if i == 0:
                     # we only have particles in the centre, so we cannot interpolate
-                    mSO += cumulative_mass[i]
+                    SO["m"] += cumulative_mass[i]
                 else:
                     r1 = ordered_radius[i - 1]
                     r2 = ordered_radius[i]
                     M1 = cumulative_mass[i - 1]
                     M2 = cumulative_mass[i]
-                    mSO += M1 + (rSO - r1) / (r2 - r1) * (M2 - M1)
+                    SO["m"] += M1 + (SO["r"] - r1) / (r2 - r1) * (M2 - M1)
         else:
             raise RuntimeError("Should not happen!")
 
-        if rSO > 0.0 * radius.units:
-            gas_selection = radius[types == "PartType0"] < rSO
-            dm_selection = radius[types == "PartType1"] < rSO
-            star_selection = radius[types == "PartType4"] < rSO
-            bh_selection = radius[types == "PartType5"] < rSO
+        if SO["r"] > 0.0 * radius.units:
+            gas_selection = radius[types == "PartType0"] < SO["r"]
+            dm_selection = radius[types == "PartType1"] < SO["r"]
+            star_selection = radius[types == "PartType4"] < SO["r"]
+            bh_selection = radius[types == "PartType5"] < SO["r"]
 
-            all_selection = radius < rSO
+            all_selection = radius < SO["r"]
             mass = mass[all_selection]
             position = position[all_selection]
             velocity = velocity[all_selection]
             types = types[all_selection]
 
             # note that we cannot divide by mSO here, since that was based on an interpolation
-            comSO[:] = (mass[:, None] * position).sum(axis=0) / mass.sum()
-            comSO[:] += centre
-            vcomSO[:] = (mass[:, None] * velocity).sum(axis=0) / mass.sum()
+            SO["com"][:] = (mass[:, None] * position).sum(axis=0) / mass.sum()
+            SO["com"][:] += centre
+            SO["vcom"][:] = (mass[:, None] * velocity).sum(axis=0) / mass.sum()
 
             gas_masses = mass[types == "PartType0"]
-            gas_relpos = position[types == "PartType0"][:, :] - comSO[None, :]
-            gas_relvel = velocity[types == "PartType0"][:, :] - vcomSO[None, :]
-            MgasSO += gas_masses.sum()
-            Jgas[:] = (
+            gas_relpos = position[types == "PartType0"][:, :] - SO["com"][None, :]
+            gas_relvel = velocity[types == "PartType0"][:, :] - SO["vcom"][None, :]
+            SO["Mgas"] += gas_masses.sum()
+            SO["Jgas"][:] = (
                 gas_masses[:, None] * unyt.array.ucross(gas_relpos, gas_relvel)
             ).sum(axis=0)
 
             dm_masses = mass[types == "PartType1"]
-            dm_relpos = position[types == "PartType1"][:, :] - comSO[None, :]
-            dm_relvel = velocity[types == "PartType1"][:, :] - vcomSO[None, :]
-            MdmSO += dm_masses.sum()
-            JDM[:] = (dm_masses[:, None] * unyt.array.ucross(dm_relpos, dm_relvel)).sum(
-                axis=0
-            )
+            dm_relpos = position[types == "PartType1"][:, :] - SO["com"][None, :]
+            dm_relvel = velocity[types == "PartType1"][:, :] - SO["vcom"][None, :]
+            SO["MDM"] += dm_masses.sum()
+            SO["JDM"][:] = (
+                dm_masses[:, None] * unyt.array.ucross(dm_relpos, dm_relvel)
+            ).sum(axis=0)
 
             star_masses = mass[types == "PartType4"]
-            star_relpos = position[types == "PartType4"][:, :] - comSO[None, :]
-            star_relvel = velocity[types == "PartType4"][:, :] - vcomSO[None, :]
-            MstarSO += star_masses.sum()
-            Jstar[:] = (
+            star_relpos = position[types == "PartType4"][:, :] - SO["com"][None, :]
+            star_relvel = velocity[types == "PartType4"][:, :] - SO["vcom"][None, :]
+            SO["Mstar"] += star_masses.sum()
+            SO["Jstar"][:] = (
                 star_masses[:, None] * unyt.array.ucross(star_relpos, star_relvel)
             ).sum(axis=0)
 
-            MBHdynSO += mass[types == "PartType5"].sum()
+            SO["MBHdyn"] += mass[types == "PartType5"].sum()
 
             # gas specific properties. We (can) only do these if we have gas.
             # (remember that "PartType0" might not be part of 'data' at all)
             if np.any(gas_selection):
-                gas_temperatures = data["PartType0"]["Temperatures"][gas_selection]
-                Tgas_selection = gas_temperatures > 1.0e5 * unyt.K
-                MhotgasSO += gas_masses[Tgas_selection].sum()
-                Mgasmetal += (
+                SO["Mgasmetal"] += (
                     gas_masses * data["PartType0"]["MetalMassFractions"][gas_selection]
                 ).sum()
 
-                if np.any(Tgas_selection):
-                    TgasSO += (
-                        gas_temperatures[Tgas_selection] * gas_masses[Tgas_selection]
-                    ).sum() / MhotgasSO
+                gas_temperatures = data["PartType0"]["Temperatures"][gas_selection]
+                Tgas_selection = gas_temperatures > 1.0e5 * unyt.K
+                SO["Mhotgas"] += gas_masses[Tgas_selection].sum()
 
-                XraylumSO += data["PartType0"]["XrayLuminosities"][gas_selection].sum()
-                XrayphlumSO += data["PartType0"]["XrayPhotonLuminosities"][
+                if np.any(Tgas_selection):
+                    SO["Tgas"] += (
+                        gas_temperatures[Tgas_selection] * gas_masses[Tgas_selection]
+                    ).sum() / SO["Mhotgas"]
+
+                SO["Xraylum"] += data["PartType0"]["XrayLuminosities"][
+                    gas_selection
+                ].sum()
+                SO["Xrayphlum"] += data["PartType0"]["XrayPhotonLuminosities"][
                     gas_selection
                 ].sum()
 
-                compYSO += data["PartType0"]["ComptonYParameters"][gas_selection].sum()
+                SO["compY"] += data["PartType0"]["ComptonYParameters"][
+                    gas_selection
+                ].sum()
 
             # star specific properties
             if np.any(star_selection):
-                MstarinitSO += data["PartType4"]["InitialMasses"][star_selection].sum()
-                Mstarmetal += (
+                SO["Mstarinit"] += data["PartType4"]["InitialMasses"][
+                    star_selection
+                ].sum()
+                SO["Mstarmetal"] += (
                     star_masses
                     * data["PartType4"]["MetalMassFractions"][star_selection]
                 ).sum()
-                Lstar[:] = data["PartType4"]["Luminosities"][star_selection].sum()
+                SO["Lstar"][:] = data["PartType4"]["Luminosities"][star_selection].sum()
 
             # BH specific properties
             if np.any(bh_selection):
-                MBHsubSO += data["PartType5"]["SubgridMasses"][bh_selection].sum()
+                SO["MBHsub"] += data["PartType5"]["SubgridMasses"][bh_selection].sum()
                 agn_eventa = data["PartType5"]["LastAGNFeedbackScaleFactors"][
                     bh_selection
                 ]
 
-                BHlasteventa += np.max(agn_eventa)
+                SO["BHlasteventa"] += np.max(agn_eventa)
 
                 iBHmax = np.argmax(data["PartType5"]["SubgridMasses"][bh_selection])
-                BHmaxM += data["PartType5"]["SubgridMasses"][bh_selection][iBHmax]
-                BHmaxID += data["PartType5"]["ParticleIDs"][bh_selection][iBHmax]
-                BHmaxpos += data["PartType5"]["Coordinates"][bh_selection][iBHmax]
-                BHmaxvel += data["PartType5"]["Velocities"][bh_selection][iBHmax]
-                BHmaxAR += data["PartType5"]["AccretionRates"][bh_selection][iBHmax]
-                BHmaxlasteventa += agn_eventa[iBHmax]
+                SO["BHmaxM"] += data["PartType5"]["SubgridMasses"][bh_selection][iBHmax]
+                SO["BHmaxID"] += data["PartType5"]["ParticleIDs"][bh_selection][iBHmax]
+                SO["BHmaxpos"] += data["PartType5"]["Coordinates"][bh_selection][iBHmax]
+                SO["BHmaxvel"] += data["PartType5"]["Velocities"][bh_selection][iBHmax]
+                SO["BHmaxAR"] += data["PartType5"]["AccretionRates"][bh_selection][
+                    iBHmax
+                ]
+                SO["BHmaxlasteventa"] += agn_eventa[iBHmax]
 
         # Return value should be a dict containing unyt_arrays and descriptions.
         # The dict keys will be used as HDF5 dataset names in the output.
-        halo_result.update(
-            {
-                f"SO/{self.SO_name}/r": (rSO, f"Radius {self.label}"),
-                f"SO/{self.SO_name}/m": (mSO, f"Mass within a sphere {self.label}"),
-                f"SO/{self.SO_name}/com": (
-                    comSO,
-                    f"Centre of mass within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/vcom": (
-                    vcomSO,
-                    f"Centre of mass velocity within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/Mgas": (
-                    MgasSO,
-                    f"Total gas mass within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/Jgas": (
-                    Jgas,
-                    f"Total angular momentum of gas within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/Mhotgas": (
-                    MhotgasSO,
-                    f"Total mass of gas with T > 1e5 K within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/Tgas": (
-                    TgasSO,
-                    f"Mass-weighted average temperature of gas with T > 1e5 K within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/Mgasmetal": (
-                    Mgasmetal,
-                    f"Total metal mass of gas within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/Xraylum": (
-                    XraylumSO,
-                    f"Total Xray luminosity within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/Xrayphlum": (
-                    XrayphlumSO,
-                    f"Total Xray photon luminosity within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/compY": (
-                    compYSO,
-                    f"Total Compton y within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/Mdm": (
-                    MdmSO,
-                    f"Total DM mass within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/JDM": (
-                    JDM,
-                    f"Total angular momentum of DM within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/Mstar": (
-                    MstarSO,
-                    f"Total stellar mass within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/Jstar": (
-                    Jstar,
-                    f"Total angular momentum of stars within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/Mstarinit": (
-                    MstarinitSO,
-                    f"Total initial stellar mass with a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/Mstarmetal": (
-                    Mstarmetal,
-                    f"Total metal mass of stars within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/Lstar": (
-                    Lstar,
-                    f"Total stellar luminosity within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/MBHdyn": (
-                    MBHdynSO,
-                    f"Total dynamical BH mass within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/MBHsub": (
-                    MBHsubSO,
-                    f"Total sub-grid BH mass within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/BHlasteventa": (
-                    BHlasteventa,
-                    f"Last AGN feedback event within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/BHmaxM": (
-                    BHmaxM,
-                    f"Maximum BH mass within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/BHmaxID": (
-                    BHmaxID,
-                    f"ID of most massive BH within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/BHmaxpos": (
-                    BHmaxpos,
-                    f"Position of most massive BH within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/BHmaxvel": (
-                    BHmaxvel,
-                    f"Velocity of most massive BH within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/BHmaxAR": (
-                    BHmaxAR,
-                    f"Accretion rate of most massive BH within a sphere {self.label}",
-                ),
-                f"SO/{self.SO_name}/BHmaxlasteventa": (
-                    BHmaxlasteventa,
-                    f"Last AGN feedback event of the most massive BH within a sphere {self.label}",
-                ),
-            }
-        )
+        for name, _, _, _, description in self.SO_properties:
+            halo_result.update(
+                {
+                    f"SO/{self.SO_name}/{name}": (
+                        SO[name],
+                        description.format(label=self.label),
+                    )
+                }
+            )
+
+        return
 
 
 class RadiusMultipleSOProperties(SOProperties):
@@ -473,13 +501,17 @@ class RadiusMultipleSOProperties(SOProperties):
         self.multiple = multiple
 
     def calculate(self, input_halo, data, halo_result):
+
         # find the actual physical radius we want
-        self.physical_radius_mpc = (
-            halo_result[f"SO/{self.requested_SOval:.0f}_{self.requested_type}/r"][0]
-            .to("Mpc")
-            .value
-        )
+        key = f"SO/{self.requested_SOval:.0f}_{self.requested_type}/r"
+        if not key in halo_result:
+            raise RuntimeError(
+                f"Trying to obtain {key}, but the corresponding SO radius has not been calculated!"
+            )
+
+        self.physical_radius_mpc = self.multiple * (halo_result[key][0].to("Mpc").value)
         if self.physical_radius_mpc > 3.0:
             raise RuntimeError("SO radius multiple estimate was too small!")
 
         super().calculate(input_halo, data, halo_result)
+        return
