@@ -135,7 +135,7 @@ class ChunkTask:
         comm_rank = comm.Get_rank()
         comm_size = comm.Get_size()
 
-        all_results = []
+        result_set_list = []
         
         # Unpack arrays we need
         centre = self.halo_arrays["cofp"]
@@ -246,7 +246,7 @@ class ChunkTask:
             # Calculate the halo properties
             t0_halos = time.time()
             nr_halos = len(self.halo_arrays["ID"].full)
-            result, total_time, task_time, nr_left, nr_done = process_halos(comm, cellgrid.snap_unit_registry, data, mesh,
+            result_set, total_time, task_time, nr_left, nr_done = process_halos(comm, cellgrid.snap_unit_registry, data, mesh,
                                                                             self.halo_prop_list, critical_density,
                                                                             mean_density, boxsize, self.halo_arrays)
             t1_halos = time.time()
@@ -255,9 +255,9 @@ class ChunkTask:
             message("processing %d of %d halos on %d ranks took %.1fs (dead time frac.=%.2f)" % (nr_done, nr_halos, comm_size,
                                                                                                  t1_halos-t0_halos,
                                                                                                  dead_time_fraction))
-            # If we processed at least one halo, add it to the ResultSet
-            if len(result) > 0:
-                all_results.append(result)
+            # If we processed at least one halo, add it to the list of ResultSets for this chunk
+            if len(result_set) > 0:
+                result_set_list.append(result_set)
 
             # Free the shared particle data
             for ptype in data:
@@ -284,7 +284,7 @@ class ChunkTask:
         # Store time taken for this task
         timings.append(task_time_all_iterations)
 
-        return all_results
+        return result_set_list
 
     @classmethod
     def bcast(cls, comm, instance):
