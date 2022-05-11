@@ -36,6 +36,7 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
     
     snap_length = unyt.Unit("snap_length", registry=unit_registry)
     snap_mass   = unyt.Unit("snap_mass", registry=unit_registry)
+    snap_density = snap_mass / (snap_length**3)
 
     # Loop until we fall below the required density
     current_radius = input_halo["search_radius"]
@@ -55,7 +56,7 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
 
         # If we have no target density, there's no need to iterate
         if target_density is None:
-            target_density = unyt.unyt_quantity(0.0, units=snap_mass/snap_length**3)
+            target_density = unyt.unyt_quantity(0.0, units=snap_density))
             break
 
         # Check if we reached the density threshold
@@ -94,9 +95,9 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
     halo_result["VR/Structuretype"] = (input_halo["Structuretype"], "VELOCIraptor Structuretype parameter")
 
     # Store search radius and density within that radius
-    halo_result["SearchRadius/search_radius"]            = (current_radius, "Search radius for property calculation")
-    halo_result["SearchRadius/density_in_search_radius"] = (density,        "Density within the search radius")
-    halo_result["SearchRadius/target_density"]           = (target_density, "Target density for property calculation")
+    halo_result["SearchRadius/search_radius"]            = (current_radius,                  "Search radius for property calculation")
+    halo_result["SearchRadius/density_in_search_radius"] = (density.to(snap_density),        "Density within the search radius")
+    halo_result["SearchRadius/target_density"]           = (target_density.to(snap_density), "Target density for property calculation")
 
     return halo_result
 
