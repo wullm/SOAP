@@ -26,7 +26,14 @@ class SOProperties(HaloProperty):
         ],
         "PartType1": ["Coordinates", "Masses", "Velocities"],
         "PartType4": ["Coordinates", "Masses", "InitialMasses", "Velocities"],
-        "PartType5": ["Coordinates", "DynamicalMasses", "SubgridMasses", "Velocities"],
+        "PartType5": [
+            "Coordinates",
+            "DynamicalMasses",
+            "SubgridMasses",
+            "Velocities",
+            "ParticleIDs",
+            "AccretionRates",
+        ],
     }
 
     # Minimum physical radius to read in (pMpc)
@@ -141,6 +148,39 @@ class SOProperties(HaloProperty):
         Xray_lum = data["PartType0"]["XrayLuminosities"]
         Xray_phlum = data["PartType0"]["XrayPhotonLuminosities"]
         compY = data["PartType0"]["ComptonYParameters"]
+        BHAR = data["PartType5"]["AccretionRates"]
+        BHID = data["PartType5"]["ParticleIDs"]
+
+        reg = mass.units.registry
+        comSO = unyt.unyt_array(
+            [0.0, 0.0, 0.0], dtype=np.float32, units="Mpc", registry=reg
+        )
+        vcomSO = unyt.unyt_array(
+            [0.0, 0.0, 0.0], dtype=np.float32, units="km/s", registry=reg
+        )
+        MgasSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
+        MdmSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
+        MstarSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
+        MBHdynSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
+        MhotgasSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
+        MstarinitSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
+        MBHsubSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
+        TgasSO = unyt.unyt_array(0.0, dtype=np.float32, units="K", registry=reg)
+        XraylumSO = unyt.unyt_array(0.0, dtype=np.float64, units="erg/s", registry=reg)
+        XrayphlumSO = unyt.unyt_array(0.0, dtype=np.float64, units="1/s", registry=reg)
+        compYSO = unyt.unyt_array(0.0, dtype=np.float64, units="cm**2", registry=reg)
+        BHmaxM = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
+        BHmaxID = unyt.unyt_array(
+            0.0, dtype=np.uint64, units="dimensionless", registry=reg
+        )
+        BHmaxpos = unyt.unyt_array(
+            [0.0, 0.0, 0.0], dtype=np.float32, units="Mpc", registry=reg
+        )
+        BHmaxvel = unyt.unyt_array(
+            [0.0, 0.0, 0.0], dtype=np.float32, units="km/s", registry=reg
+        )
+        BHmaxAR = unyt.unyt_array(0.0, dtype=np.float32, units="Msun/yr", registry=reg)
+
         if rSO > 0.0 * radius.units:
             gas_selection = radius[types == "PartType0"] < rSO
             star_selection = radius[types == "PartType4"] < rSO
@@ -153,58 +193,40 @@ class SOProperties(HaloProperty):
             types = types[all_selection]
 
             # note that we cannot divide by mSO here, since that was based on an interpolation
-            comSO = (mass[:, None] * position).sum(axis=0) / mass.sum()
-            comSO += centre
-            vcomSO = (mass[:, None] * velocity).sum(axis=0) / mass.sum()
+            comSO[:] = (mass[:, None] * position).sum(axis=0) / mass.sum()
+            comSO[:] += centre
+            vcomSO[:] = (mass[:, None] * velocity).sum(axis=0) / mass.sum()
             gas_masses = mass[types == "PartType0"]
-            MgasSO = gas_masses.sum()
-            MdmSO = mass[types == "PartType1"].sum()
-            MstarSO = mass[types == "PartType4"].sum()
-            MBHdynSO = mass[types == "PartType5"].sum()
+            # preserve the unyt_array dtype and units by using '+=' instead of assignment
+            MgasSO += gas_masses.sum()
+            MdmSO += mass[types == "PartType1"].sum()
+            MstarSO += mass[types == "PartType4"].sum()
+            MBHdynSO += mass[types == "PartType5"].sum()
 
             gas_temperatures = Tgas[gas_selection]
             Tgas_selection = gas_temperatures > 1.0e5 * unyt.K
-            MhotgasSO = gas_masses[Tgas_selection].sum()
+            MhotgasSO += gas_masses[Tgas_selection].sum()
 
             if np.any(Tgas_selection):
-                TgasSO = (
+                TgasSO += (
                     gas_temperatures[Tgas_selection] * gas_masses[Tgas_selection]
                 ).sum() / MhotgasSO
-            else:
-                # Handle the case where there is no hot gas
-                TgasSO = unyt.unyt_array(
-                    0.0, dtype=gas_temperatures.dtype, units=gas_temperatures.units
-                )
 
-            XraylumSO = Xray_lum[gas_selection].sum()
-            XrayphlumSO = Xray_phlum[gas_selection].sum()
+            XraylumSO += Xray_lum[gas_selection].sum()
+            XrayphlumSO += Xray_phlum[gas_selection].sum()
 
-            compYSO = compY[gas_selection].sum()
+            compYSO += compY[gas_selection].sum()
 
-            MstarinitSO = data["PartType4"]["InitialMasses"][star_selection].sum()
-            MBHsubSO = data["PartType5"]["SubgridMasses"][bh_selection].sum()
+            MstarinitSO += data["PartType4"]["InitialMasses"][star_selection].sum()
+            MBHsubSO += data["PartType5"]["SubgridMasses"][bh_selection].sum()
 
-        else:
-
-            comSO = unyt.unyt_array(
-                [0.0, 0.0, 0.0], dtype=radius.dtype, units=radius.units
-            )
-            vcomSO = unyt.unyt_array(
-                [0.0, 0.0, 0.0], dtype=velocity.dtype, units=velocity.units
-            )
-            MgasSO = unyt.unyt_array(0.0, dtype=mSO.dtype, units=mSO.units)
-            MdmSO = unyt.unyt_array(0.0, dtype=mSO.dtype, units=mSO.units)
-            MstarSO = unyt.unyt_array(0.0, dtype=mSO.dtype, units=mSO.units)
-            MBHdynSO = unyt.unyt_array(0.0, dtype=mSO.dtype, units=mSO.units)
-            MhotgasSO = unyt.unyt_array(0.0, dtype=mSO.dtype, units=mSO.units)
-            MstarinitSO = unyt.unyt_array(0.0, dtype=mSO.dtype, units=mSO.units)
-            MBHsubSO = unyt.unyt_array(0.0, dtype=mSO.dtype, units=mSO.units)
-            TgasSO = unyt.unyt_array(0.0, dtype=Tgas.dtype, units=Tgas.units)
-            XraylumSO = unyt.unyt_array(0.0, dtype=Xray_lum.dtype, units=Xray_lum.units)
-            XrayphlumSO = unyt.unyt_array(
-                0.0, dtype=Xray_phlum.dtype, units=Xray_phlum.units
-            )
-            compYSO = unyt.unyt_array(0.0, dtype=compY.dtype, units=compY.units)
+            if np.any(bh_selection):
+                iBHmax = np.argmax(data["PartType5"]["SubgridMasses"][bh_selection])
+                BHmaxM += data["PartType5"]["SubgridMasses"][bh_selection][iBHmax]
+                BHmaxID += BHID[bh_selection][iBHmax]
+                BHmaxpos += data["PartType5"]["Coordinates"][bh_selection][iBHmax]
+                BHmaxvel += data["PartType5"]["Velocities"][bh_selection][iBHmax]
+                BHmaxAR += BHAR[bh_selection][iBHmax]
 
         # Return value should be a dict containing unyt_arrays and descriptions.
         # The dict keys will be used as HDF5 dataset names in the output.
@@ -254,6 +276,26 @@ class SOProperties(HaloProperty):
                 f"SO/{name}/compY": (
                     compYSO,
                     f"Total Compton y within a sphere {label}",
+                ),
+                f"SO/{name}/BHmaxM": (
+                    BHmaxM,
+                    f"Maximum BH mass within a sphere {label}",
+                ),
+                f"SO/{name}/BHmaxID": (
+                    BHmaxID,
+                    f"ID of most massive BH within a sphere {label}",
+                ),
+                f"SO/{name}/BHmaxpos": (
+                    BHmaxpos,
+                    f"Position of most massive BH within a sphere {label}",
+                ),
+                f"SO/{name}/BHmaxvel": (
+                    BHmaxvel,
+                    f"Velocity of most massive BH within a sphere {label}",
+                ),
+                f"SO/{name}/BHmaxAR": (
+                    BHmaxAR,
+                    f"Accretion rate of most massive BH within a sphere {label}",
                 ),
             }
         )
