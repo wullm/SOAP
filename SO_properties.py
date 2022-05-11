@@ -16,29 +16,32 @@ class SOProperties(HaloProperty):
     # (E.g. gas, star or BH particles in DMO runs)
     particle_properties = {
         "PartType0": [
+            "ComptonYParameters",
             "Coordinates",
             "Masses",
-            "Velocities",
+            "MetalMassFractions",
             "Temperatures",
+            "Velocities",
             "XrayLuminosities",
             "XrayPhotonLuminosities",
-            "ComptonYParameters",
         ],
         "PartType1": ["Coordinates", "Masses", "Velocities"],
         "PartType4": [
             "Coordinates",
-            "Masses",
             "InitialMasses",
-            "Velocities",
             "Luminosities",
+            "Masses",
+            "MetalMassFractions",
+            "Velocities",
         ],
         "PartType5": [
+            "AccretionRates",
             "Coordinates",
             "DynamicalMasses",
+            "LastAGNFeedbackScaleFactors",
+            "ParticleIDs",
             "SubgridMasses",
             "Velocities",
-            "ParticleIDs",
-            "AccretionRates",
         ],
     }
 
@@ -125,8 +128,65 @@ class SOProperties(HaloProperty):
 
         reg = mass.units.registry
 
-        mSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
+        # declare all the variables we will compute
+        # we set them to 0 in case a particular variable cannot be computed
+        # all variables are defined with physical units and an appropriate dtype
+        # we need to use the custom unit registry so that everything can be converted
+        # back to snapshot units in the end
         rSO = unyt.unyt_array(0.0, dtype=np.float32, units="Mpc", registry=reg)
+        mSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
+        comSO = unyt.unyt_array(
+            [0.0, 0.0, 0.0], dtype=np.float32, units="Mpc", registry=reg
+        )
+        vcomSO = unyt.unyt_array(
+            [0.0, 0.0, 0.0], dtype=np.float32, units="km/s", registry=reg
+        )
+
+        MgasSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
+        Jgas = unyt.unyt_array(
+            [0.0, 0.0, 0.0], dtype=np.float32, units="Msun*kpc*km/s", registry=reg
+        )
+        MhotgasSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
+        TgasSO = unyt.unyt_array(0.0, dtype=np.float32, units="K", registry=reg)
+        Mgasmetal = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
+        XraylumSO = unyt.unyt_array(0.0, dtype=np.float64, units="erg/s", registry=reg)
+        XrayphlumSO = unyt.unyt_array(0.0, dtype=np.float64, units="1/s", registry=reg)
+        compYSO = unyt.unyt_array(0.0, dtype=np.float64, units="cm**2", registry=reg)
+
+        MdmSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
+        JDM = unyt.unyt_array(
+            [0.0, 0.0, 0.0], dtype=np.float32, units="Msun*kpc*km/s", registry=reg
+        )
+
+        MstarSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
+        Jstar = unyt.unyt_array(
+            [0.0, 0.0, 0.0], dtype=np.float32, units="Msun*kpc*km/s", registry=reg
+        )
+        MstarinitSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
+        Mstarmetal = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
+        Lstar = unyt.unyt_array(
+            [0.0] * 9, dtype=np.float32, units="dimensionless", registry=reg
+        )
+
+        MBHdynSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
+        MBHsubSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
+        BHlasteventa = unyt.unyt_array(
+            0.0, dtype=np.float32, units="dimensionless", registry=reg
+        )
+        BHmaxM = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
+        BHmaxID = unyt.unyt_array(
+            0.0, dtype=np.uint64, units="dimensionless", registry=reg
+        )
+        BHmaxpos = unyt.unyt_array(
+            [0.0, 0.0, 0.0], dtype=np.float32, units="Mpc", registry=reg
+        )
+        BHmaxvel = unyt.unyt_array(
+            [0.0, 0.0, 0.0], dtype=np.float32, units="km/s", registry=reg
+        )
+        BHmaxAR = unyt.unyt_array(0.0, dtype=np.float32, units="Msun/yr", registry=reg)
+        BHmaxlasteventa = unyt.unyt_array(
+            0.0, dtype=np.float32, units="dimensionless", registry=reg
+        )
 
         # Check if we ever reach the density threshold
         if nr_parts > 0 and np.any(density > reference_density):
@@ -146,47 +206,6 @@ class SOProperties(HaloProperty):
             if rSO > r2 or rSO < r1:
                 raise RuntimeError(f"Interpolation failed!")
             mSO += 4.0 / 3.0 * np.pi * rSO ** 3 * reference_density
-
-        comSO = unyt.unyt_array(
-            [0.0, 0.0, 0.0], dtype=np.float32, units="Mpc", registry=reg
-        )
-        vcomSO = unyt.unyt_array(
-            [0.0, 0.0, 0.0], dtype=np.float32, units="km/s", registry=reg
-        )
-        MgasSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
-        MdmSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
-        MstarSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
-        MBHdynSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
-        MhotgasSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
-        MstarinitSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
-        MBHsubSO = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
-        TgasSO = unyt.unyt_array(0.0, dtype=np.float32, units="K", registry=reg)
-        XraylumSO = unyt.unyt_array(0.0, dtype=np.float64, units="erg/s", registry=reg)
-        XrayphlumSO = unyt.unyt_array(0.0, dtype=np.float64, units="1/s", registry=reg)
-        compYSO = unyt.unyt_array(0.0, dtype=np.float64, units="cm**2", registry=reg)
-        BHmaxM = unyt.unyt_array(0.0, dtype=np.float32, units="Msun", registry=reg)
-        BHmaxID = unyt.unyt_array(
-            0.0, dtype=np.uint64, units="dimensionless", registry=reg
-        )
-        BHmaxpos = unyt.unyt_array(
-            [0.0, 0.0, 0.0], dtype=np.float32, units="Mpc", registry=reg
-        )
-        BHmaxvel = unyt.unyt_array(
-            [0.0, 0.0, 0.0], dtype=np.float32, units="km/s", registry=reg
-        )
-        BHmaxAR = unyt.unyt_array(0.0, dtype=np.float32, units="Msun/yr", registry=reg)
-        Lstar = unyt.unyt_array(
-            [0.0] * 9, dtype=np.float32, units="dimensionless", registry=reg
-        )
-        Jgas = unyt.unyt_array(
-            [0.0, 0.0, 0.0], dtype=np.float32, units="Msun*kpc*km/s", registry=reg
-        )
-        JDM = unyt.unyt_array(
-            [0.0, 0.0, 0.0], dtype=np.float32, units="Msun*kpc*km/s", registry=reg
-        )
-        Jstar = unyt.unyt_array(
-            [0.0, 0.0, 0.0], dtype=np.float32, units="Msun*kpc*km/s", registry=reg
-        )
 
         if rSO > 0.0 * radius.units:
             gas_selection = radius[types == "PartType0"] < rSO
@@ -237,6 +256,9 @@ class SOProperties(HaloProperty):
                 gas_temperatures = data["PartType0"]["Temperatures"][gas_selection]
                 Tgas_selection = gas_temperatures > 1.0e5 * unyt.K
                 MhotgasSO += gas_masses[Tgas_selection].sum()
+                Mgasmetal += (
+                    gas_masses * data["PartType0"]["MetalMassFractions"][gas_selection]
+                ).sum()
 
                 if np.any(Tgas_selection):
                     TgasSO += (
@@ -253,11 +275,20 @@ class SOProperties(HaloProperty):
             # star specific properties
             if np.any(star_selection):
                 MstarinitSO += data["PartType4"]["InitialMasses"][star_selection].sum()
+                Mstarmetal += (
+                    star_masses
+                    * data["PartType4"]["MetalMassFractions"][star_selection]
+                ).sum()
                 Lstar[:] = data["PartType4"]["Luminosities"][star_selection].sum()
 
             # BH specific properties
             if np.any(bh_selection):
                 MBHsubSO += data["PartType5"]["SubgridMasses"][bh_selection].sum()
+                agn_eventa = data["PartType5"]["LastAGNFeedbackScaleFactors"][
+                    bh_selection
+                ]
+
+                BHlasteventa += np.max(agn_eventa)
 
                 iBHmax = np.argmax(data["PartType5"]["SubgridMasses"][bh_selection])
                 BHmaxM += data["PartType5"]["SubgridMasses"][bh_selection][iBHmax]
@@ -265,6 +296,7 @@ class SOProperties(HaloProperty):
                 BHmaxpos += data["PartType5"]["Coordinates"][bh_selection][iBHmax]
                 BHmaxvel += data["PartType5"]["Velocities"][bh_selection][iBHmax]
                 BHmaxAR += data["PartType5"]["AccretionRates"][bh_selection][iBHmax]
+                BHmaxlasteventa += agn_eventa[iBHmax]
 
         # Return value should be a dict containing unyt_arrays and descriptions.
         # The dict keys will be used as HDF5 dataset names in the output.
@@ -278,22 +310,9 @@ class SOProperties(HaloProperty):
                     f"Centre of mass velocity within a sphere {label}",
                 ),
                 f"SO/{name}/Mgas": (MgasSO, f"Total gas mass within a sphere {label}"),
-                f"SO/{name}/Mdm": (MdmSO, f"Total DM mass within a sphere {label}"),
-                f"SO/{name}/Mstar": (
-                    MstarSO,
-                    f"Total stellar mass within a sphere {label}",
-                ),
-                f"SO/{name}/MBHdyn": (
-                    MBHdynSO,
-                    f"Total dynamical BH mass within a sphere {label}",
-                ),
-                f"SO/{name}/Mstarinit": (
-                    MstarinitSO,
-                    f"Total initial stellar mass with a sphere {label}",
-                ),
-                f"SO/{name}/MBHsub": (
-                    MBHsubSO,
-                    f"Total sub-grid BH mass within a sphere {label}",
+                f"SO/{name}/Jgas": (
+                    Jgas,
+                    f"Total angular momentum of gas within a sphere {label}",
                 ),
                 f"SO/{name}/Mhotgas": (
                     MhotgasSO,
@@ -302,6 +321,10 @@ class SOProperties(HaloProperty):
                 f"SO/{name}/Tgas": (
                     TgasSO,
                     f"Mass-weighted average temperature of gas with T > 1e5 K within a sphere {label}",
+                ),
+                f"SO/{name}/Mgasmetal": (
+                    Mgasmetal,
+                    f"Total metal mass of gas within a sphere {label}",
                 ),
                 f"SO/{name}/Xraylum": (
                     XraylumSO,
@@ -314,6 +337,43 @@ class SOProperties(HaloProperty):
                 f"SO/{name}/compY": (
                     compYSO,
                     f"Total Compton y within a sphere {label}",
+                ),
+                f"SO/{name}/Mdm": (MdmSO, f"Total DM mass within a sphere {label}"),
+                f"SO/{name}/JDM": (
+                    JDM,
+                    f"Total angular momentum of DM within a sphere {label}",
+                ),
+                f"SO/{name}/Mstar": (
+                    MstarSO,
+                    f"Total stellar mass within a sphere {label}",
+                ),
+                f"SO/{name}/Jstar": (
+                    Jstar,
+                    f"Total angular momentum of stars within a sphere {label}",
+                ),
+                f"SO/{name}/Mstarinit": (
+                    MstarinitSO,
+                    f"Total initial stellar mass with a sphere {label}",
+                ),
+                f"SO/{name}/Mstarmetal": (
+                    Mstarmetal,
+                    f"Total metal mass of stars within a sphere {label}",
+                ),
+                f"SO/{name}/Lstar": (
+                    Lstar,
+                    f"Total stellar luminosity within a sphere {label}",
+                ),
+                f"SO/{name}/MBHdyn": (
+                    MBHdynSO,
+                    f"Total dynamical BH mass within a sphere {label}",
+                ),
+                f"SO/{name}/MBHsub": (
+                    MBHsubSO,
+                    f"Total sub-grid BH mass within a sphere {label}",
+                ),
+                f"SO/{name}/BHlasteventa": (
+                    BHlasteventa,
+                    f"Last AGN feedback event within a sphere {label}",
                 ),
                 f"SO/{name}/BHmaxM": (
                     BHmaxM,
@@ -335,21 +395,9 @@ class SOProperties(HaloProperty):
                     BHmaxAR,
                     f"Accretion rate of most massive BH within a sphere {label}",
                 ),
-                f"SO/{name}/Lstar": (
-                    Lstar,
-                    f"Total stellar luminosity within a sphere {label}",
-                ),
-                f"SO/{name}/Jgas": (
-                    Jgas,
-                    f"Total angular momentum of gas within a sphere {label}",
-                ),
-                f"SO/{name}/JDM": (
-                    JDM,
-                    f"Total angular momentum of DM within a sphere {label}",
-                ),
-                f"SO/{name}/Jstar": (
-                    Jstar,
-                    f"Total angular momentum of stars within a sphere {label}",
+                f"SO/{name}/BHmaxlasteventa": (
+                    BHmaxlasteventa,
+                    f"Last AGN feedback event of the most massive BH within a sphere {label}",
                 ),
             }
         )
