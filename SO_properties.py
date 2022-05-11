@@ -48,15 +48,21 @@ class SOProperties(HaloProperty):
     def __init__(self, cellgrid, SOval, type="mean"):
         super().__init__(cellgrid)
 
-        if not type in ["mean", "crit", "physical"]:
+        if not type in ["mean", "crit", "physical", "BN98"]:
             raise AttributeError(f"Unknown SO type: {type}!")
         self.type = type
 
         # This specifies how large a sphere is read in:
-        if type in ["mean", "crit"]:
+        # we use default values that are sufficiently small/large to avoid reading in too many particles
+        self.mean_density_multiple = 1000.0
+        self.critical_density_multiple = 1000.0
+        self.physical_radius_mpc = 0.0
+        if type == "mean":
             self.mean_density_multiple = SOval
+        elif type == "crit":
             self.critical_density_multiple = SOval
-            self.physical_radius_mpc = 0.0
+        elif type == "BN98":
+            self.critical_density_multiple = cellgrid.virBN98
         elif type == "physical":
             # use a large multiple to avoid reading in too many particles
             self.mean_density_multiple = 1000.0
@@ -64,7 +70,12 @@ class SOProperties(HaloProperty):
             self.physical_radius_mpc = 0.001 * SOval
 
         # Give this calculation a name so we can select it on the command line
-        self.name = "SO_%d_%s" % (SOval, type)
+        if type in ["mean", "crit"]:
+            self.name = f"SO_{SOval:.0f}_{type}"
+        elif type == "physical":
+            self.name = f"SO_{SOval:.0f}_kpc"
+        elif type == "BN98":
+            self.name = "SO_BN98"
 
     def calculate(self, input_halo, data, halo_result):
         """
@@ -132,6 +143,10 @@ class SOProperties(HaloProperty):
             reference_density = 0.0
             name = f"{1000. * self.physical_radius_mpc:.0f}_kpc"
             label = f"with a radius of {1000. * self.physical_radius_mpc:.0f} kpc"
+        elif self.type == "BN98":
+            reference_density = self.critical_density_multiple * self.critical_density
+            name = "BN98"
+            label = "within which the density is {self.critical_density_multiple:.2f} times the critical value"
 
         reg = mass.units.registry
 

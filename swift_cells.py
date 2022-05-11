@@ -161,6 +161,15 @@ class SWIFTCellGrid:
             self.critical_density = unyt.unyt_quantity(critical_density, units=internal_density_unit)
             self.mean_density = self.critical_density*self.cosmology["Omega_m"]
 
+            # Compute the BN98 critical density multiple
+            Omega_k = self.cosmology["Omega_k"]
+            Omega_Lambda = self.cosmology["Omega_lambda"]
+            Omega_m = self.cosmology["Omega_m"]
+            bnx = -(Omega_k/self.a**2+Omega_Lambda)/(Omega_k/self.a**2+Omega_m/self.a**3+Omega_Lambda)
+            self.virBN98 = 18.*np.pi**2 + 82.*bnx-39.*bnx**2
+            if self.virBN98 < 50. or self.virBN98 > 1000.:
+              raise RuntimeError("Invalid value for virBN98!")
+
             # Get the box size. Assume it's comoving with no h factors.
             comoving_length_unit = self.get_unit("snap_length")*self.a_unit
             self.boxsize = unyt.unyt_quantity(infile["Header"].attrs["BoxSize"][0], units=comoving_length_unit)
