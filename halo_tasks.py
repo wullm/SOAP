@@ -56,7 +56,7 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
 
         # If we have no target density, there's no need to iterate
         if target_density is None:
-            target_density = unyt.unyt_quantity(0.0, units=snap_density))
+            target_density = unyt.unyt_quantity(0.0, units=snap_density)
             break
 
         # Check if we reached the density threshold
