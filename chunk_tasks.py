@@ -249,13 +249,16 @@ class ChunkTask:
             result, total_time, task_time, nr_left, nr_done = process_halos(comm, cellgrid.snap_unit_registry, data, mesh,
                                                                             self.halo_prop_list, critical_density,
                                                                             mean_density, boxsize, self.halo_arrays)
-            all_results.append(result)
             t1_halos = time.time()
             task_time_all_iterations += task_time
             dead_time_fraction = 1.0-comm.allreduce(task_time)/comm.allreduce(total_time)
             message("processing %d of %d halos on %d ranks took %.1fs (dead time frac.=%.2f)" % (nr_done, nr_halos, comm_size,
                                                                                                  t1_halos-t0_halos,
                                                                                                  dead_time_fraction))
+            # If we processed at least one halo, add it to the ResultSet
+            if len(result) > 0:
+                all_results.append(result)
+
             # Free the shared particle data
             for ptype in data:
                 for name in data[ptype]:

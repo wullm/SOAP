@@ -72,6 +72,9 @@ class ResultSet:
         self.initial_size = 1000
         self.result_arrays = {}
 
+    def __len__(self):
+        return self.nr_halos
+
     def append(self, results):
         """
         Append results for a halo
