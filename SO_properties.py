@@ -64,9 +64,6 @@ class SOProperties(HaloProperty):
         elif type == "BN98":
             self.critical_density_multiple = cellgrid.virBN98
         elif type == "physical":
-            # use a large multiple to avoid reading in too many particles
-            self.mean_density_multiple = 1000.0
-            self.critical_density_multiple = 1000.0
             self.physical_radius_mpc = 0.001 * SOval
 
         # Give this calculation a name so we can select it on the command line
@@ -76,6 +73,28 @@ class SOProperties(HaloProperty):
             self.name = f"SO_{SOval:.0f}_kpc"
         elif type == "BN98":
             self.name = "SO_BN98"
+
+        # set some variables that are used during the calculation and that do not change
+        if self.type == "crit":
+            self.reference_density = (
+                self.critical_density_multiple * self.critical_density
+            )
+            self.SO_name = f"{self.critical_density_multiple:.0f}_crit"
+            self.label = f"within which the density is {self.critical_density_multiple:.0f} times the critical value"
+        elif self.type == "mean":
+            self.reference_density = self.mean_density_multiple * self.mean_density
+            self.SO_name = f"{self.mean_density_multiple:.0f}_mean"
+            self.label = f"within which the density is {self.mean_density_multiple:.0f} times the mean value"
+        elif self.type == "physical":
+            self.reference_density = 0.0
+            self.SO_name = f"{1000. * self.physical_radius_mpc:.0f}_kpc"
+            self.label = f"with a radius of {1000. * self.physical_radius_mpc:.0f} kpc"
+        elif self.type == "BN98":
+            self.reference_density = (
+                self.critical_density_multiple * self.critical_density
+            )
+            self.SO_name = "BN98"
+            self.label = "within which the density is {self.critical_density_multiple:.2f} times the critical value"
 
     def calculate(self, input_halo, data, halo_result):
         """
@@ -130,23 +149,6 @@ class SOProperties(HaloProperty):
         cumulative_mass = cumulative_mass[nskip:]
         nr_parts = len(ordered_radius)
         density = cumulative_mass / (4.0 / 3.0 * np.pi * ordered_radius ** 3)
-
-        if self.type == "crit":
-            reference_density = self.critical_density_multiple * self.critical_density
-            name = f"{self.critical_density_multiple:.0f}_crit"
-            label = f"within which the density is {self.critical_density_multiple:.0f} times the critical value"
-        elif self.type == "mean":
-            reference_density = self.mean_density_multiple * self.mean_density
-            name = f"{self.mean_density_multiple:.0f}_mean"
-            label = f"within which the density is {self.mean_density_multiple:.0f} times the mean value"
-        elif self.type == "physical":
-            reference_density = 0.0
-            name = f"{1000. * self.physical_radius_mpc:.0f}_kpc"
-            label = f"with a radius of {1000. * self.physical_radius_mpc:.0f} kpc"
-        elif self.type == "BN98":
-            reference_density = self.critical_density_multiple * self.critical_density
-            name = "BN98"
-            label = "within which the density is {self.critical_density_multiple:.2f} times the critical value"
 
         reg = mass.units.registry
 
@@ -211,24 +213,24 @@ class SOProperties(HaloProperty):
         )
 
         # Check if we ever reach the density threshold
-        if reference_density > 0.0 * reference_density:
-            if nr_parts > 0 and np.any(density > reference_density):
+        if self.reference_density > 0.0 * self.reference_density:
+            if nr_parts > 0 and np.any(density > self.reference_density):
                 # Find smallest radius where the density is below the threshold
-                i = np.argmax(density <= reference_density)
+                i = np.argmax(density <= self.reference_density)
                 # Interpolate to get the actual radius
                 if i == 0:
                     raise RuntimeError("This should not happen!")
                 r1 = ordered_radius[i - 1]
                 r2 = ordered_radius[i]
-                logrho1 = np.log10(density[i - 1].to(reference_density.units))
-                logrho2 = np.log10(density[i].to(reference_density.units))
+                logrho1 = np.log10(density[i - 1].to(self.reference_density.units))
+                logrho2 = np.log10(density[i].to(self.reference_density.units))
                 # preserve the unyt_array dtype and units by using '+=' instead of assignment
-                rSO += r2 + (r2 - r1) * (np.log10(reference_density) - logrho2) / (
+                rSO += r2 + (r2 - r1) * (np.log10(self.reference_density) - logrho2) / (
                     logrho2 - logrho1
                 )
                 if rSO > r2 or rSO < r1:
                     raise RuntimeError(f"Interpolation failed!")
-                mSO += 4.0 / 3.0 * np.pi * rSO ** 3 * reference_density
+                mSO += 4.0 / 3.0 * np.pi * rSO ** 3 * self.reference_density
         elif self.physical_radius_mpc > 0.0:
             rSO += self.physical_radius_mpc * unyt.Mpc
             if nr_parts > 0:
@@ -341,102 +343,143 @@ class SOProperties(HaloProperty):
         # The dict keys will be used as HDF5 dataset names in the output.
         halo_result.update(
             {
-                f"SO/{name}/r": (rSO, f"Radius {label}"),
-                f"SO/{name}/m": (mSO, f"Mass within a sphere {label}"),
-                f"SO/{name}/com": (comSO, f"Centre of mass within a sphere {label}"),
-                f"SO/{name}/vcom": (
+                f"SO/{self.SO_name}/r": (rSO, f"Radius {self.label}"),
+                f"SO/{self.SO_name}/m": (mSO, f"Mass within a sphere {self.label}"),
+                f"SO/{self.SO_name}/com": (
+                    comSO,
+                    f"Centre of mass within a sphere {self.label}",
+                ),
+                f"SO/{self.SO_name}/vcom": (
                     vcomSO,
-                    f"Centre of mass velocity within a sphere {label}",
+                    f"Centre of mass velocity within a sphere {self.label}",
                 ),
-                f"SO/{name}/Mgas": (MgasSO, f"Total gas mass within a sphere {label}"),
-                f"SO/{name}/Jgas": (
+                f"SO/{self.SO_name}/Mgas": (
+                    MgasSO,
+                    f"Total gas mass within a sphere {self.label}",
+                ),
+                f"SO/{self.SO_name}/Jgas": (
                     Jgas,
-                    f"Total angular momentum of gas within a sphere {label}",
+                    f"Total angular momentum of gas within a sphere {self.label}",
                 ),
-                f"SO/{name}/Mhotgas": (
+                f"SO/{self.SO_name}/Mhotgas": (
                     MhotgasSO,
-                    f"Total mass of gas with T > 1e5 K within a sphere {label}",
+                    f"Total mass of gas with T > 1e5 K within a sphere {self.label}",
                 ),
-                f"SO/{name}/Tgas": (
+                f"SO/{self.SO_name}/Tgas": (
                     TgasSO,
-                    f"Mass-weighted average temperature of gas with T > 1e5 K within a sphere {label}",
+                    f"Mass-weighted average temperature of gas with T > 1e5 K within a sphere {self.label}",
                 ),
-                f"SO/{name}/Mgasmetal": (
+                f"SO/{self.SO_name}/Mgasmetal": (
                     Mgasmetal,
-                    f"Total metal mass of gas within a sphere {label}",
+                    f"Total metal mass of gas within a sphere {self.label}",
                 ),
-                f"SO/{name}/Xraylum": (
+                f"SO/{self.SO_name}/Xraylum": (
                     XraylumSO,
-                    f"Total Xray luminosity within a sphere {label}",
+                    f"Total Xray luminosity within a sphere {self.label}",
                 ),
-                f"SO/{name}/Xrayphlum": (
+                f"SO/{self.SO_name}/Xrayphlum": (
                     XrayphlumSO,
-                    f"Total Xray photon luminosity within a sphere {label}",
+                    f"Total Xray photon luminosity within a sphere {self.label}",
                 ),
-                f"SO/{name}/compY": (
+                f"SO/{self.SO_name}/compY": (
                     compYSO,
-                    f"Total Compton y within a sphere {label}",
+                    f"Total Compton y within a sphere {self.label}",
                 ),
-                f"SO/{name}/Mdm": (MdmSO, f"Total DM mass within a sphere {label}"),
-                f"SO/{name}/JDM": (
+                f"SO/{self.SO_name}/Mdm": (
+                    MdmSO,
+                    f"Total DM mass within a sphere {self.label}",
+                ),
+                f"SO/{self.SO_name}/JDM": (
                     JDM,
-                    f"Total angular momentum of DM within a sphere {label}",
+                    f"Total angular momentum of DM within a sphere {self.label}",
                 ),
-                f"SO/{name}/Mstar": (
+                f"SO/{self.SO_name}/Mstar": (
                     MstarSO,
-                    f"Total stellar mass within a sphere {label}",
+                    f"Total stellar mass within a sphere {self.label}",
                 ),
-                f"SO/{name}/Jstar": (
+                f"SO/{self.SO_name}/Jstar": (
                     Jstar,
-                    f"Total angular momentum of stars within a sphere {label}",
+                    f"Total angular momentum of stars within a sphere {self.label}",
                 ),
-                f"SO/{name}/Mstarinit": (
+                f"SO/{self.SO_name}/Mstarinit": (
                     MstarinitSO,
-                    f"Total initial stellar mass with a sphere {label}",
+                    f"Total initial stellar mass with a sphere {self.label}",
                 ),
-                f"SO/{name}/Mstarmetal": (
+                f"SO/{self.SO_name}/Mstarmetal": (
                     Mstarmetal,
-                    f"Total metal mass of stars within a sphere {label}",
+                    f"Total metal mass of stars within a sphere {self.label}",
                 ),
-                f"SO/{name}/Lstar": (
+                f"SO/{self.SO_name}/Lstar": (
                     Lstar,
-                    f"Total stellar luminosity within a sphere {label}",
+                    f"Total stellar luminosity within a sphere {self.label}",
                 ),
-                f"SO/{name}/MBHdyn": (
+                f"SO/{self.SO_name}/MBHdyn": (
                     MBHdynSO,
-                    f"Total dynamical BH mass within a sphere {label}",
+                    f"Total dynamical BH mass within a sphere {self.label}",
                 ),
-                f"SO/{name}/MBHsub": (
+                f"SO/{self.SO_name}/MBHsub": (
                     MBHsubSO,
-                    f"Total sub-grid BH mass within a sphere {label}",
+                    f"Total sub-grid BH mass within a sphere {self.label}",
                 ),
-                f"SO/{name}/BHlasteventa": (
+                f"SO/{self.SO_name}/BHlasteventa": (
                     BHlasteventa,
-                    f"Last AGN feedback event within a sphere {label}",
+                    f"Last AGN feedback event within a sphere {self.label}",
                 ),
-                f"SO/{name}/BHmaxM": (
+                f"SO/{self.SO_name}/BHmaxM": (
                     BHmaxM,
-                    f"Maximum BH mass within a sphere {label}",
+                    f"Maximum BH mass within a sphere {self.label}",
                 ),
-                f"SO/{name}/BHmaxID": (
+                f"SO/{self.SO_name}/BHmaxID": (
                     BHmaxID,
-                    f"ID of most massive BH within a sphere {label}",
+                    f"ID of most massive BH within a sphere {self.label}",
                 ),
-                f"SO/{name}/BHmaxpos": (
+                f"SO/{self.SO_name}/BHmaxpos": (
                     BHmaxpos,
-                    f"Position of most massive BH within a sphere {label}",
+                    f"Position of most massive BH within a sphere {self.label}",
                 ),
-                f"SO/{name}/BHmaxvel": (
+                f"SO/{self.SO_name}/BHmaxvel": (
                     BHmaxvel,
-                    f"Velocity of most massive BH within a sphere {label}",
+                    f"Velocity of most massive BH within a sphere {self.label}",
                 ),
-                f"SO/{name}/BHmaxAR": (
+                f"SO/{self.SO_name}/BHmaxAR": (
                     BHmaxAR,
-                    f"Accretion rate of most massive BH within a sphere {label}",
+                    f"Accretion rate of most massive BH within a sphere {self.label}",
                 ),
-                f"SO/{name}/BHmaxlasteventa": (
+                f"SO/{self.SO_name}/BHmaxlasteventa": (
                     BHmaxlasteventa,
-                    f"Last AGN feedback event of the most massive BH within a sphere {label}",
+                    f"Last AGN feedback event of the most massive BH within a sphere {self.label}",
                 ),
             }
         )
+
+
+class RadiusMultipleSOProperties(SOProperties):
+    def __init__(self, cellgrid, SOval, multiple, type="mean"):
+        if not type in ["mean", "crit"]:
+            raise AttributeError(
+                "SOs with a radius that is a multiple of another SO radius are only allowed for type mean or crit!"
+            )
+
+        # initialise the SOProperties object using a conservative physical radius estimate
+        super().__init__(cellgrid, 3000.0, "physical")
+
+        # overwrite the name, SO_name and label
+        self.SO_name = f"{multiple:.0f}xR_{SOval:.0f}_{type}"
+        self.label = f"with a radius that is {self.SO_name}"
+        self.name = f"SO_{self.SO_name}"
+
+        self.requested_type = type
+        self.requested_SOval = SOval
+        self.multiple = multiple
+
+    def calculate(self, input_halo, data, halo_result):
+        # find the actual physical radius we want
+        self.physical_radius_mpc = (
+            halo_result[f"SO/{self.requested_SOval:.0f}_{self.requested_type}/r"][0]
+            .to("Mpc")
+            .value
+        )
+        if self.physical_radius_mpc > 3.0:
+            raise RuntimeError("SO radius multiple estimate was too small!")
+
+        super().calculate(input_halo, data, halo_result)

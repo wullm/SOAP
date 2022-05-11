@@ -117,7 +117,11 @@ if __name__ == "__main__":
         SO_properties.SOProperties(cellgrid, 100., "physical"),
         SO_properties.SOProperties(cellgrid, 300., "physical"),
         SO_properties.SOProperties(cellgrid, 500., "physical"),
+        SO_properties.SOProperties(cellgrid, 1000., "physical"),
+        SO_properties.SOProperties(cellgrid, 3000., "physical"),
         SO_properties.SOProperties(cellgrid, 0., "BN98"),
+        SO_properties.RadiusMultipleSOProperties(cellgrid, 500., 5., type="mean"),
+        SO_properties.RadiusMultipleSOProperties(cellgrid, 500., 5., type="crit"),
     ]
     
     # Determine which calculations we're doing this time
