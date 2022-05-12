@@ -325,9 +325,9 @@ class SOProperties(HaloProperty):
         # back to snapshot units in the end
         for name, shape, dtype, unit, _ in self.SO_properties:
             if shape > 1:
-                val = [0.0] * shape
+                val = [0] * shape
             else:
-                val = 0.0
+                val = 0
             SO[name] = unyt.unyt_array(val, dtype=dtype, units=unit, registry=reg)
 
         # Check if we ever reach the density threshold
@@ -458,7 +458,11 @@ class SOProperties(HaloProperty):
 
                 iBHmax = np.argmax(data["PartType5"]["SubgridMasses"][bh_selection])
                 SO["BHmaxM"] += data["PartType5"]["SubgridMasses"][bh_selection][iBHmax]
-                SO["BHmaxID"] += data["PartType5"]["ParticleIDs"][bh_selection][iBHmax]
+                # unyt annoyingly converts to a floating point type if you use '+='
+                # the only way to avoid this is by directly setting the data for the unyt_array
+                SO["BHmaxID"].data = data["PartType5"]["ParticleIDs"][bh_selection][
+                    iBHmax
+                ].data
                 SO["BHmaxpos"] += data["PartType5"]["Coordinates"][bh_selection][iBHmax]
                 SO["BHmaxvel"] += data["PartType5"]["Velocities"][bh_selection][iBHmax]
                 SO["BHmaxAR"] += data["PartType5"]["AccretionRates"][bh_selection][
