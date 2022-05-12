@@ -2,7 +2,7 @@
 
 import numpy as np
 import unyt
-from halo_properties import HaloProperty
+from halo_properties import HaloProperty, ReadRadiusTooSmallError
 
 from dataset_names import mass_dataset
 

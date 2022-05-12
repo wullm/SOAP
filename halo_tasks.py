@@ -6,6 +6,7 @@ import numpy as np
 import unyt
 
 from dataset_names import mass_dataset, ptypes_for_so_masses
+from halo_properties import ReadRadiusTooSmallException
 import shared_array
 import result_set
 

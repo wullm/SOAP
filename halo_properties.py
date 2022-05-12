@@ -3,6 +3,9 @@
 import numpy as np
 import unyt
 
+class ReadRadiusTooSmallError(Exception):
+    pass
+
 class HaloProperty:
 
     def __init__(self, cellgrid):
