@@ -86,7 +86,11 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
     # Compute properties of this halo        
     halo_result = {}
     for halo_prop in halo_prop_list:
-        halo_prop.calculate(input_halo, particle_data, halo_result)
+        try:
+            halo_prop.calculate(input_halo, particle_data, halo_result)
+        except halo_properties.ReadRadiusTooSmallError:
+            # Need to repeat this halo
+            return None
 
     # Add the halo index to the result set
     halo_result["VR/index"]         = (input_halo["index"],         "Index of this halo in the input catalogue")
