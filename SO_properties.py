@@ -337,7 +337,12 @@ class SOProperties(HaloProperty):
                 i = np.argmax(density <= self.reference_density)
                 # Interpolate to get the actual radius
                 if i == 0:
-                    raise RuntimeError("This should not happen!")
+                    # we know that there are points above the threshold
+                    # unfortunately, the centre is not
+                    # find the furthest one that is:
+                    i = np.nonzero(density > self.reference_density)[0][-1]
+                    # use the next point as the "first one that is below the threshold"
+                    i += 1
                 r1 = ordered_radius[i - 1]
                 r2 = ordered_radius[i]
                 logrho1 = np.log10(density[i - 1].to(self.reference_density.units))
@@ -346,8 +351,10 @@ class SOProperties(HaloProperty):
                 SO["r"] += r2 + (r2 - r1) * (
                     np.log10(self.reference_density) - logrho2
                 ) / (logrho2 - logrho1)
-                if SO["r"] > r2 or SO["r"] < r1:
-                    raise RuntimeError(f"Interpolation failed!")
+                if SO["r"] > 2.0 * r2 or SO["r"] < 0.5 * r1:
+                    raise RuntimeError(
+                        f"Interpolation failed (r1: {r1.to('Mpc')}, r2: {r2.to('Mpc')}, rSO: {SO['r'].to('Mpc')})!"
+                    )
                 SO["m"] += 4.0 / 3.0 * np.pi * SO["r"] ** 3 * self.reference_density
         elif self.physical_radius_mpc > 0.0:
             SO["r"] += self.physical_radius_mpc * unyt.Mpc
@@ -363,8 +370,14 @@ class SOProperties(HaloProperty):
                     M1 = cumulative_mass[i - 1]
                     M2 = cumulative_mass[i]
                     SO["m"] += M1 + (SO["r"] - r1) / (r2 - r1) * (M2 - M1)
+
         else:
-            raise RuntimeError("Should not happen!")
+            # if we get here, we must be in the case where physical_radius_mpc is supposed to be 0
+            # that can only happen if we are looking at a multiple of some radius
+            # in that case, SO["r"] should remain 0
+            # in any other case, something went wrong
+            if not hasattr(self, "multiple"):
+                raise ("Physical radius was set to 0! This should not happen!")
 
         if SO["r"] > 0.0 * radius.units:
             gas_selection = radius[types == "PartType0"] < SO["r"]
