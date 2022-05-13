@@ -178,6 +178,21 @@ class ChunkTask:
             # needed for each calculation.
             if comm_rank == 0:
                 properties = {}
+                # Check if we need to compute spherical overdensity masses
+                need_so = False
+                for halo_prop in self.halo_prop_list:
+                    if (halo_prop.mean_density_multiplier is not None or
+                        halo_prop.critical_density_multiplier is not None):
+                        need_so = True
+                # If we're computing SO masses, we need masses and positions of all particle types
+                for type_nr in range(6):
+                    ptype = f"PartType{type_nr}"
+                    if type_nr == 5:
+                        # Black holes
+                        properties[ptype] = set(["Coordinates", "DynamicalMasses"])
+                    else:
+                        properties[ptype] = set(["Coordinates", "Masses"])
+                # Add particle properties needed for halo property calculations
                 for halo_prop in self.halo_prop_list:
                     for ptype in halo_prop.particle_properties:
                         if ptype not in properties:
