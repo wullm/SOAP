@@ -68,7 +68,6 @@ class SubhaloMasses(HaloProperty):
         mass_unit = unyt.Unit("snap_mass",   registry=self.unit_registry)
         zero_mass = unyt.unyt_quantity(0.0, units=mass_unit)
 
-        # Loop over particle types
         total_initial_mass = zero_mass.copy()
         total_subgrid_mass = zero_mass.copy()
         pos_times_mass = None
@@ -78,7 +77,12 @@ class SubhaloMasses(HaloProperty):
         vel_units = None
         vel_dtype = None
         mass_dtype = None
-        for ptype in data:
+
+        # Of the particle types we requested, determine which are present
+        ptypes = [pt for pt in data if pt in self.particle_types]
+
+        # Loop over particle types
+        for ptype in ptypes:
 
             # Find position and mass of particles in the group
             grnr = data[ptype][self.grnr]
@@ -126,8 +130,8 @@ class SubhaloMasses(HaloProperty):
                 vel_times_mass += (vel*mass[:, None]).sum(axis=0, dtype=float)
 
         # Find total masses
-        total_mass_all = np.sum(unyt.unyt_array([total_mass[ptype] for ptype in data])).astype(mass_dtype)
-        nr_part_all    = np.sum(unyt.unyt_array([nr_part[ptype] for ptype in data]))
+        total_mass_all = np.sum(unyt.unyt_array([total_mass[ptype] for ptype in ptypes])).astype(mass_dtype)
+        nr_part_all    = np.sum(unyt.unyt_array([nr_part[ptype] for ptype in ptypes]))
 
         # Convert masses to output data type
         total_initial_mass = total_initial_mass.astype(mass_dtype)
