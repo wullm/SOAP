@@ -5,7 +5,7 @@ import time
 import numpy as np
 import unyt
 
-from dataset_names import mass_dataset
+from dataset_names import mass_dataset, ptypes_for_so_masses
 import shared_array
 import result_set
 
@@ -45,11 +45,12 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
         # Find the mass within the search radius
         mass_total = unyt.unyt_quantity(0.0, units=snap_mass)
         idx = {}
-        for ptype in data:
-            mass = data[ptype][mass_dataset(ptype)]
-            pos = data[ptype]["Coordinates"]
-            idx[ptype] = mesh[ptype].query_radius_periodic(input_halo["cofp"], current_radius, pos, boxsize)
-            mass_total += np.sum(mass.full[idx[ptype]], dtype=float)
+        for ptype in ptypes_for_so_masses:
+            if ptype in data:
+                mass = data[ptype][mass_dataset(ptype)]
+                pos = data[ptype]["Coordinates"]
+                idx[ptype] = mesh[ptype].query_radius_periodic(input_halo["cofp"], current_radius, pos, boxsize)
+                mass_total += np.sum(mass.full[idx[ptype]], dtype=float)
 
         # Find mean density in the search radius
         density = mass_total / (4./3.*np.pi*current_radius**3)

@@ -9,7 +9,7 @@ import task_queue
 import shared_mesh
 import shared_array
 import halo_tasks
-from dataset_names import mass_dataset
+from dataset_names import mass_dataset, ptypes_for_so_masses
 from halo_tasks import process_halos
 from mask_cells import mask_cells
 import memory_use
@@ -185,13 +185,9 @@ class ChunkTask:
                         halo_prop.critical_density_multiplier is not None):
                         need_so = True
                 # If we're computing SO masses, we need masses and positions of all particle types
-                for type_nr in range(6):
-                    ptype = f"PartType{type_nr}"
-                    if type_nr == 5:
-                        # Black holes
-                        properties[ptype] = set(["Coordinates", "DynamicalMasses"])
-                    else:
-                        properties[ptype] = set(["Coordinates", "Masses"])
+                if need_so:
+                    for ptype in ptypes_for_so_masses:
+                        properties[ptype] = set(["Coordinates", mass_name(ptype)])
                 # Add particle properties needed for halo property calculations
                 for halo_prop in self.halo_prop_list:
                     for ptype in halo_prop.particle_properties:
