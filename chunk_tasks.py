@@ -181,13 +181,13 @@ class ChunkTask:
                 # Check if we need to compute spherical overdensity masses
                 need_so = False
                 for halo_prop in self.halo_prop_list:
-                    if (halo_prop.mean_density_multiplier is not None or
-                        halo_prop.critical_density_multiplier is not None):
+                    if (halo_prop.mean_density_multiple is not None or
+                        halo_prop.critical_density_multiple is not None):
                         need_so = True
                 # If we're computing SO masses, we need masses and positions of all particle types
                 if need_so:
                     for ptype in ptypes_for_so_masses:
-                        properties[ptype] = set(["Coordinates", mass_name(ptype)])
+                        properties[ptype] = set(["Coordinates", mass_dataset(ptype)])
                 # Add particle properties needed for halo property calculations
                 for halo_prop in self.halo_prop_list:
                     for ptype in halo_prop.particle_properties:
@@ -234,7 +234,7 @@ class ChunkTask:
             comm.barrier()
             t0_mesh = time.time()
             mesh = {}
-            for ptype in properties:
+            for ptype in data:
                 # Find the particle coordinates
                 pos = data[ptype]["Coordinates"]
                 nr_parts_type = pos.full.shape[0]

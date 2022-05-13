@@ -79,7 +79,7 @@ class SubhaloMasses(HaloProperty):
         mass_dtype = None
 
         # Of the particle types we requested, determine which are present
-        ptypes = [pt for pt in data if pt in self.particle_types]
+        ptypes = [pt for pt in self.particle_properties if pt in data]
 
         # Loop over particle types
         for ptype in ptypes:
