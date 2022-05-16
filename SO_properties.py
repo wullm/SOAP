@@ -5,6 +5,10 @@ import unyt
 from halo_properties import HaloProperty
 
 from dataset_names import mass_dataset
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as pl
 
 
 class SOProperties(HaloProperty):
@@ -261,6 +265,11 @@ class SOProperties(HaloProperty):
             self.SO_name = "BN98"
             self.label = f"within which the density is {self.critical_density_multiple:.2f} times the critical value"
 
+        if self.reference_density > 0.0:
+            self.log_reference_density = np.log10(self.reference_density)
+        else:
+            self.log_reference_density = 0.0
+
     def calculate(self, input_halo, data, halo_result):
         """
         Compute spherical masses and overdensities for a halo
@@ -307,7 +316,10 @@ class SOProperties(HaloProperty):
 
         # Compute density within radius of each particle.
         # Will need to skip any at zero radius.
-        nskip = 0
+        # Note that because of the definition of the centre of potential, the first
+        # particle *should* be at r=0. We need to manually exclude it, in case round
+        # off error places it at a very small non-zero radius.
+        nskip = 1
         while nskip < len(ordered_radius) and ordered_radius[nskip] == 0:
             nskip += 1
         ordered_radius = ordered_radius[nskip:]
@@ -332,29 +344,47 @@ class SOProperties(HaloProperty):
 
         # Check if we ever reach the density threshold
         if self.reference_density > 0.0 * self.reference_density:
-            if nr_parts > 0 and np.any(density > self.reference_density):
-                # Find smallest radius where the density is below the threshold
-                i = np.argmax(density <= self.reference_density)
+            log_density = np.log10(density.to(self.reference_density.units))
+            if nr_parts > 0:
+                if np.any(log_density > self.log_reference_density):
+                    # Find smallest radius where the density is below the threshold
+                    i = np.argmax(log_density <= self.log_reference_density)
+                    if i == 0:
+                        # we know that there are points above the threshold
+                        # unfortunately, the centre is not
+                        # find the next one that is:
+                        i = np.argmax(density[1:] <= self.reference_density)
+                        # +1 because i is now relative w.r.t. 1
+                        i += 1
+                else:
+                    # all non-zero radius particles are below the threshold
+                    # find a bin with negative slope to interpolate
+                    i = 1
+                # deal with the pathological case where we have one particle
+                # below the threshold
+                while (
+                    i < len(log_density) - 1
+                    and log_density[i + 1] > self.log_reference_density
+                ):
+                    i += 2
                 # Interpolate to get the actual radius
-                if i == 0:
-                    # we know that there are points above the threshold
-                    # unfortunately, the centre is not
-                    # find the furthest one that is:
-                    i = np.nonzero(density > self.reference_density)[0][-1]
-                    # use the next point as the "first one that is below the threshold"
-                    i += 1
                 r1 = ordered_radius[i - 1]
                 r2 = ordered_radius[i]
-                logrho1 = np.log10(density[i - 1].to(self.reference_density.units))
-                logrho2 = np.log10(density[i].to(self.reference_density.units))
+                logrho1 = log_density[i - 1]
+                logrho2 = log_density[i]
+                slope = (r2 - r1) / (logrho2 - logrho1)
+                while slope > 0 or logrho2 > self.log_reference_density:
+                    i += 1
+                    if i == density.shape[0] - 1:
+                        raise RuntimeError("Reached end of list!")
+                    r1 = r2
+                    r2 = ordered_radius[i]
+                    logrho1 = logrho2
+                    logrho2 = log_density[i]
+                    slope = (r2 - r1) / (logrho2 - logrho1)
+
                 # preserve the unyt_array dtype and units by using '+=' instead of assignment
-                SO["r"] += r2 + (r2 - r1) * (
-                    np.log10(self.reference_density) - logrho2
-                ) / (logrho2 - logrho1)
-                if SO["r"] > 2.0 * r2 or SO["r"] < 0.5 * r1:
-                    raise RuntimeError(
-                        f"Interpolation failed (r1: {r1.to('Mpc')}, r2: {r2.to('Mpc')}, rSO: {SO['r'].to('Mpc')})!"
-                    )
+                SO["r"] += r2 + slope * (self.log_reference_density - logrho2)
                 SO["m"] += 4.0 / 3.0 * np.pi * SO["r"] ** 3 * self.reference_density
         elif self.physical_radius_mpc > 0.0:
             SO["r"] += self.physical_radius_mpc * unyt.Mpc
