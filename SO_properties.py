@@ -2,7 +2,7 @@
 
 import numpy as np
 import unyt
-from halo_properties import HaloProperty
+from halo_properties import HaloProperty, ReadRadiusTooSmallError
 
 from dataset_names import mass_dataset
 import matplotlib
@@ -555,10 +555,11 @@ class RadiusMultipleSOProperties(SOProperties):
             raise RuntimeError(
                 f"Trying to obtain {key}, but the corresponding SO radius has not been calculated!"
             )
-
         self.physical_radius_mpc = self.multiple * (halo_result[key][0].to("Mpc").value)
-        if self.physical_radius_mpc > 3.0:
-            raise RuntimeError("SO radius multiple estimate was too small!")
+
+        # Check that we read in a large enough radius
+        if self.multiple*halo_result[key][0] > input_halo["read_radius"]:
+            raise ReadRadiusTooSmallException("SO radius multiple estimate was too small!")
 
         super().calculate(input_halo, data, halo_result)
         return
