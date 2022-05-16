@@ -62,6 +62,12 @@ if __name__ == "__main__":
     # Read command line parameters
     args = command_line_args.get_halo_props_args(comm_world)
 
+    # Enable profiling, if requested
+    if args.profile == 2 or (args.profile==1 and comm_world_rank==0):
+        import cProfile, pstats, io
+        pr = cProfile.Profile()
+        pr.enable()
+
     # Start the clock
     comm_world.barrier()
     t0 = time.time()
@@ -218,6 +224,9 @@ if __name__ == "__main__":
         output_file = sub_snapnum(args.output_file, args.snapshot_nr)
         outfile = h5py.File(output_file, "w", driver="mpio", comm=comm_have_results)
 
+        # Write metadata copied from snapshot
+        cellgrid.write_metadata(outfile.create_group("SWIFT"))
+
         # Write command line parameters
         params = outfile.create_group("Parameters")
         params.attrs["swift_filename"] = args.swift_filename
@@ -248,6 +257,19 @@ if __name__ == "__main__":
         task_time_local = 0.0
     task_time_total = comm_have_results.allreduce(task_time_local)
     task_time_fraction = task_time_total / (comm_world_size*(t1-t0))
+
+    # Save profiling results for each MPI rank
+    if args.profile == 2 or (args.profile==1 and comm_world_rank==0):
+        pr.disable()
+        # Save profile so it can be loaded back into python for analysis
+        pr.dump_stats("./profile.%d.dat" % comm_world_rank)
+        # Dump text version of the profile
+        s = io.StringIO()
+        sortby = pstats.SortKey.CUMULATIVE
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        with open("./profile.%d.txt" % comm_world_rank, "w") as profile_file:
+            profile_file.write(s.getvalue())
     
     if comm_world_rank == 0:
         print("Fraction of time spent calculating halo properties = %.2f" % task_time_fraction)

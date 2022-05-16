@@ -5,7 +5,7 @@ import time
 import numpy as np
 import unyt
 
-from dataset_names import mass_dataset
+from dataset_names import mass_dataset, ptypes_for_so_masses
 import shared_array
 import result_set
 import halo_properties
@@ -37,6 +37,7 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
     
     snap_length = unyt.Unit("snap_length", registry=unit_registry)
     snap_mass   = unyt.Unit("snap_mass", registry=unit_registry)
+    snap_density = snap_mass / (snap_length**3)
 
     # Loop until we fall below the required density
     current_radius = input_halo["search_radius"]
@@ -45,18 +46,19 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
         # Find the mass within the search radius
         mass_total = unyt.unyt_quantity(0.0, units=snap_mass)
         idx = {}
-        for ptype in data:
-            mass = data[ptype][mass_dataset(ptype)]
-            pos = data[ptype]["Coordinates"]
-            idx[ptype] = mesh[ptype].query_radius_periodic(input_halo["cofp"], current_radius, pos, boxsize)
-            mass_total += np.sum(mass.full[idx[ptype]], dtype=float)
+        for ptype in ptypes_for_so_masses:
+            if ptype in data:
+                mass = data[ptype][mass_dataset(ptype)]
+                pos = data[ptype]["Coordinates"]
+                idx[ptype] = mesh[ptype].query_radius_periodic(input_halo["cofp"], current_radius, pos, boxsize)
+                mass_total += np.sum(mass.full[idx[ptype]], dtype=float)
 
         # Find mean density in the search radius
         density = mass_total / (4./3.*np.pi*current_radius**3)
 
         # If we have no target density, there's no need to iterate
         if target_density is None:
-            target_density = unyt.unyt_quantity(0.0, units=snap_mass/snap_length**3)
+            target_density = unyt.unyt_quantity(0.0, units=snap_density)
             break
 
         # Check if we reached the density threshold
@@ -99,9 +101,9 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
     halo_result["VR/Structuretype"] = (input_halo["Structuretype"], "VELOCIraptor Structuretype parameter")
 
     # Store search radius and density within that radius
-    halo_result["SearchRadius/search_radius"]            = (current_radius, "Search radius for property calculation")
-    halo_result["SearchRadius/density_in_search_radius"] = (density,        "Density within the search radius")
-    halo_result["SearchRadius/target_density"]           = (target_density, "Target density for property calculation")
+    halo_result["SearchRadius/search_radius"]            = (current_radius,                  "Search radius for property calculation")
+    halo_result["SearchRadius/density_in_search_radius"] = (density.to(snap_density),        "Density within the search radius")
+    halo_result["SearchRadius/target_density"]           = (target_density.to(snap_density), "Target density for property calculation")
 
     return halo_result
 

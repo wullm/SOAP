@@ -9,7 +9,7 @@ import task_queue
 import shared_mesh
 import shared_array
 import halo_tasks
-from dataset_names import mass_dataset
+from dataset_names import mass_dataset, ptypes_for_so_masses
 from halo_tasks import process_halos
 from mask_cells import mask_cells
 import memory_use
@@ -74,9 +74,9 @@ class ChunkTaskList:
     def __init__(self, cellgrid, so_cat, nr_chunks, halo_prop_list):
 
         # Assign the input halos to chunk tasks
-        task_id = domain_decomposition.grid_decomposition(cellgrid.boxsize,
-                                                          so_cat.halo_arrays["cofp"],
-                                                          nr_chunks)
+        task_id = domain_decomposition.peano_decomposition(cellgrid.boxsize,
+                                                           so_cat.halo_arrays["cofp"],
+                                                           nr_chunks)
 
         # Sort the halos by task ID
         idx = np.argsort(task_id)
@@ -87,10 +87,10 @@ class ChunkTaskList:
 
         # Find groups of halos with the same task ID
         unique_ids, offsets, counts = np.unique(task_id, return_index=True, return_counts=True)
-        
+
         # Create the task list
         tasks = []
-        for offset, count in zip(offsets, counts):
+        for chunk_nr, (offset, count) in enumerate(zip(offsets, counts)):
 
             # Make the halo catalogue for this chunk
             task_halo_arrays = {}
@@ -102,6 +102,9 @@ class ChunkTaskList:
 
             # Create the task for this chunk
             tasks.append(ChunkTask(task_halo_arrays, halo_prop_list)) 
+
+            # Report the size of the task
+            print(f"Chunk {chunk_nr} has {count} halos")
 
         # Use number of halos as a rough estimate of cost.
         # Do tasks with the most halos first so we're not waiting for a few big jobs at the end.
@@ -132,7 +135,7 @@ class ChunkTask:
         comm_rank = comm.Get_rank()
         comm_size = comm.Get_size()
 
-        all_results = []
+        result_set_list = []
         
         # Unpack arrays we need
         centre = self.halo_arrays["cofp"]
@@ -175,6 +178,17 @@ class ChunkTask:
             # needed for each calculation.
             if comm_rank == 0:
                 properties = {}
+                # Check if we need to compute spherical overdensity masses
+                need_so = False
+                for halo_prop in self.halo_prop_list:
+                    if (halo_prop.mean_density_multiple is not None or
+                        halo_prop.critical_density_multiple is not None):
+                        need_so = True
+                # If we're computing SO masses, we need masses and positions of all particle types
+                if need_so:
+                    for ptype in ptypes_for_so_masses:
+                        properties[ptype] = set(["Coordinates", mass_dataset(ptype)])
+                # Add particle properties needed for halo property calculations
                 for halo_prop in self.halo_prop_list:
                     for ptype in halo_prop.particle_properties:
                         if ptype not in properties:
@@ -220,7 +234,7 @@ class ChunkTask:
             comm.barrier()
             t0_mesh = time.time()
             mesh = {}
-            for ptype in properties:
+            for ptype in data:
                 # Find the particle coordinates
                 pos = data[ptype]["Coordinates"]
                 nr_parts_type = pos.full.shape[0]
@@ -243,16 +257,19 @@ class ChunkTask:
             # Calculate the halo properties
             t0_halos = time.time()
             nr_halos = len(self.halo_arrays["ID"].full)
-            result, total_time, task_time, nr_left, nr_done = process_halos(comm, cellgrid.snap_unit_registry, data, mesh,
+            result_set, total_time, task_time, nr_left, nr_done = process_halos(comm, cellgrid.snap_unit_registry, data, mesh,
                                                                             self.halo_prop_list, critical_density,
                                                                             mean_density, boxsize, self.halo_arrays)
-            all_results.append(result)
             t1_halos = time.time()
             task_time_all_iterations += task_time
             dead_time_fraction = 1.0-comm.allreduce(task_time)/comm.allreduce(total_time)
             message("processing %d of %d halos on %d ranks took %.1fs (dead time frac.=%.2f)" % (nr_done, nr_halos, comm_size,
                                                                                                  t1_halos-t0_halos,
                                                                                                  dead_time_fraction))
+            # If we processed at least one halo, add it to the list of ResultSets for this chunk
+            if len(result_set) > 0:
+                result_set_list.append(result_set)
+
             # Free the shared particle data
             for ptype in data:
                 for name in data[ptype]:
@@ -278,7 +295,7 @@ class ChunkTask:
         # Store time taken for this task
         timings.append(task_time_all_iterations)
 
-        return all_results
+        return result_set_list
 
     @classmethod
     def bcast(cls, comm, instance):
