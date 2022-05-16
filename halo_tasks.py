@@ -8,6 +8,7 @@ import unyt
 from dataset_names import mass_dataset
 import shared_array
 import result_set
+import halo_properties
 
 
 def process_single_halo(mesh, unit_registry, data, halo_prop_list,

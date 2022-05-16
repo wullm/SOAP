@@ -62,6 +62,13 @@ class SOProperties(HaloProperty):
         # global properties
         ("r", 1, np.float32, "Mpc", "Radius of a sphere {label}"),
         ("m", 1, np.float32, "Msun", "Mass within a sphere {label}"),
+        (
+            "N",
+            1,
+            np.uint32,
+            "dimensionless",
+            "Number of particles within a sphere {label}",
+        ),
         ("com", 3, np.float32, "Mpc", "Centre of mass within a sphere {label}"),
         (
             "vcom",
@@ -421,6 +428,14 @@ class SOProperties(HaloProperty):
             velocity = velocity[all_selection]
             types = types[all_selection]
 
+            # we have to set the value like this to avoid conversion to dtype=np.float32...
+            SO["N"] = unyt.unyt_array(
+                all_selection.sum(),
+                dtype=np.uint32,
+                units="dimensionless",
+                registry=reg,
+            )
+
             # note that we cannot divide by mSO here, since that was based on an interpolation
             SO["com"][:] = (mass[:, None] * position).sum(axis=0) / mass.sum()
             SO["com"][:] += centre
@@ -558,8 +573,8 @@ class RadiusMultipleSOProperties(SOProperties):
         self.physical_radius_mpc = self.multiple * (halo_result[key][0].to("Mpc").value)
 
         # Check that we read in a large enough radius
-        if self.multiple*halo_result[key][0] > input_halo["read_radius"]:
-            raise ReadRadiusTooSmallException("SO radius multiple estimate was too small!")
+        if self.multiple * halo_result[key][0] > input_halo["read_radius"]:
+            raise ReadRadiusTooSmallError("SO radius multiple estimate was too small!")
 
         super().calculate(input_halo, data, halo_result)
         return
