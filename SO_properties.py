@@ -22,6 +22,7 @@ class SOProperties(HaloProperty):
         "PartType0": [
             "ComptonYParameters",
             "Coordinates",
+            "GroupNr_bound",
             "InternalEnergies",
             "Masses",
             "MetalMassFractions",
@@ -33,6 +34,7 @@ class SOProperties(HaloProperty):
         "PartType1": ["Coordinates", "Masses", "Velocities"],
         "PartType4": [
             "Coordinates",
+            "GroupNr_bound",
             "InitialMasses",
             "Luminosities",
             "Masses",
@@ -43,6 +45,7 @@ class SOProperties(HaloProperty):
             "AccretionRates",
             "Coordinates",
             "DynamicalMasses",
+            "GroupNr_bound",
             "LastAGNFeedbackScaleFactors",
             "ParticleIDs",
             "SubgridMasses",
@@ -78,6 +81,13 @@ class SOProperties(HaloProperty):
             np.float32,
             "km/s",
             "Centre of mass velocity within a sphere {label}",
+        ),
+        (
+            "Mfrac_satellites",
+            1,
+            np.float32,
+            "dimensionless",
+            "Fraction of mass that is bound to a satellite within a sphere {label}",
         ),
         # gas properties
         ("Mgas", 1, np.float32, "Msun", "Total gas mass within a sphere {label}"),
@@ -333,6 +343,7 @@ class SOProperties(HaloProperty):
         position = []
         velocity = []
         types = []
+        groupnr = []
         for ptype in data:
             if ptype == "PartType6":
                 continue
@@ -345,11 +356,17 @@ class SOProperties(HaloProperty):
             typearr = np.zeros(r.shape, dtype="U9")
             typearr[:] = ptype
             types.append(typearr)
+            groupnr.append(data[ptype]["GroupNr_bound"])
         mass = unyt.array.uconcatenate(mass)
         radius = unyt.array.uconcatenate(radius)
         position = unyt.array.uconcatenate(position)
         velocity = unyt.array.uconcatenate(velocity)
         types = np.concatenate(types)
+        groupnr = unyt.array.uconcatenate(groupnr)
+
+        # figure out which particles in the list are bound to a halo that is not the
+        # central halo
+        is_bound_to_satellite = (groupnr >= 0) & (groupnr != input_halo["index"])
 
         # add neutrinos
         if "PartType6" in data:
@@ -477,6 +494,7 @@ class SOProperties(HaloProperty):
             position = position[all_selection]
             velocity = velocity[all_selection]
             types = types[all_selection]
+            is_bound_to_satellite = is_bound_to_satellite[all_selection]
 
             # we have to set the value like this to avoid conversion to dtype=np.float32...
             SO["N"] = unyt.unyt_array(
@@ -490,6 +508,8 @@ class SOProperties(HaloProperty):
             SO["com"][:] = (mass[:, None] * position).sum(axis=0) / mass.sum()
             SO["com"][:] += centre
             SO["vcom"][:] = (mass[:, None] * velocity).sum(axis=0) / mass.sum()
+
+            SO["Mfrac_satellites"] += mass[is_bound_to_satellite].sum() / SO["m"]
 
             gas_masses = mass[types == "PartType0"]
             gas_relpos = position[types == "PartType0"][:, :] - SO["com"][None, :]
@@ -544,15 +564,22 @@ class SOProperties(HaloProperty):
                     gas_selection
                 ].sum()
 
-                SO["Ekin_gas"] += (
-                    0.5
-                    * (
-                        gas_masses * (velocity[types == "PartType0"] ** 2).sum(axis=1)
-                    ).sum()
+                # below we need to force conversion to np.float64 before summing up particles
+                # to avoid overflow
+                ekin_gas = gas_masses * (velocity[types == "PartType0"] ** 2).sum(
+                    axis=1
                 )
-                SO["Etherm_gas"] += (
+                ekin_gas = unyt.unyt_array(
+                    ekin_gas.value, dtype=np.float64, units=ekin_gas.units
+                )
+                SO["Ekin_gas"] += 0.5 * ekin_gas.sum()
+                etherm_gas = (
                     gas_masses * data["PartType0"]["InternalEnergies"][gas_selection]
-                ).sum()
+                )
+                etherm_gas = unyt.unyt_array(
+                    etherm_gas.value, dtype=np.float64, units=etherm_gas.units
+                )
+                SO["Etherm_gas"] += etherm_gas.sum()
 
             # star specific properties
             if np.any(star_selection):
