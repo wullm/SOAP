@@ -22,6 +22,7 @@ class SOProperties(HaloProperty):
         "PartType0": [
             "ComptonYParameters",
             "Coordinates",
+            "InternalEnergies",
             "Masses",
             "MetalMassFractions",
             "Temperatures",
@@ -47,6 +48,7 @@ class SOProperties(HaloProperty):
             "SubgridMasses",
             "Velocities",
         ],
+        "PartType6": ["Coordinates", "Masses", "Weights"],
     }
 
     # List of properties that get computed
@@ -122,6 +124,20 @@ class SOProperties(HaloProperty):
             "Total Xray photon luminosity within a sphere {label}",
         ),
         ("compY", 1, np.float64, "cm**2", "Total Compton y within a sphere {label}"),
+        (
+            "Ekin_gas",
+            1,
+            np.float64,
+            "erg",
+            "Total kinetic energy of the gas within a sphere {label}",
+        ),
+        (
+            "Etherm_gas",
+            1,
+            np.float64,
+            "erg",
+            "Total thermal energy of the gas within a sphere {label}",
+        ),
         # DM properties
         ("MDM", 1, np.float32, "Msun", "Total DM mass within a sphere {label}"),
         (
@@ -219,6 +235,21 @@ class SOProperties(HaloProperty):
             "dimensionless",
             "Last AGN feedback event of the most massive BH within a sphere {label}",
         ),
+        # Neutrino properties
+        (
+            "MnuNS",
+            1,
+            np.float32,
+            "Msun",
+            "Noise suppressed total neutrino mass within a sphere {label}",
+        ),
+        (
+            "Mnu",
+            1,
+            np.float32,
+            "Msun",
+            "Total neutrino particle mass within a sphere {label}",
+        ),
     ]
 
     def __init__(self, cellgrid, SOval, type="mean"):
@@ -227,6 +258,8 @@ class SOProperties(HaloProperty):
         if not type in ["mean", "crit", "physical", "BN98"]:
             raise AttributeError(f"Unknown SO type: {type}!")
         self.type = type
+
+        self.nu_density = cellgrid.cosmology["Omega_nu"] * cellgrid.critical_density
 
         # This specifies how large a sphere is read in:
         # we use default values that are sufficiently small/large to avoid reading in too many particles
@@ -301,6 +334,8 @@ class SOProperties(HaloProperty):
         velocity = []
         types = []
         for ptype in data:
+            if ptype == "PartType6":
+                continue
             mass.append(data[ptype][mass_dataset(ptype)])
             pos = data[ptype]["Coordinates"] - centre[None, :]
             position.append(pos)
@@ -316,10 +351,25 @@ class SOProperties(HaloProperty):
         velocity = unyt.array.uconcatenate(velocity)
         types = np.concatenate(types)
 
+        # add neutrinos
+        if "PartType6" in data:
+            numass = data["PartType6"]["Masses"] * data["PartType6"]["Weights"]
+            pos = data["PartType6"]["Coordinates"] - centre[None, :]
+            nur = np.sqrt(np.sum(pos ** 2, axis=1))
+            all_mass = unyt.array.uconcatenate([mass, numass])
+            all_r = unyt.array.uconcatenate([radius, nur])
+        else:
+            all_mass = mass
+            all_r = radius
+
         # Sort by radius
-        order = np.argsort(radius)
-        ordered_radius = radius[order]
-        cumulative_mass = np.cumsum(mass[order], dtype=np.float64).astype(mass.dtype)
+        order = np.argsort(all_r)
+        ordered_radius = all_r[order]
+        cumulative_mass = np.cumsum(all_mass[order], dtype=np.float64).astype(
+            mass.dtype
+        )
+        # add mean neutrino mass
+        cumulative_mass += self.nu_density * 4.0 / 3.0 * np.pi * ordered_radius ** 3
 
         # Compute density within radius of each particle.
         # Will need to skip any at zero radius.
@@ -494,6 +544,16 @@ class SOProperties(HaloProperty):
                     gas_selection
                 ].sum()
 
+                SO["Ekin_gas"] += (
+                    0.5
+                    * (
+                        gas_masses * (velocity[types == "PartType0"] ** 2).sum(axis=1)
+                    ).sum()
+                )
+                SO["Etherm_gas"] += (
+                    gas_masses * data["PartType0"]["InternalEnergies"][gas_selection]
+                ).sum()
+
             # star specific properties
             if np.any(star_selection):
                 SO["Mstarinit"] += data["PartType4"]["InitialMasses"][
@@ -527,6 +587,18 @@ class SOProperties(HaloProperty):
                     iBHmax
                 ]
                 SO["BHmaxlasteventa"] += agn_eventa[iBHmax]
+
+            # Neutrino specific properties
+            if "PartType6" in data:
+                pos = data["PartType6"]["Coordinates"] - centre[None, :]
+                nur = np.sqrt(np.sum(pos ** 2, axis=1))
+                nu_selection = nur < SO["r"]
+                SO["Mnu"] += data["PartType6"]["Masses"][nu_selection].sum()
+                SO["MnuNS"] += (
+                    data["PartType6"]["Masses"][nu_selection]
+                    * data["PartType6"]["Weights"][nu_selection]
+                ).sum()
+                SO["MnuNS"] += self.nu_density * 4.0 / 3.0 * np.pi * SO["r"] ** 3
 
         # Return value should be a dict containing unyt_arrays and descriptions.
         # The dict keys will be used as HDF5 dataset names in the output.
