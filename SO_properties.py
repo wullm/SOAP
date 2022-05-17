@@ -22,10 +22,11 @@ class SOProperties(HaloProperty):
         "PartType0": [
             "ComptonYParameters",
             "Coordinates",
+            "Densities",
             "GroupNr_bound",
-            "InternalEnergies",
             "Masses",
             "MetalMassFractions",
+            "Pressures",
             "Temperatures",
             "Velocities",
             "XrayLuminosities",
@@ -574,7 +575,10 @@ class SOProperties(HaloProperty):
                 )
                 SO["Ekin_gas"] += 0.5 * ekin_gas.sum()
                 etherm_gas = (
-                    gas_masses * data["PartType0"]["InternalEnergies"][gas_selection]
+                    1.5
+                    * gas_masses
+                    * data["PartType0"]["Pressures"][gas_selection]
+                    / data["PartType0"]["Densities"][gas_selection]
                 )
                 etherm_gas = unyt.unyt_array(
                     etherm_gas.value, dtype=np.float64, units=etherm_gas.units
