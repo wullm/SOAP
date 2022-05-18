@@ -270,7 +270,21 @@ class SOProperties(HaloProperty):
             raise AttributeError(f"Unknown SO type: {type}!")
         self.type = type
 
-        self.nu_density = cellgrid.cosmology["Omega_nu"] * cellgrid.critical_density
+        # in the neutrino model, the mean neutrino density is implicitly
+        # assumed to be based on Omega_nu_0 and critical_density_0
+        # here, critical_density_0 = critical_density * (H0/H)**2
+        # however, we need to scale this to the appropriate redshift,
+        # hence an additional factor 1/a**3
+        self.nu_density = (
+            cellgrid.cosmology["Omega_nu_0"]
+            * cellgrid.critical_density
+            * (
+                cellgrid.cosmology["H0 [internal units]"]
+                / cellgrid.cosmology["H [internal units]"]
+            )
+            ** 2
+            / cellgrid.a ** 3
+        )
 
         # This specifies how large a sphere is read in:
         # we use default values that are sufficiently small/large to avoid reading in too many particles
