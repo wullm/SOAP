@@ -110,6 +110,13 @@ class SOProperties(HaloProperty):
             "Centre of mass velocity of gas within a sphere {label}",
         ),
         (
+            "veldisp_gas",
+            6,
+            np.float32,
+            "km**2/s**2",
+            "Velocity dispersion of gas within a sphere {label}. Measured relative to the centre of mass velocity of all particles. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
+        ),
+        (
             "Mgasmetal",
             1,
             np.float32,
@@ -150,7 +157,7 @@ class SOProperties(HaloProperty):
             1,
             np.float64,
             "erg",
-            "Total kinetic energy of the gas within a sphere {label}",
+            "Total kinetic energy of the gas within a sphere {label}. Measured relative to the centre of mass velocity of all particles.",
         ),
         (
             "Etherm_gas",
@@ -167,6 +174,13 @@ class SOProperties(HaloProperty):
             np.float32,
             "Msun*kpc*km/s",
             "Total angular momentum of DM within a sphere {label}",
+        ),
+        (
+            "veldisp_dm",
+            6,
+            np.float32,
+            "km**2/s**2",
+            "Velocity dispersion of DM within a sphere {label}. Measured relative to the centre of mass velocity of all particles. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
         ),
         # stellar properties
         (
@@ -189,6 +203,13 @@ class SOProperties(HaloProperty):
             np.float32,
             "km/s",
             "Centre of mass velocity of stars within a sphere {label}",
+        ),
+        (
+            "veldisp_star",
+            6,
+            np.float32,
+            "km**2/s**2",
+            "Velocity dispersion of stars within a sphere {label}. Measured relative to the centre of mass velocity of all particles. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
         ),
         (
             "Jstar",
@@ -610,7 +631,8 @@ class SOProperties(HaloProperty):
 
             dm_masses = mass[types == "PartType1"]
             dm_relpos = position[types == "PartType1"][:, :] - SO["com"][None, :]
-            dm_relvel = velocity[types == "PartType1"][:, :] - SO["vcom"][None, :]
+            dm_vel = velocity[types == "PartType1"]
+            dm_relvel = dm_vel[:, :] - SO["vcom"][None, :]
             SO["mass_dm"] += dm_masses.sum()
             SO["JDM"][:] = (
                 dm_masses[:, None] * unyt.array.ucross(dm_relpos, dm_relvel)
@@ -638,6 +660,25 @@ class SOProperties(HaloProperty):
                 SO["vcom_gas"][:] = (gas_masses[:, None] * gas_vel).sum(
                     axis=0
                 ) / gas_masses.sum()
+                vrel = gas_vel - SO["vcom"][None, :]
+                SO["veldisp_gas"][0] += (
+                    gas_masses * vrel[:, 0] * vrel[:, 0]
+                ).sum() / gas_masses.sum()
+                SO["veldisp_gas"][1] += (
+                    gas_masses * vrel[:, 1] * vrel[:, 1]
+                ).sum() / gas_masses.sum()
+                SO["veldisp_gas"][2] += (
+                    gas_masses * vrel[:, 2] * vrel[:, 2]
+                ).sum() / gas_masses.sum()
+                SO["veldisp_gas"][3] += (
+                    gas_masses * vrel[:, 0] * vrel[:, 1]
+                ).sum() / gas_masses.sum()
+                SO["veldisp_gas"][4] += (
+                    gas_masses * vrel[:, 0] * vrel[:, 2]
+                ).sum() / gas_masses.sum()
+                SO["veldisp_gas"][5] += (
+                    gas_masses * vrel[:, 1] * vrel[:, 2]
+                ).sum() / gas_masses.sum()
 
                 SO["Mgasmetal"] += (
                     gas_masses * data["PartType0"]["MetalMassFractions"][gas_selection]
@@ -683,6 +724,28 @@ class SOProperties(HaloProperty):
                 )
                 SO["Etherm_gas"] += etherm_gas.sum()
 
+            # DM specific properties
+            if np.any(dm_selection):
+                vrel = dm_vel - SO["vcom"][None, :]
+                SO["veldisp_dm"][0] += (
+                    dm_masses * vrel[:, 0] * vrel[:, 0]
+                ).sum() / dm_masses.sum()
+                SO["veldisp_dm"][1] += (
+                    dm_masses * vrel[:, 1] * vrel[:, 1]
+                ).sum() / dm_masses.sum()
+                SO["veldisp_dm"][2] += (
+                    dm_masses * vrel[:, 2] * vrel[:, 2]
+                ).sum() / dm_masses.sum()
+                SO["veldisp_dm"][3] += (
+                    dm_masses * vrel[:, 0] * vrel[:, 1]
+                ).sum() / dm_masses.sum()
+                SO["veldisp_dm"][4] += (
+                    dm_masses * vrel[:, 0] * vrel[:, 2]
+                ).sum() / dm_masses.sum()
+                SO["veldisp_dm"][5] += (
+                    dm_masses * vrel[:, 1] * vrel[:, 2]
+                ).sum() / dm_masses.sum()
+
             # star specific properties
             if np.any(star_selection):
                 SO["com_star"][:] = (star_masses[:, None] * star_pos).sum(
@@ -692,6 +755,25 @@ class SOProperties(HaloProperty):
                 SO["vcom_star"][:] = (star_masses[:, None] * star_vel).sum(
                     axis=0
                 ) / star_masses.sum()
+                vrel = star_vel - SO["vcom"][None, :]
+                SO["veldisp_star"][0] += (
+                    star_masses * vrel[:, 0] * vrel[:, 0]
+                ).sum() / star_masses.sum()
+                SO["veldisp_star"][1] += (
+                    star_masses * vrel[:, 1] * vrel[:, 1]
+                ).sum() / star_masses.sum()
+                SO["veldisp_star"][2] += (
+                    star_masses * vrel[:, 2] * vrel[:, 2]
+                ).sum() / star_masses.sum()
+                SO["veldisp_star"][3] += (
+                    star_masses * vrel[:, 0] * vrel[:, 1]
+                ).sum() / star_masses.sum()
+                SO["veldisp_star"][4] += (
+                    star_masses * vrel[:, 0] * vrel[:, 2]
+                ).sum() / star_masses.sum()
+                SO["veldisp_star"][5] += (
+                    star_masses * vrel[:, 1] * vrel[:, 2]
+                ).sum() / star_masses.sum()
 
                 SO["Mstarinit"] += data["PartType4"]["InitialMasses"][
                     star_selection
