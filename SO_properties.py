@@ -6,6 +6,7 @@ from halo_properties import HaloProperty, ReadRadiusTooSmallError
 
 from dataset_names import mass_dataset
 
+
 class SOProperties(HaloProperty):
 
     # Arrays which must be read in for this calculation.
@@ -62,7 +63,7 @@ class SOProperties(HaloProperty):
     SO_properties = [
         # global properties
         ("r", 1, np.float32, "Mpc", "Radius of a sphere {label}"),
-        ("m", 1, np.float32, "Msun", "Mass within a sphere {label}"),
+        ("mass", 1, np.float32, "Msun", "Mass within a sphere {label}"),
         (
             "N",
             1,
@@ -86,7 +87,7 @@ class SOProperties(HaloProperty):
             "Fraction of mass that is bound to a satellite within a sphere {label}",
         ),
         # gas properties
-        ("Mgas", 1, np.float32, "Msun", "Total gas mass within a sphere {label}"),
+        ("mass_gas", 1, np.float32, "Msun", "Total gas mass within a sphere {label}"),
         (
             "Jgas",
             3,
@@ -145,7 +146,7 @@ class SOProperties(HaloProperty):
             "Total thermal energy of the gas within a sphere {label}",
         ),
         # DM properties
-        ("MDM", 1, np.float32, "Msun", "Total DM mass within a sphere {label}"),
+        ("mass_dm", 1, np.float32, "Msun", "Total DM mass within a sphere {label}"),
         (
             "JDM",
             3,
@@ -154,7 +155,13 @@ class SOProperties(HaloProperty):
             "Total angular momentum of DM within a sphere {label}",
         ),
         # stellar properties
-        ("Mstar", 1, np.float32, "Msun", "Total stellar mass within a sphere {label}"),
+        (
+            "mass_star",
+            1,
+            np.float32,
+            "Msun",
+            "Total stellar mass within a sphere {label}",
+        ),
         (
             "Jstar",
             3,
@@ -452,12 +459,16 @@ class SOProperties(HaloProperty):
                 ):
                     i += 2
                 if i >= len(log_density):
-                    if ordered_radius[-1] > 20.*unyt.Mpc:
-                        raise RuntimeError("Cannot find SO radius, but search radius is already larger than 20 Mpc!")
+                    if ordered_radius[-1] > 20.0 * unyt.Mpc:
+                        raise RuntimeError(
+                            "Cannot find SO radius, but search radius is already larger than 20 Mpc!"
+                        )
                     # trick the code into increasing the radius a bit
                     self.mean_density_multiple *= 0.9
                     self.critical_density_multiple *= 0.9
-                    raise ReadRadiusTooSmallError("SO radius multiple estimate was too small!")                
+                    raise ReadRadiusTooSmallError(
+                        "SO radius multiple estimate was too small!"
+                    )
                 # Interpolate to get the actual radius
                 r1 = ordered_radius[i - 1]
                 r2 = ordered_radius[i]
@@ -467,12 +478,16 @@ class SOProperties(HaloProperty):
                 while slope > 0 or logrho2 > self.log_reference_density:
                     i += 1
                     if i >= len(log_density):
-                        if ordered_radius[-1] > 20.*unyt.Mpc:
-                            raise RuntimeError("Cannot find SO radius, but search radius is already larger than 20 Mpc!")
+                        if ordered_radius[-1] > 20.0 * unyt.Mpc:
+                            raise RuntimeError(
+                                "Cannot find SO radius, but search radius is already larger than 20 Mpc!"
+                            )
                         # trick the code into increasing the radius a bit
                         self.mean_density_multiple *= 0.9
                         self.critical_density_multiple *= 0.9
-                        raise ReadRadiusTooSmallError("SO radius multiple estimate was too small!")                
+                        raise ReadRadiusTooSmallError(
+                            "SO radius multiple estimate was too small!"
+                        )
                     r1 = r2
                     r2 = ordered_radius[i]
                     logrho1 = logrho2
@@ -481,7 +496,7 @@ class SOProperties(HaloProperty):
 
                 # preserve the unyt_array dtype and units by using '+=' instead of assignment
                 SO["r"] += r2 + slope * (self.log_reference_density - logrho2)
-                SO["m"] += 4.0 / 3.0 * np.pi * SO["r"] ** 3 * self.reference_density
+                SO["mass"] += 4.0 / 3.0 * np.pi * SO["r"] ** 3 * self.reference_density
         elif self.physical_radius_mpc > 0.0:
             SO["r"] += self.physical_radius_mpc * unyt.Mpc
             if nr_parts > 0:
@@ -489,13 +504,13 @@ class SOProperties(HaloProperty):
                 i = np.argmax(ordered_radius > SO["r"])
                 if i == 0:
                     # we only have particles in the centre, so we cannot interpolate
-                    SO["m"] += cumulative_mass[i]
+                    SO["mass"] += cumulative_mass[i]
                 else:
                     r1 = ordered_radius[i - 1]
                     r2 = ordered_radius[i]
                     M1 = cumulative_mass[i - 1]
                     M2 = cumulative_mass[i]
-                    SO["m"] += M1 + (SO["r"] - r1) / (r2 - r1) * (M2 - M1)
+                    SO["mass"] += M1 + (SO["r"] - r1) / (r2 - r1) * (M2 - M1)
 
         else:
             # if we get here, we must be in the case where physical_radius_mpc is supposed to be 0
@@ -553,12 +568,12 @@ class SOProperties(HaloProperty):
             SO["com"][:] += centre
             SO["vcom"][:] = (mass[:, None] * velocity).sum(axis=0) / mass.sum()
 
-            SO["Mfrac_satellites"] += mass[is_bound_to_satellite].sum() / SO["m"]
+            SO["Mfrac_satellites"] += mass[is_bound_to_satellite].sum() / SO["mass"]
 
             gas_masses = mass[types == "PartType0"]
             gas_relpos = position[types == "PartType0"][:, :] - SO["com"][None, :]
             gas_relvel = velocity[types == "PartType0"][:, :] - SO["vcom"][None, :]
-            SO["Mgas"] += gas_masses.sum()
+            SO["mass_gas"] += gas_masses.sum()
             SO["Jgas"][:] = (
                 gas_masses[:, None] * unyt.array.ucross(gas_relpos, gas_relvel)
             ).sum(axis=0)
@@ -566,7 +581,7 @@ class SOProperties(HaloProperty):
             dm_masses = mass[types == "PartType1"]
             dm_relpos = position[types == "PartType1"][:, :] - SO["com"][None, :]
             dm_relvel = velocity[types == "PartType1"][:, :] - SO["vcom"][None, :]
-            SO["MDM"] += dm_masses.sum()
+            SO["mass_dm"] += dm_masses.sum()
             SO["JDM"][:] = (
                 dm_masses[:, None] * unyt.array.ucross(dm_relpos, dm_relvel)
             ).sum(axis=0)
@@ -574,7 +589,7 @@ class SOProperties(HaloProperty):
             star_masses = mass[types == "PartType4"]
             star_relpos = position[types == "PartType4"][:, :] - SO["com"][None, :]
             star_relvel = velocity[types == "PartType4"][:, :] - SO["vcom"][None, :]
-            SO["Mstar"] += star_masses.sum()
+            SO["mass_star"] += star_masses.sum()
             SO["Jstar"][:] = (
                 star_masses[:, None] * unyt.array.ucross(star_relpos, star_relvel)
             ).sum(axis=0)
