@@ -96,6 +96,20 @@ class SOProperties(HaloProperty):
             "Total angular momentum of gas within a sphere {label}",
         ),
         (
+            "com_gas",
+            3,
+            np.float32,
+            "Mpc",
+            "Centre of mass of gas within a sphere {label}",
+        ),
+        (
+            "vcom_gas",
+            3,
+            np.float32,
+            "km/s",
+            "Centre of mass velocity of gas within a sphere {label}",
+        ),
+        (
             "Mgasmetal",
             1,
             np.float32,
@@ -161,6 +175,20 @@ class SOProperties(HaloProperty):
             np.float32,
             "Msun",
             "Total stellar mass within a sphere {label}",
+        ),
+        (
+            "com_star",
+            3,
+            np.float32,
+            "Mpc",
+            "Centre of mass of stars within a sphere {label}",
+        ),
+        (
+            "vcom_star",
+            3,
+            np.float32,
+            "km/s",
+            "Centre of mass velocity of stars within a sphere {label}",
         ),
         (
             "Jstar",
@@ -571,8 +599,10 @@ class SOProperties(HaloProperty):
             SO["Mfrac_satellites"] += mass[is_bound_to_satellite].sum() / SO["mass"]
 
             gas_masses = mass[types == "PartType0"]
-            gas_relpos = position[types == "PartType0"][:, :] - SO["com"][None, :]
-            gas_relvel = velocity[types == "PartType0"][:, :] - SO["vcom"][None, :]
+            gas_pos = position[types == "PartType0"]
+            gas_relpos = gas_pos[:, :] - SO["com"][None, :]
+            gas_vel = velocity[types == "PartType0"]
+            gas_relvel = gas_vel[:, :] - SO["vcom"][None, :]
             SO["mass_gas"] += gas_masses.sum()
             SO["Jgas"][:] = (
                 gas_masses[:, None] * unyt.array.ucross(gas_relpos, gas_relvel)
@@ -587,8 +617,10 @@ class SOProperties(HaloProperty):
             ).sum(axis=0)
 
             star_masses = mass[types == "PartType4"]
-            star_relpos = position[types == "PartType4"][:, :] - SO["com"][None, :]
-            star_relvel = velocity[types == "PartType4"][:, :] - SO["vcom"][None, :]
+            star_pos = position[types == "PartType4"]
+            star_relpos = star_pos[:, :] - SO["com"][None, :]
+            star_vel = velocity[types == "PartType4"]
+            star_relvel = star_vel[:, :] - SO["vcom"][None, :]
             SO["mass_star"] += star_masses.sum()
             SO["Jstar"][:] = (
                 star_masses[:, None] * unyt.array.ucross(star_relpos, star_relvel)
@@ -599,6 +631,14 @@ class SOProperties(HaloProperty):
             # gas specific properties. We (can) only do these if we have gas.
             # (remember that "PartType0" might not be part of 'data' at all)
             if np.any(gas_selection):
+                SO["com_gas"][:] = (gas_masses[:, None] * gas_pos).sum(
+                    axis=0
+                ) / gas_masses.sum()
+                SO["com_gas"][:] += centre
+                SO["vcom_gas"][:] = (gas_masses[:, None] * gas_vel).sum(
+                    axis=0
+                ) / gas_masses.sum()
+
                 SO["Mgasmetal"] += (
                     gas_masses * data["PartType0"]["MetalMassFractions"][gas_selection]
                 ).sum()
@@ -625,9 +665,9 @@ class SOProperties(HaloProperty):
 
                 # below we need to force conversion to np.float64 before summing up particles
                 # to avoid overflow
-                ekin_gas = gas_masses * (velocity[types == "PartType0"] ** 2).sum(
-                    axis=1
-                )
+                ekin_gas = gas_masses * (
+                    (velocity[types == "PartType0"] - SO["vcom"][None, :]) ** 2
+                ).sum(axis=1)
                 ekin_gas = unyt.unyt_array(
                     ekin_gas.value, dtype=np.float64, units=ekin_gas.units
                 )
@@ -645,6 +685,14 @@ class SOProperties(HaloProperty):
 
             # star specific properties
             if np.any(star_selection):
+                SO["com_star"][:] = (star_masses[:, None] * star_pos).sum(
+                    axis=0
+                ) / star_masses.sum()
+                SO["com_star"][:] += centre
+                SO["vcom_star"][:] = (star_masses[:, None] * star_vel).sum(
+                    axis=0
+                ) / star_masses.sum()
+
                 SO["Mstarinit"] += data["PartType4"]["InitialMasses"][
                     star_selection
                 ].sum()
