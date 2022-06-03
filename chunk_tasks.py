@@ -101,7 +101,7 @@ class ChunkTaskList:
             task_halo_arrays["done"] = unyt.unyt_array(np.zeros(count, dtype=np.int8), dtype=np.int8)
 
             # Create the task for this chunk
-            tasks.append(ChunkTask(task_halo_arrays, halo_prop_list)) 
+            tasks.append(ChunkTask(task_halo_arrays, halo_prop_list, chunk_nr, nr_chunks)) 
 
             # Report the size of the task
             print(f"Chunk {chunk_nr} has {count} halos")
@@ -124,11 +124,13 @@ class ChunkTask:
     indexes contains the index of each halo in the input catalogue
     radius  is the radius around each centre which we need to read in
     """
-    def __init__(self, halo_arrays=None, halo_prop_list=None):
+    def __init__(self, halo_arrays=None, halo_prop_list=None, chunk_nr=0, nr_chunks=1):
 
         self.halo_arrays = halo_arrays
         self.halo_prop_list = halo_prop_list
         self.shared = False
+        self.chunk_nr = chunk_nr
+        self.nr_chunks = nr_chunks
         
     def __call__(self, cellgrid, comm, inter_node_rank, timings):
 
@@ -144,7 +146,7 @@ class ChunkTask:
 
         def message(m):
             if inter_node_rank >= 0:
-                print("[%8.1fs] %d: %s" % (time.time()-time_start, inter_node_rank, m))
+                print("[%8.1fs] %d: [%d/%d] %s" % (time.time()-time_start, inter_node_rank, self.chunk_nr, self.nr_chunks, m))
 
         # Repeat until all halos have been done
         task_time_all_iterations = 0.0
@@ -337,6 +339,9 @@ class ChunkTask:
         self.halo_prop_list = comm.bcast(self.halo_prop_list)
         self.shared = True
 
+        self.chunk_nr = comm.bcast(self.chunk_nr)
+        self.nr_chunks = comm.bcast(self.nr_chunks)
+
         return self
 
     def send(self, comm, dest, tag):
@@ -351,6 +356,9 @@ class ChunkTask:
         # Send halo arrays
         for name in names:
             send_array(comm, self.halo_arrays[name], dest, tag)
+
+        comm.send(self.chunk_nr, dest, tag)
+        comm.send(self.nr_chunks, dest, tag)
 
     @classmethod
     def recv(cls, comm, src, tag):
@@ -371,5 +379,8 @@ class ChunkTask:
         for name in names:
             halo_arrays[name] = recv_array(comm, src, tag)
 
+        chunk_nr = comm.recv(source=src, tag=tag)
+        nr_chunks = comm.recv(source=src, tag=tag)
+
         # Construct the class instance
-        return cls(halo_arrays, halo_prop_list)
+        return cls(halo_arrays, halo_prop_list, chunk_nr, nr_chunks)

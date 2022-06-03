@@ -71,6 +71,8 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
         else:
             # Need to increase the search radius and try again
             current_radius = min(current_radius*1.2, input_halo["read_radius"])
+            if current_radius >= 20.*unyt.Mpc:
+                raise RuntimeError("Search radius reached absolute maximum (20 Mpc)!")
 
     # Extract particles in this halo
     particle_data = {}

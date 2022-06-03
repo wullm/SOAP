@@ -5,11 +5,6 @@ import unyt
 from halo_properties import HaloProperty, ReadRadiusTooSmallError
 
 from dataset_names import mass_dataset
-import matplotlib
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as pl
-
 
 class SOProperties(HaloProperty):
 
@@ -456,6 +451,13 @@ class SOProperties(HaloProperty):
                     and log_density[i + 1] > self.log_reference_density
                 ):
                     i += 2
+                if i >= len(log_density):
+                    if ordered_radius[-1] > 20.*unyt.Mpc:
+                        raise RuntimeError("Cannot find SO radius, but search radius is already larger than 20 Mpc!")
+                    # trick the code into increasing the radius a bit
+                    self.mean_density_multiple *= 0.9
+                    self.critical_density_multiple *= 0.9
+                    raise ReadRadiusTooSmallError("SO radius multiple estimate was too small!")                
                 # Interpolate to get the actual radius
                 r1 = ordered_radius[i - 1]
                 r2 = ordered_radius[i]
@@ -464,8 +466,13 @@ class SOProperties(HaloProperty):
                 slope = (r2 - r1) / (logrho2 - logrho1)
                 while slope > 0 or logrho2 > self.log_reference_density:
                     i += 1
-                    if i == density.shape[0] - 1:
-                        raise RuntimeError("Reached end of list!")
+                    if i >= len(log_density):
+                        if ordered_radius[-1] > 20.*unyt.Mpc:
+                            raise RuntimeError("Cannot find SO radius, but search radius is already larger than 20 Mpc!")
+                        # trick the code into increasing the radius a bit
+                        self.mean_density_multiple *= 0.9
+                        self.critical_density_multiple *= 0.9
+                        raise ReadRadiusTooSmallError("SO radius multiple estimate was too small!")                
                     r1 = r2
                     r2 = ordered_radius[i]
                     logrho1 = logrho2
@@ -497,6 +504,28 @@ class SOProperties(HaloProperty):
             # in any other case, something went wrong
             if not hasattr(self, "multiple"):
                 raise ("Physical radius was set to 0! This should not happen!")
+
+        """
+        if self.name == "SO_2500_crit":
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as pl
+            fig, ax = pl.subplots(1, 1)
+            rnew = SO["r"].to("Mpc")
+            rVR = input_halo["SO_R_2500_rhocrit"].to("Mpc")
+            rlim = 2. * max(rnew, rVR)
+            ax.semilogy(ordered_radius.to("Mpc"), density.to("g/cm**3"), "o-")
+            ax.axhline(y = self.reference_density.to("g/cm**3"), linestyle="--", color="C1")
+            ax.axvline(x = rnew, linestyle="--", color="C1")
+            ax.axvline(x = rVR, linestyle="--", color="C2")
+            ax.set_xlim(0., rlim)
+            ax.set_xlabel("$r$ (Mpc)")
+            ax.set_ylabel("$\\rho$ (g cm$^{-3}$)")
+            pl.tight_layout()
+            pl.savefig(f"SO_R_2500_crit_{input_halo['index']}.png", dpi=300)
+            fig.clear()
+            pl.close(fig)
+        """
 
         if SO["r"] > 0.0 * radius.units:
             gas_selection = radius[types == "PartType0"] < SO["r"]
