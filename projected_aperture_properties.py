@@ -21,21 +21,28 @@ class ProjectedApertureProperties(HaloProperty):
         self.name = f"projected_aperture_{physical_radius_kpc:.0f}kpc"
 
         self.particle_properties = {
-            "PartType0": ["Coordinates", "Velocities", "Masses", "GroupNr_all"],
-            "PartType1": ["Coordinates", "Velocities", "Masses", "GroupNr_all"],
+            "PartType0": [
+                "Coordinates",
+                "Velocities",
+                "Masses",
+                "GroupNr_bound",
+                "StarFormationRates",
+            ],
+            "PartType1": ["Coordinates", "Velocities", "Masses", "GroupNr_bound"],
             "PartType4": [
                 "Coordinates",
                 "Velocities",
                 "Masses",
                 "InitialMasses",
-                "GroupNr_all",
+                "GroupNr_bound",
+                "Luminosities",
             ],
             "PartType5": [
                 "Coordinates",
                 "Velocities",
                 "DynamicalMasses",
                 "SubgridMasses",
-                "GroupNr_all",
+                "GroupNr_bound",
             ],
         }
 
@@ -66,7 +73,7 @@ class ProjectedApertureProperties(HaloProperty):
         velocity = []
         types = []
         for ptype in types_present:
-            grnr = data[ptype]["GroupNr_all"]
+            grnr = data[ptype]["GroupNr_bound"]
             in_halo = grnr == index
             mass.append(data[ptype][mass_dataset(ptype)][in_halo])
             pos = data[ptype]["Coordinates"][in_halo, :] - centre[None, :]
@@ -94,18 +101,110 @@ class ProjectedApertureProperties(HaloProperty):
         mask_projy = radius_projy <= self.physical_radius_mpc * unyt.Mpc
         mask_projz = radius_projz <= self.physical_radius_mpc * unyt.Mpc
 
-        for projname, projmask in zip(
-            ["projx", "projy", "projz"], [mask_projx, mask_projy, mask_projz]
+        for projname, projmask, projr in zip(
+            ["projx", "projy", "projz"],
+            [mask_projx, mask_projy, mask_projz],
+            [radius_projx, radius_projy, radius_projz],
         ):
             proj_mass = mass[projmask]
             proj_position = position[projmask]
             proj_velocity = velocity[projmask]
+            proj_radius = projr[projmask]
+            proj_type = types[projmask]
+
+            proj_mass_gas = proj_mass[proj_type == "PartType0"]
+            proj_mass_dm = proj_mass[proj_type == "PartType1"]
+            proj_mass_star = proj_mass[proj_type == "PartType4"]
 
             proj_Mtot = proj_mass.sum()
+            proj_Mgas = proj_mass_gas.sum()
+            proj_Mdm = proj_mass_dm.sum()
+            proj_Mstar = proj_mass_star.sum()
+            if "PartType4" in data:
+                star_mask = data["PartType4"]["GroupNr_bound"] == index
+                star_mask[star_mask][~projmask[types == "PartType4"]] = False
+                proj_Mstar_init = data["PartType4"]["InitialMasses"][star_mask].sum()
+                proj_lum = data["PartType4"]["Luminosities"][star_mask].sum(axis=0)
+            else:
+                proj_Mstar_init = unyt.unyt_array(proj_mass_star)
+                proj_lum = unyt.unyt_array(
+                    [0.0] * 9,
+                    dtype=np.float32,
+                    units="dimensionless",
+                    registry=mass.units.registry,
+                )
+            proj_Mbh = proj_mass[proj_type == "PartType5"].sum()
+            if "PartType5" in data:
+                bh_mask = data["PartType5"]["GroupNr_bound"] == index
+                bh_mask[bh_mask][~projmask[types == "PartType5"]] = False
+                proj_Mbh_subgrid = data["PartType5"]["SubgridMasses"][bh_mask].sum()
+            else:
+                proj_Mbh_subgrid = unyt.unyt_array(proj_Mbh_subgrid)
 
             proj_com = (proj_mass[:, None] * proj_position).sum(axis=0) / proj_Mtot
             proj_com += centre
             proj_vcom = (proj_mass[:, None] * proj_velocity).sum(axis=0) / proj_Mtot
+
+            if "PartType0" in data:
+                gas_mask = data["PartType0"]["GroupNr_bound"] == index
+                gas_mask[gas_mask][~projmask[types == "PartType0"]] = False
+                proj_SFR = data["PartType0"]["StarFormationRates"][gas_mask].sum()
+            else:
+                proj_SFR = unyt.unyt_array(
+                    0.0, dtype=np.float32, units="Msun/yr", registry=mass.units.registry
+                )
+
+            # sort according to radius
+            isort_tot = np.argsort(proj_radius)
+            isort_gas = np.argsort(proj_radius[proj_type == "PartType0"])
+            isort_dm = np.argsort(proj_radius[proj_type == "PartType1"])
+            isort_star = np.argsort(proj_radius[proj_type == "PartType4"])
+            Mcum_tot = proj_mass[isort_tot].cumsum()
+            Mcum_gas = proj_mass_gas[isort_gas].cumsum()
+            Mcum_dm = proj_mass_dm[isort_dm].cumsum()
+            Mcum_star = proj_mass_star[isort_star].cumsum()
+            halfmass = {}
+            for name, Mcum, Mtarget, rad in zip(
+                ["tot", "gas", "dm", "star"],
+                [Mcum_tot, Mcum_gas, Mcum_dm, Mcum_star],
+                [0.5 * proj_Mtot, 0.5 * proj_Mgas, 0.5 * proj_Mdm, 0.5 * proj_Mstar],
+                [
+                    proj_radius[isort_tot],
+                    proj_radius[proj_type == "PartType0"][isort_gas],
+                    proj_radius[proj_type == "PartType1"][isort_dm],
+                    proj_radius[proj_type == "PartType4"][isort_star],
+                ],
+            ):
+                if Mtarget == 0.0 * unyt.Msun or len(Mcum) < 1:
+                    halfmass[name] = unyt.unyt_array(
+                        0.0, dtype=np.float64, units="kpc", registry=mass.units.registry
+                    )
+                else:
+                    ihalf = np.argmax(Mcum >= Mtarget)
+                    if ihalf == 0:
+                        # it is possible that we only have one particle, or that there is no
+                        # particle with a mass below the target value
+                        # in this case, we linearly interpolate from the centre
+                        rmin = 0.0 * unyt.kpc
+                        Mmin = 0.0 * unyt.Msun
+                    else:
+                        rmin = rad[ihalf - 1]
+                        Mmin = Mcum[ihalf - 1]
+                    rmax = rad[ihalf]
+                    Mmax = Mcum[ihalf]
+                    if Mmin == Mmax:
+                        # this deals with the degenerate case where we have no particles below the
+                        # target and the first particle above the target is exactly at the centre
+                        halfmass[name] = 0.5 * (rmin + rmax)
+                    else:
+                        halfmass[name] = rmin + (Mtarget - Mmin) / (Mmax - Mmin) * (
+                            rmax - rmin
+                        )
+                    halfmass[name].convert_to_units("kpc")
+                    if halfmass[name] >= self.physical_radius_mpc * unyt.Mpc:
+                        raise RuntimeError(
+                            "Half mass radius larger than aperture! This should not happen."
+                        )
 
             prefix = (
                 f"ProjectedAperture/{self.physical_radius_mpc*1000.:.0f}kpc/{projname}"
@@ -113,8 +212,38 @@ class ProjectedApertureProperties(HaloProperty):
             halo_result.update(
                 {
                     f"{prefix}/Mtot": (proj_Mtot, "Total mass"),
+                    f"{prefix}/Mgas": (proj_Mgas, "Total gas mass"),
+                    f"{prefix}/Mdm": (proj_Mdm, "Total DM mass"),
+                    f"{prefix}/Mstar": (proj_Mstar, "Total stellar mass"),
+                    f"{prefix}/Mstar_init": (
+                        proj_Mstar_init,
+                        "Total initial stellar mass",
+                    ),
+                    f"{prefix}/Mbh": (proj_Mbh, "Total BH dynamical mass"),
+                    f"{prefix}/Mbh_subgrid": (
+                        proj_Mbh_subgrid,
+                        "Total BH subgrid mass",
+                    ),
                     f"{prefix}/com": (proj_com, "Centre of mass"),
                     f"{prefix}/vcom": (proj_vcom, "Centre of mass velocity"),
+                    f"{prefix}/SFR": (proj_SFR, "Total SFR"),
+                    f"{prefix}/Luminosity": (proj_lum, "Total luminosity"),
+                    f"{prefix}/HalfMassRadiusTot": (
+                        halfmass["tot"],
+                        "Total half mass radius",
+                    ),
+                    f"{prefix}/HalfMassRadiusGas": (
+                        halfmass["gas"],
+                        "Total gas half mass radius",
+                    ),
+                    f"{prefix}/HalfMassRadiusDM": (
+                        halfmass["dm"],
+                        "Total DM half mass radius",
+                    ),
+                    f"{prefix}/HalfMassRadiusStar": (
+                        halfmass["star"],
+                        "Total stellar half mass radius",
+                    ),
                 }
             )
 
