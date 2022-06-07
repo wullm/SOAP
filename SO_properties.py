@@ -7,6 +7,60 @@ from halo_properties import HaloProperty, ReadRadiusTooSmallError
 from dataset_names import mass_dataset
 
 
+def find_SO_radius_and_mass(
+    ordered_radius, density, cumulative_mass, reference_density, log_reference_density
+):
+    log_density = np.log10(density.to(reference_density.units))
+    if np.any(log_density > log_reference_density):
+        # Find smallest radius where the density is below the threshold
+        i = np.argmax(log_density <= log_reference_density)
+        if i == 0:
+            # we know that there are points above the threshold
+            # unfortunately, the centre is not
+            # find the next one that is:
+            i = np.argmax(log_density[1:] <= log_reference_density)
+            # +1 because i is now relative w.r.t. 1
+            i += 1
+    else:
+        # all non-zero radius particles are below the threshold
+        # find a bin with negative slope to interpolate
+        i = 1
+    # deal with the pathological case where we have one particle
+    # below the threshold
+    while i < len(log_density) - 1 and log_density[i + 1] > log_reference_density:
+        i += 2
+    if i >= len(log_density):
+        if ordered_radius[-1] > 20.0 * unyt.Mpc:
+            raise RuntimeError(
+                "Cannot find SO radius, but search radius is already larger than 20 Mpc!"
+            )
+        raise ReadRadiusTooSmallError("SO radius multiple estimate was too small!")
+    # Interpolate to get the actual radius
+    r1 = ordered_radius[i - 1]
+    r2 = ordered_radius[i]
+    logrho1 = log_density[i - 1]
+    logrho2 = log_density[i]
+    slope = (r2 - r1) / (logrho2 - logrho1)
+    while slope > 0 or logrho2 > log_reference_density:
+        i += 1
+        if i >= len(log_density):
+            if ordered_radius[-1] > 20.0 * unyt.Mpc:
+                raise RuntimeError(
+                    "Cannot find SO radius, but search radius is already larger than 20 Mpc!"
+                )
+            raise ReadRadiusTooSmallError("SO radius multiple estimate was too small!")
+        r1 = r2
+        r2 = ordered_radius[i]
+        logrho1 = logrho2
+        logrho2 = log_density[i]
+        slope = (r2 - r1) / (logrho2 - logrho1)
+
+    SO_r = r2 + slope * (log_reference_density - logrho2)
+    SO_mass = 4.0 / 3.0 * np.pi * SO_r**3 * reference_density
+
+    return SO_r, SO_mass
+
+
 class SOProperties(HaloProperty):
 
     # Arrays which must be read in for this calculation.
@@ -48,7 +102,7 @@ class SOProperties(HaloProperty):
             "SubgridMasses",
             "Velocities",
         ],
-        "PartType6": ["Coordinates", "Masses", "Weights"],
+#        "PartType6": ["Coordinates", "Masses", "Weights"],
     }
 
     # List of properties that get computed
@@ -334,7 +388,7 @@ class SOProperties(HaloProperty):
                 / cellgrid.cosmology["H [internal units]"]
             )
             ** 2
-            / cellgrid.a ** 3
+            / cellgrid.a**3
         )
 
         # This specifies how large a sphere is read in:
@@ -416,7 +470,7 @@ class SOProperties(HaloProperty):
             mass.append(data[ptype][mass_dataset(ptype)])
             pos = data[ptype]["Coordinates"] - centre[None, :]
             position.append(pos)
-            r = np.sqrt(np.sum(pos ** 2, axis=1))
+            r = np.sqrt(np.sum(pos**2, axis=1))
             radius.append(r)
             velocity.append(data[ptype]["Velocities"])
             typearr = np.zeros(r.shape, dtype="U9")
@@ -438,7 +492,7 @@ class SOProperties(HaloProperty):
         if "PartType6" in data:
             numass = data["PartType6"]["Masses"] * data["PartType6"]["Weights"]
             pos = data["PartType6"]["Coordinates"] - centre[None, :]
-            nur = np.sqrt(np.sum(pos ** 2, axis=1))
+            nur = np.sqrt(np.sum(pos**2, axis=1))
             all_mass = unyt.array.uconcatenate([mass, numass])
             all_r = unyt.array.uconcatenate([radius, nur])
         else:
@@ -452,7 +506,7 @@ class SOProperties(HaloProperty):
             mass.dtype
         )
         # add mean neutrino mass
-        cumulative_mass += self.nu_density * 4.0 / 3.0 * np.pi * ordered_radius ** 3
+        cumulative_mass += self.nu_density * 4.0 / 3.0 * np.pi * ordered_radius**3
 
         # Compute density within radius of each particle.
         # Will need to skip any at zero radius.
@@ -465,7 +519,7 @@ class SOProperties(HaloProperty):
         ordered_radius = ordered_radius[nskip:]
         cumulative_mass = cumulative_mass[nskip:]
         nr_parts = len(ordered_radius)
-        density = cumulative_mass / (4.0 / 3.0 * np.pi * ordered_radius ** 3)
+        density = cumulative_mass / (4.0 / 3.0 * np.pi * ordered_radius**3)
 
         reg = mass.units.registry
 
@@ -484,8 +538,9 @@ class SOProperties(HaloProperty):
 
         # Check if we ever reach the density threshold
         if self.reference_density > 0.0 * self.reference_density:
-            log_density = np.log10(density.to(self.reference_density.units))
             if nr_parts > 0:
+                """
+                log_density = np.log10(density.to(self.reference_density.units))
                 if np.any(log_density > self.log_reference_density):
                     # Find smallest radius where the density is below the threshold
                     i = np.argmax(log_density <= self.log_reference_density)
@@ -546,6 +601,21 @@ class SOProperties(HaloProperty):
                 # preserve the unyt_array dtype and units by using '+=' instead of assignment
                 SO["r"] += r2 + slope * (self.log_reference_density - logrho2)
                 SO["mass"] += 4.0 / 3.0 * np.pi * SO["r"] ** 3 * self.reference_density
+                """
+                try:
+                    SO_r, SO_mass = find_SO_radius_and_mass(
+                        ordered_radius,
+                        density,
+                        cumulative_mass,
+                        self.reference_density,
+                        self.log_reference_density,
+                    )
+                    SO["r"] += SO_r
+                    SO["mass"] += SO_mass
+                except ReadRadiusTooSmallError:
+                    self.mean_density_multiple *= 0.9
+                    self.critical_density_multiple *= 0.9
+                    raise ReadRadiusTooSmallError("SO radius multiple was too small!")
         elif self.physical_radius_mpc > 0.0:
             SO["r"] += self.physical_radius_mpc * unyt.Mpc
             if nr_parts > 0:
@@ -810,7 +880,7 @@ class SOProperties(HaloProperty):
             # Neutrino specific properties
             if "PartType6" in data:
                 pos = data["PartType6"]["Coordinates"] - centre[None, :]
-                nur = np.sqrt(np.sum(pos ** 2, axis=1))
+                nur = np.sqrt(np.sum(pos**2, axis=1))
                 nu_selection = nur < SO["r"]
                 SO["Mnu"] += data["PartType6"]["Masses"][nu_selection].sum()
                 SO["MnuNS"] += (
