@@ -2,60 +2,148 @@
 
 import numpy as np
 import unyt
+from scipy.optimize import brentq
+
 from halo_properties import HaloProperty, ReadRadiusTooSmallError
 
 from dataset_names import mass_dataset
 
+from mpi4py import MPI
+
+
+def cumulative_mass_intersection(r, rho_dim, slope_dim):
+    """
+    Function used to find the intersection of the cumulative mass curve at fixed
+    mean density, and the actual cumulative mass as obtained from linear
+    interpolation on a cumulative mass profile.
+
+    The equation we want to solve is:
+      4*pi/3*rho * r^3 - (M2-M1)/(r2-r1) * r + (M2-M1)/(r2-r1)*r1 - M1 = 0
+    Since all quantities have units and scipy cannot handle those, we actually
+    solve
+      4*pi/3*rho_d * u^3 - S_d * u + S_d - 1 = 0,
+    with
+      rho_d = rho * r1**3 / M1
+      S_d = (M2-M1)/(r2-r1) * (r1/M1)
+    The result then needs to be multiplied with r1 to get the intersection radius
+    """
+    return 4.0 * np.pi / 3.0 * rho_dim * r**3 - slope_dim * r + slope_dim - 1.0
+
 
 def find_SO_radius_and_mass(
-    ordered_radius, density, cumulative_mass, reference_density, log_reference_density
+    ordered_radius, density, cumulative_mass, reference_density
 ):
-    log_density = np.log10(density.to(reference_density.units))
-    if np.any(log_density > log_reference_density):
+    """
+    Find the radius and mass of an SO from the ordered density and cumulative
+    mass profiles.
+
+    The profiles are constructed by sorting the particles within the spherical
+    region and then summing their masses in that order (assigning the full
+    mass of the particle to the particle's radius). The density for every radius
+    is then computed by dividing the cumulative mass profile by the volume of a
+    sphere with that radius.
+
+    The SO radius is defined as the radius at which the density profile dips
+    below the given reference density. Unfortunately, real density profiles
+    are noisy and can sometimes fluctuate around the threshold. We therefore
+    define the SO radius as the first radius for which this happens, at machine
+    precision.
+    If no particles are below the threshold, then we raise an error and force an
+    increase of the search radius.
+    If all particles are below the threshold, we assume that the cumulative
+    mass profile of the halo is linear out to the radius of the first particle,
+    and then use the corresponding density profile to find the intersection.
+    In all other cases, we find the actual SO radius by assuming a linear
+    cumulative mass profile in the bin where the density dips below the
+    threshold, and intersecting the corresponding density profile with the
+    threshold. This approach requires a root finding algorithm and does not
+    yield exactly the same result as linear interpolation in r-log(rho) space
+    for the same bin (which is for example used by VELOCIraptor). It however
+    guarantees that the SO mass we find is contained within the intersecting
+    bin, which would otherwise not necessarily be true (especially if the
+    intersecting bin is relatively wide). We could also interpolate both the
+    radius and mass, but then the mean density of the SO would not necessarily
+    match the target density, which is also weird.
+    """
+
+    # Compute a mask that marks particles above the threshold. We do this
+    # exactly once.
+    above_mask = density > reference_density
+    if np.any(above_mask):
+        # Get the complementary mask of particles below the threshold.
+        # By using the complementary, we avoid any ambiguity about '>' vs '<='
+        below_mask = ~above_mask
         # Find smallest radius where the density is below the threshold
-        i = np.argmax(log_density <= log_reference_density)
+        i = np.argmax(below_mask)
         if i == 0:
-            # we know that there are points above the threshold
-            # unfortunately, the centre is not
-            # find the next one that is:
-            i = np.argmax(log_density[1:] <= log_reference_density)
-            # +1 because i is now relative w.r.t. 1
-            i += 1
+            if below_mask[i]:
+                # we know that there are points above the threshold
+                # unfortunately, the centre is not
+                # find the next one that is:
+                offset = np.argmax(above_mask)
+                # now get the next point below the threshold relative w.r.t. this point
+                i = np.argmax(below_mask[offset:])
+                # +offset because i is now relative w.r.t. offset
+                i += offset
+            else:
+                # 'i==0' can also mean no particles are below the threshold
+                # in this case, we need to increase the search radius
+                if ordered_radius[-1] > 20.0 * unyt.Mpc:
+                    raise RuntimeError(
+                        "Cannot find SO radius, but search radius is already larger than 20 Mpc!"
+                    )
+                raise ReadRadiusTooSmallError(
+                    "SO radius multiple estimate was too small!"
+                )
     else:
         # all non-zero radius particles are below the threshold
-        # find a bin with negative slope to interpolate
-        i = 1
-    # deal with the pathological case where we have one particle
-    # below the threshold
-    while i < len(log_density) - 1 and log_density[i + 1] > log_reference_density:
-        i += 2
-    if i >= len(log_density):
-        if ordered_radius[-1] > 20.0 * unyt.Mpc:
-            raise RuntimeError(
-                "Cannot find SO radius, but search radius is already larger than 20 Mpc!"
-            )
-        raise ReadRadiusTooSmallError("SO radius multiple estimate was too small!")
-    # Interpolate to get the actual radius
+        # we linearly interpolate the mass from 0 to the particle radius
+        # and determine the radius at which this interpolation matches the
+        # target density
+        # This is simply the solution of
+        #    4*pi/3*r^3*rho = M[0]/r[0]*r
+        SO_r = np.sqrt(
+            0.75 * cumulative_mass[0] / (np.pi * ordered_radius[0] * reference_density)
+        )
+        SO_mass = cumulative_mass[0] * SO_r / ordered_radius[0]
+        return SO_r, SO_mass
+
+    # We now have the intersecting interval. Get the limits.
     r1 = ordered_radius[i - 1]
     r2 = ordered_radius[i]
-    logrho1 = log_density[i - 1]
-    logrho2 = log_density[i]
-    slope = (r2 - r1) / (logrho2 - logrho1)
-    while slope > 0 or logrho2 > log_reference_density:
+    M1 = cumulative_mass[i - 1]
+    M2 = cumulative_mass[i]
+    # deal with the pathological case where r1==r2
+    # (M1>M2 should be impossible unless we have particles with zero mass; or
+    # neutrinos?)
+    # we need an interval where the density intersects in the right direction
+    # and where the cumulative mass profile is increasing
+    while r1 == r2 or M1 > M2 or below_mask[i - 1] or above_mask[i]:
         i += 1
-        if i >= len(log_density):
+        # if we run out of 'i', we need to increase the search radius
+        if i >= len(density):
             if ordered_radius[-1] > 20.0 * unyt.Mpc:
                 raise RuntimeError(
                     "Cannot find SO radius, but search radius is already larger than 20 Mpc!"
                 )
             raise ReadRadiusTooSmallError("SO radius multiple estimate was too small!")
+        # take the next interval
         r1 = r2
         r2 = ordered_radius[i]
-        logrho1 = logrho2
-        logrho2 = log_density[i]
-        slope = (r2 - r1) / (logrho2 - logrho1)
+        M1 = M2
+        M2 = cumulative_mass[i]
 
-    SO_r = r2 + slope * (log_reference_density - logrho2)
+    # compute the dimensionless quantities that enter the intersection equation
+    # remember, we are simply solving
+    #  4*pi/3*r^3*rho = M1 + (M2-M1)/(r2-r1)*(r-r1)
+    rho_dim = reference_density * r1**3 / M1
+    slope_dim = (M2 - M1) / (r2 - r1) * (r1 / M1)
+    SO_r = r1 * brentq(
+        cumulative_mass_intersection, 1.0, r2 / r1, args=(rho_dim, slope_dim)
+    )
+
+    # compute the SO mass by requiring that the mean density in the SO is the
+    # target density
     SO_mass = 4.0 / 3.0 * np.pi * SO_r**3 * reference_density
 
     return SO_r, SO_mass
@@ -102,7 +190,7 @@ class SOProperties(HaloProperty):
             "SubgridMasses",
             "Velocities",
         ],
-#        "PartType6": ["Coordinates", "Masses", "Weights"],
+        #        "PartType6": ["Coordinates", "Masses", "Weights"],
     }
 
     # List of properties that get computed
@@ -435,11 +523,6 @@ class SOProperties(HaloProperty):
             self.SO_name = "BN98"
             self.label = f"within which the density is {self.critical_density_multiple:.2f} times the critical value"
 
-        if self.reference_density > 0.0:
-            self.log_reference_density = np.log10(self.reference_density)
-        else:
-            self.log_reference_density = 0.0
-
     def calculate(self, input_halo, data, halo_result):
         """
         Compute spherical masses and overdensities for a halo
@@ -539,76 +622,12 @@ class SOProperties(HaloProperty):
         # Check if we ever reach the density threshold
         if self.reference_density > 0.0 * self.reference_density:
             if nr_parts > 0:
-                """
-                log_density = np.log10(density.to(self.reference_density.units))
-                if np.any(log_density > self.log_reference_density):
-                    # Find smallest radius where the density is below the threshold
-                    i = np.argmax(log_density <= self.log_reference_density)
-                    if i == 0:
-                        # we know that there are points above the threshold
-                        # unfortunately, the centre is not
-                        # find the next one that is:
-                        i = np.argmax(density[1:] <= self.reference_density)
-                        # +1 because i is now relative w.r.t. 1
-                        i += 1
-                else:
-                    # all non-zero radius particles are below the threshold
-                    # find a bin with negative slope to interpolate
-                    i = 1
-                # deal with the pathological case where we have one particle
-                # below the threshold
-                while (
-                    i < len(log_density) - 1
-                    and log_density[i + 1] > self.log_reference_density
-                ):
-                    i += 2
-                if i >= len(log_density):
-                    if ordered_radius[-1] > 20.0 * unyt.Mpc:
-                        raise RuntimeError(
-                            "Cannot find SO radius, but search radius is already larger than 20 Mpc!"
-                        )
-                    # trick the code into increasing the radius a bit
-                    self.mean_density_multiple *= 0.9
-                    self.critical_density_multiple *= 0.9
-                    raise ReadRadiusTooSmallError(
-                        "SO radius multiple estimate was too small!"
-                    )
-                # Interpolate to get the actual radius
-                r1 = ordered_radius[i - 1]
-                r2 = ordered_radius[i]
-                logrho1 = log_density[i - 1]
-                logrho2 = log_density[i]
-                slope = (r2 - r1) / (logrho2 - logrho1)
-                while slope > 0 or logrho2 > self.log_reference_density:
-                    i += 1
-                    if i >= len(log_density):
-                        if ordered_radius[-1] > 20.0 * unyt.Mpc:
-                            raise RuntimeError(
-                                "Cannot find SO radius, but search radius is already larger than 20 Mpc!"
-                            )
-                        # trick the code into increasing the radius a bit
-                        self.mean_density_multiple *= 0.9
-                        self.critical_density_multiple *= 0.9
-                        raise ReadRadiusTooSmallError(
-                            "SO radius multiple estimate was too small!"
-                        )
-                    r1 = r2
-                    r2 = ordered_radius[i]
-                    logrho1 = logrho2
-                    logrho2 = log_density[i]
-                    slope = (r2 - r1) / (logrho2 - logrho1)
-
-                # preserve the unyt_array dtype and units by using '+=' instead of assignment
-                SO["r"] += r2 + slope * (self.log_reference_density - logrho2)
-                SO["mass"] += 4.0 / 3.0 * np.pi * SO["r"] ** 3 * self.reference_density
-                """
                 try:
                     SO_r, SO_mass = find_SO_radius_and_mass(
                         ordered_radius,
                         density,
                         cumulative_mass,
                         self.reference_density,
-                        self.log_reference_density,
                     )
                     SO["r"] += SO_r
                     SO["mass"] += SO_mass
@@ -770,9 +789,15 @@ class SOProperties(HaloProperty):
                     gas_selection
                 ].sum()
 
-                SO["compY"] += data["PartType0"]["ComptonYParameters"][
-                    gas_selection
-                ].sum()
+                # convert to 64-bit before calculating the sum to avoid overflow
+                compY = data["PartType0"]["ComptonYParameters"][gas_selection]
+                compY = unyt.unyt_array(compY, dtype=np.float64, units=compY.units)
+                # do not choke on RuntimeWarning (which seem to be generated by
+                # compY arrays full of zeros somehow
+                try:
+                    SO["compY"] += compY.sum()
+                except RuntimeWarning:
+                    pass
 
                 # below we need to force conversion to np.float64 before summing up particles
                 # to avoid overflow
@@ -867,9 +892,13 @@ class SOProperties(HaloProperty):
                 SO["BHmaxM"] += data["PartType5"]["SubgridMasses"][bh_selection][iBHmax]
                 # unyt annoyingly converts to a floating point type if you use '+='
                 # the only way to avoid this is by directly setting the data for the unyt_array
-                SO["BHmaxID"].data = data["PartType5"]["ParticleIDs"][bh_selection][
-                    iBHmax
-                ].data
+                # however, that is unsafe and results in a warning
+                # the only option left is to replace the array with a new copy
+                SO["BHmaxID"] = unyt.unyt_array(
+                    data["PartType5"]["ParticleIDs"][bh_selection][iBHmax].value,
+                    dtype=SO["BHmaxID"].dtype,
+                    units=SO["BHmaxID"].units,
+                )
                 SO["BHmaxpos"] += data["PartType5"]["Coordinates"][bh_selection][iBHmax]
                 SO["BHmaxvel"] += data["PartType5"]["Velocities"][bh_selection][iBHmax]
                 SO["BHmaxAR"] += data["PartType5"]["AccretionRates"][bh_selection][

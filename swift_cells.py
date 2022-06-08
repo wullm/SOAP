@@ -332,7 +332,8 @@ class SWIFTCellGrid:
         nr_parts = {ptype : 0 for ptype in reads_for_type}
         for file_nr in all_file_nrs:
             for ptype in reads_for_type:
-                for (file_offset, mem_offset, count) in reads_for_type[ptype][file_nr]:
+                if file_nr in reads_for_type[ptype]:
+                  for (file_offset, mem_offset, count) in reads_for_type[ptype][file_nr]:
                     nr_parts[ptype] += count
 
         # Create read tasks in the required order:
@@ -343,7 +344,8 @@ class SWIFTCellGrid:
             for ptype in reads_for_type:
                 for dataset in property_names[ptype]:
                     if dataset in self.snap_metadata[ptype]:
-                        for (file_offset, mem_offset, count) in reads_for_type[ptype][file_nr]:
+                        if file_nr in reads_for_type[ptype]:
+                          for (file_offset, mem_offset, count) in reads_for_type[ptype][file_nr]:
                             all_tasks.append(ReadTask(filename, ptype, dataset, file_offset, mem_offset, count))
 
         # Create additional read tasks for the extra data files
@@ -353,7 +355,8 @@ class SWIFTCellGrid:
                 for ptype in reads_for_type:
                     for dataset in property_names[ptype]:
                         if dataset in self.extra_metadata[ptype]:
-                            for (file_offset, mem_offset, count) in reads_for_type[ptype][file_nr]:
+                            if file_nr in reads_for_type[ptype]:
+                              for (file_offset, mem_offset, count) in reads_for_type[ptype][file_nr]:
                                 all_tasks.append(ReadTask(filename, ptype, dataset, file_offset, mem_offset, count))
 
         # Make one task queue per MPI rank

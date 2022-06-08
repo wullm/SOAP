@@ -4,6 +4,7 @@ import subprocess
 import os
 
 def setstripe(dirname, stripe_size, stripe_count):
+    return
     """
     Try to set Lustre striping on a directory
     """
