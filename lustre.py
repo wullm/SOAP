@@ -13,7 +13,9 @@ def setstripe(dirname, stripe_size, stripe_count):
             dirname]
     try:
         subprocess.run(args)
-    except CalledProcessError:
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        # if the 'lfs' command is not available, this will generate a
+        # FileNotFoundError
         print("WARNING: failed to set lustre striping on %s" % dirname)
 
 def ensure_output_dir(filename):
