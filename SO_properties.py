@@ -102,10 +102,19 @@ def find_SO_radius_and_mass(
         # target density
         # This is simply the solution of
         #    4*pi/3*r^3*rho = M[0]/r[0]*r
+        # Note that if masses are allowed to be negative, the first cumulative
+        # mass value could be negative. We make sure to avoid this problem
+        ipos = 0
+        while ipos < len(cumulative_mass) and cumulative_mass[ipos] < 0.0:
+            ipos += 1
+        if ipos == len(cumulative_mass):
+            raise RuntimeError("Should never happen!")
         SO_r = np.sqrt(
-            0.75 * cumulative_mass[0] / (np.pi * ordered_radius[0] * reference_density)
+            0.75
+            * cumulative_mass[ipos]
+            / (np.pi * ordered_radius[ipos] * reference_density)
         )
-        SO_mass = cumulative_mass[0] * SO_r / ordered_radius[0]
+        SO_mass = cumulative_mass[ipos] * SO_r / ordered_radius[ipos]
         return SO_r, SO_mass
 
     # We now have the intersecting interval. Get the limits.
@@ -114,11 +123,8 @@ def find_SO_radius_and_mass(
     M1 = cumulative_mass[i - 1]
     M2 = cumulative_mass[i]
     # deal with the pathological case where r1==r2
-    # (M1>M2 should be impossible unless we have particles with zero mass; or
-    # neutrinos?)
-    # we need an interval where the density intersects in the right direction
-    # and where the cumulative mass profile is increasing
-    while r1 == r2 or M1 > M2 or below_mask[i - 1] or above_mask[i]:
+    # we also need an interval where the density intersects
+    while r1 == r2 or (above_mask[i - 1] == above_mask[i]):
         i += 1
         # if we run out of 'i', we need to increase the search radius
         if i >= len(density):
