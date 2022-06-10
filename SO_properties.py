@@ -664,28 +664,6 @@ class SOProperties(HaloProperty):
             if not hasattr(self, "multiple"):
                 raise ("Physical radius was set to 0! This should not happen!")
 
-        """
-        if self.name == "SO_2500_crit":
-            import matplotlib
-            matplotlib.use("Agg")
-            import matplotlib.pyplot as pl
-            fig, ax = pl.subplots(1, 1)
-            rnew = SO["r"].to("Mpc")
-            rVR = input_halo["SO_R_2500_rhocrit"].to("Mpc")
-            rlim = 2. * max(rnew, rVR)
-            ax.semilogy(ordered_radius.to("Mpc"), density.to("g/cm**3"), "o-")
-            ax.axhline(y = self.reference_density.to("g/cm**3"), linestyle="--", color="C1")
-            ax.axvline(x = rnew, linestyle="--", color="C1")
-            ax.axvline(x = rVR, linestyle="--", color="C2")
-            ax.set_xlim(0., rlim)
-            ax.set_xlabel("$r$ (Mpc)")
-            ax.set_ylabel("$\\rho$ (g cm$^{-3}$)")
-            pl.tight_layout()
-            pl.savefig(f"SO_R_2500_crit_{input_halo['index']}.png", dpi=300)
-            fig.clear()
-            pl.close(fig)
-        """
-
         if SO["r"] > 0.0 * radius.units:
             gas_selection = radius[types == "PartType0"] < SO["r"]
             dm_selection = radius[types == "PartType1"] < SO["r"]
