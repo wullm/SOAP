@@ -205,29 +205,31 @@ if __name__ == "__main__":
         if comm_have_results.Get_rank() == 0:
             print("Sorting output arrays took %.2fs" % (t1_sort-t0_sort))
 
-        # Open the output file in collective mode
+        # Start the clock for writing output
         comm_have_results.barrier()
         t0_write = time.time()
+
+        # First rank creates file and writes metadata in serial mode
         output_file = sub_snapnum(args.output_file, args.snapshot_nr)
-        outfile = h5py.File(output_file, "w", driver="mpio", comm=comm_have_results)
+        if comm_have_results.Get_rank() == 0:
+            outfile = h5py.File(output_file, "w")
+            cellgrid.write_metadata(outfile.create_group("SWIFT"))
+            params = outfile.create_group("Parameters")
+            params.attrs["swift_filename"] = args.swift_filename
+            params.attrs["vr_basename"]    = args.vr_basename
+            params.attrs["snapshot_nr"]    = args.snapshot_nr
+            params.attrs["centrals_only"]  = 0 if args.centrals_only==False else 1
+            calc_names = sorted([hp.name for hp in halo_prop_list])
+            params.attrs["calculations"] = calc_names
+            outfile.close()
+        comm_have_results.barrier()
 
-        # Write metadata copied from snapshot
-        cellgrid.write_metadata(outfile.create_group("SWIFT"))
-
-        # Write command line parameters
-        params = outfile.create_group("Parameters")
-        params.attrs["swift_filename"] = args.swift_filename
-        params.attrs["vr_basename"]    = args.vr_basename
-        params.attrs["snapshot_nr"]    = args.snapshot_nr
-        params.attrs["centrals_only"]  = 0 if args.centrals_only==False else 1
-        calc_names = sorted([hp.name for hp in halo_prop_list])
-        params.attrs["calculations"] = calc_names
-
-        # Write the halo property arrays
+        # Write halo arrays in collective mode
+        outfile = h5py.File(output_file, "r+", driver="mpio", comm=comm_have_results)
         local_results.collective_write(outfile, comm_have_results)
+        outfile.close()
             
         # Finished writing the output
-        outfile.close()
         comm_have_results.barrier()
         t1_write = time.time()
         if comm_have_results.Get_rank() == 0:
