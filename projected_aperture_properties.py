@@ -126,7 +126,7 @@ class ProjectedApertureProperties(HaloProperty):
                 proj_Mstar_init = data["PartType4"]["InitialMasses"][star_mask].sum()
                 proj_lum = data["PartType4"]["Luminosities"][star_mask].sum(axis=0)
             else:
-                proj_Mstar_init = unyt.unyt_array(proj_mass_star)
+                proj_Mstar_init = unyt.unyt_array(proj_Mstar)
                 proj_lum = unyt.unyt_array(
                     [0.0] * 9,
                     dtype=np.float32,
@@ -139,7 +139,7 @@ class ProjectedApertureProperties(HaloProperty):
                 bh_mask[bh_mask][~projmask[types == "PartType5"]] = False
                 proj_Mbh_subgrid = data["PartType5"]["SubgridMasses"][bh_mask].sum()
             else:
-                proj_Mbh_subgrid = unyt.unyt_array(proj_Mbh_subgrid)
+                proj_Mbh_subgrid = unyt.unyt_array(proj_Mbh)
 
             proj_com = (proj_mass[:, None] * proj_position).sum(axis=0) / proj_Mtot
             proj_com += centre
@@ -195,11 +195,11 @@ class ProjectedApertureProperties(HaloProperty):
                     if Mmin == Mmax:
                         # this deals with the degenerate case where we have no particles below the
                         # target and the first particle above the target is exactly at the centre
-                        halfmass[name] = 0.5 * (rmin + rmax)
+                        halfmass[name] = 0.5 * (rmax + rmin)
                     else:
-                        halfmass[name] = rmin + (Mtarget - Mmin) / (Mmax - Mmin) * (
+                        halfmass[name] = (Mtarget - Mmin) / (Mmax - Mmin) * (
                             rmax - rmin
-                        )
+                        ) + rmin
                     halfmass[name].convert_to_units("kpc")
                     if halfmass[name] >= self.physical_radius_mpc * unyt.Mpc:
                         raise RuntimeError(
