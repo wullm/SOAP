@@ -106,6 +106,8 @@ if __name__ == "__main__":
         a = None
     cellgrid, parsec_cgs, solar_mass_cgs, a = comm_world.bcast((cellgrid, parsec_cgs, solar_mass_cgs, a))
 
+    recently_heated_gas_filter = exclusive_sphere_properties.RecentlyHeatedGasFilter(cellgrid, 15.*unyt.Myr, 0., 0.)
+
     # Get the full list of property calculations we can do
     halo_prop_list = [
         subhalo_properties.SubhaloMasses(cellgrid, bound_only=True),
@@ -118,14 +120,14 @@ if __name__ == "__main__":
         SO_properties.SOProperties(cellgrid, 100., "crit"),
         SO_properties.SOProperties(cellgrid, 200., "crit"),
         SO_properties.SOProperties(cellgrid, 500., "crit"),
-        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 10.),
-        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 30.),
-        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 50.),
-        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 100.),
-        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 300.),
-        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 500.),
-        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 1000.),
-        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 3000.),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 10., recently_heated_gas_filter),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 30., recently_heated_gas_filter),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 50., recently_heated_gas_filter),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 100., recently_heated_gas_filter),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 300., recently_heated_gas_filter),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 500., recently_heated_gas_filter),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 1000., recently_heated_gas_filter),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 3000., recently_heated_gas_filter),
     ]
 
     # Determine which calculations we're doing this time
