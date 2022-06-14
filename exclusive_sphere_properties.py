@@ -258,7 +258,7 @@ class ExclusiveSphereProperties(HaloProperty):
                 units="dimensionless",
                 registry=mass.units.registry,
             )
-            Mstar_metal = unyt.unyt_array(Mstar, dtype=Mstar.dtype, units=Mstar.units)
+            Mstarmetal = unyt.unyt_array(Mstar, dtype=Mstar.dtype, units=Mstar.units)
         Mbh = mass[type == "PartType5"].sum()
         if Nbh > 0:
             bh_mask_all = data["PartType5"]["GroupNr_bound"] == index
@@ -325,9 +325,16 @@ class ExclusiveSphereProperties(HaloProperty):
             registry=mass.units.registry,
         )
 
-        com = (mass[:, None] * position).sum(axis=0) / Mtot
-        com += centre
-        vcom = (mass[:, None] * velocity).sum(axis=0) / Mtot
+        com = unyt.unyt_array(
+            [0.0] * 3, dtype=np.float32, units="Mpc", registry=mass.units.registry
+        )
+        vcom = unyt.unyt_array(
+            [0.0] * 3, dtype=np.float32, units="km/s", registry=mass.units.registry
+        )
+        if Mtot > 0.0 * Mtot.units:
+            com[:] = (mass[:, None] * position).sum(axis=0) / Mtot
+            com[:] += centre
+            vcom[:] = (mass[:, None] * velocity).sum(axis=0) / Mtot
 
         gas_kappa_corot = unyt.unyt_array(
             0.0, dtype=np.float32, units="dimensionless", registry=mass.units.registry
@@ -471,7 +478,7 @@ class ExclusiveSphereProperties(HaloProperty):
                 mass_gas
                 * data["PartType0"]["SmoothedElementMassFractions"][gas_mask_all][
                     gas_mask_ap
-                ][:,indexO]
+                ][:, indexO]
             )
             MgasO_SFR = MgasO[is_SFR].sum()
             MgasO_noSFR = MgasO[~is_SFR].sum()
@@ -480,7 +487,7 @@ class ExclusiveSphereProperties(HaloProperty):
                 mass_gas
                 * data["PartType0"]["SmoothedElementMassFractions"][gas_mask_all][
                     gas_mask_ap
-                ][:,indexFe]
+                ][:, indexFe]
             )
             MgasFe_SFR = MgasFe[is_SFR].sum()
             MgasFe_noSFR = MgasFe[~is_SFR].sum()
