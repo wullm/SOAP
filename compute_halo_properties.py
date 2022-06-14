@@ -155,7 +155,7 @@ if __name__ == "__main__":
     so_cat = halo_centres.SOCatalogue(comm_world, vr_basename, cellgrid.a_unit,
                                       cellgrid.snap_unit_registry, cellgrid.boxsize,
                                       args.max_halos[0], args.centrals_only,
-                                      halo_prop_list)
+                                      args.halo_ids, halo_prop_list)
 
     # Generate the chunk task list
     if comm_world_rank == 0:
@@ -221,6 +221,7 @@ if __name__ == "__main__":
             params.attrs["centrals_only"]  = 0 if args.centrals_only==False else 1
             calc_names = sorted([hp.name for hp in halo_prop_list])
             params.attrs["calculations"] = calc_names
+            params.attrs["halo_ids"] = args.halo_ids if args.halo_ids is not None else np.ndarray(0, dtype=int)
             outfile.close()
         comm_have_results.barrier()
 

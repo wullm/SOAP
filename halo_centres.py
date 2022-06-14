@@ -4,6 +4,7 @@ import os.path
 import h5py
 import numpy as np
 import unyt
+import virgo.util.match
 import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.gather_array as g
 
@@ -18,7 +19,7 @@ def gather_to_rank_zero(arr):
 class SOCatalogue:
 
     def __init__(self, comm, vr_basename, a_unit, registry, boxsize, max_halos,
-                 centrals_only, halo_prop_list):
+                 centrals_only, halo_ids, halo_prop_list):
         """
         This reads in the VR catalogues and stores the halo properties in a
         dict of unyt_arrays, self.halo_arrays, on rank 0 of communicator comm.
@@ -164,6 +165,16 @@ class SOCatalogue:
             for name in local_halo:
                 local_halo[name] = local_halo[name][keep,...]
         
+        # Only keep halos in the supplied list of halo IDs.
+        if halo_ids is not None:
+            halo_ids = np.asarray(halo_ids, dtype=np.int64)
+            keep = np.zeros_like(local_halo["ID"], dtype=bool)
+            matching_index = virgo.util.match.match(halo_ids, local_halo["ID"])
+            have_match = matching_index >= 0
+            keep[matching_index[have_match]] = True
+            for name in local_halo:
+                local_halo[name] = local_halo[name][keep,...]
+
         # Gather subhalo arrays on rank zero.
         halo = {}
         for name in local_halo:

@@ -40,6 +40,7 @@ def get_halo_props_args(comm):
         parser.add_argument("--calculations", nargs="*", help="Which calculations to do (default is to do all)")
         parser.add_argument("--reference-snapshot", help="Specify reference snapshot number containing all particle types", metavar="N", type=int)
         parser.add_argument("--profile", metavar="LEVEL", type=int, default=0, help="Run with profiling (0=off, 1=first MPI rank only, 2=all ranks)")
+        parser.add_argument("--halo-ids", nargs="*", type=int, help="Only process the specified halo IDs")
         try:
             args = parser.parse_args()
         except ArgumentParserError as e:
