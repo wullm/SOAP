@@ -24,6 +24,7 @@ import lustre
 import command_line_args
 import SO_properties
 import subhalo_properties
+import exclusive_sphere_properties
 import result_set
 
 
@@ -117,8 +118,16 @@ if __name__ == "__main__":
         SO_properties.SOProperties(cellgrid, 100., "crit"),
         SO_properties.SOProperties(cellgrid, 200., "crit"),
         SO_properties.SOProperties(cellgrid, 500., "crit"),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 10.),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 30.),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 50.),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 100.),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 300.),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 500.),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 1000.),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 3000.),
     ]
-    
+
     # Determine which calculations we're doing this time
     if args.calculations is not None:
 
