@@ -10,6 +10,10 @@ from astropy.cosmology import w0waCDM, z_at_value
 import astropy.constants as const
 import astropy.units as astropy_units
 
+# index of elements O and Fe in the SmoothedElementMassFractions dataset
+indexO = 4
+indexFe = 8
+
 
 class RecentlyHeatedGasFilter:
     """
@@ -25,7 +29,14 @@ class RecentlyHeatedGasFilter:
     the correct astropy.cosmology.
     """
 
-    def __init__(self, cellgrid, delta_time, temperature_min, temperature_max):
+    def __init__(
+        self,
+        cellgrid,
+        delta_time=15.0 * unyt.Myr,
+        delta_logT_min=-1.0,
+        delta_logT_max=0.3,
+        AGN_delta_T=8.80144197177e7 * unyt.K,
+    ):
         H0 = unyt.unyt_quantity(
             cellgrid.cosmology["H0 [internal units]"],
             units="1/snap_time",
@@ -69,11 +80,16 @@ class RecentlyHeatedGasFilter:
         z_limit = z_at_value(cosmology.lookback_time, lookback_time_limit)
 
         self.a_limit = 1.0 / (1.0 + z_limit)
-        self.Tmin = temperature_min
-        self.Tmax = temperature_max
+
+        self.Tmin = AGN_delta_T * 10.0**delta_logT_min
+        self.Tmax = AGN_delta_T * 10.0**delta_logT_max
 
     def is_recently_heated(self, lastAGNfeedback, temperature):
-        return lastAGNfeedback >= self.a_limit
+        return (
+            (lastAGNfeedback >= self.a_limit)
+            & (temperature >= self.Tmin)
+            & (temperature <= self.Tmax)
+        )
 
 
 class ExclusiveSphereProperties(HaloProperty):
@@ -98,6 +114,7 @@ class ExclusiveSphereProperties(HaloProperty):
                 "LastAGNFeedbackScaleFactors",
                 "Masses",
                 "MetalMassFractions",
+                "SmoothedElementMassFractions",
                 "StarFormationRates",
                 "Temperatures",
                 "Velocities",
@@ -209,6 +226,14 @@ class ExclusiveSphereProperties(HaloProperty):
         mass_dm = mass[type == "PartType1"]
         mass_star = mass[type == "PartType4"]
 
+        pos_gas = position[type == "PartType0"]
+        pos_dm = position[type == "PartType1"]
+        pos_star = position[type == "PartType4"]
+
+        vel_gas = velocity[type == "PartType0"]
+        vel_dm = velocity[type == "PartType1"]
+        vel_star = velocity[type == "PartType4"]
+
         Mtot = mass.sum()
         Mgas = mass_gas.sum()
         Mdm = mass_dm.sum()
@@ -303,15 +328,46 @@ class ExclusiveSphereProperties(HaloProperty):
         com = (mass[:, None] * position).sum(axis=0) / Mtot
         com += centre
         vcom = (mass[:, None] * velocity).sum(axis=0) / Mtot
+
+        gas_kappa_corot = unyt.unyt_array(
+            0.0, dtype=np.float32, units="dimensionless", registry=mass.units.registry
+        )
+        totLgas = unyt.unyt_array(
+            [0.0] * 3,
+            dtype=np.float32,
+            units="Msun*kpc*km/s",
+            registry=mass.units.registry,
+        )
         veldisp_gas = unyt.unyt_array(
             [0.0] * 6,
             dtype=np.float32,
             units="km**2/s**2",
             registry=mass.units.registry,
         )
+        if Mgas > 0.0 * Mgas.units:
+            com_gas = (mass_gas[:, None] * pos_gas).sum(axis=0) / Mgas
+            vcom_gas = (mass_gas[:, None] * vel_gas).sum(axis=0) / Mgas
+            gas_relpos = pos_gas - com_gas[None, :]
+            gas_relvel = vel_gas - vcom_gas[None, :]
+            Lgas = mass_gas[:, None] * unyt.array.ucross(gas_relpos, gas_relvel)
+            totLgas[:] = Lgas.sum(axis=0)
+            Lnrm = unyt.array.unorm(totLgas)
+            if Lnrm > 0.0 * Lnrm.units:
+                K = 0.5 * (mass_gas[:, None] * gas_relvel**2).sum()
+                if K > 0.0 * K.units:
+                    Li = (Lgas * totLgas[None, :]).sum(axis=1) / Lnrm
+                    gas_r2 = (
+                        gas_relpos[:, 0] ** 2
+                        + gas_relpos[:, 1] ** 2
+                        + gas_relpos[:, 2] ** 2
+                    )
+                    rdotL = (gas_relpos * totLgas[None, :]).sum(axis=1) / Lnrm
+                    Ri2 = gas_r2 - rdotL**2
+                    Krot = 0.5 * (Li**2 / (mass_gas * Ri2))
+                    Kcorot = Krot[Li > 0.0].sum()
+                    gas_kappa_corot += Kcorot / K
 
-        if Mgas > 0.0:
-            vrel = velocity[type == "PartType0"] - vcom[None, :]
+            vrel = vel_gas - vcom[None, :]
             veldisp_gas[0] += (mass_gas * vrel[:, 0] * vrel[:, 0]).sum() / Mgas
             veldisp_gas[1] += (mass_gas * vrel[:, 1] * vrel[:, 1]).sum() / Mgas
             veldisp_gas[2] += (mass_gas * vrel[:, 2] * vrel[:, 2]).sum() / Mgas
@@ -319,14 +375,27 @@ class ExclusiveSphereProperties(HaloProperty):
             veldisp_gas[4] += (mass_gas * vrel[:, 0] * vrel[:, 2]).sum() / Mgas
             veldisp_gas[5] += (mass_gas * vrel[:, 1] * vrel[:, 2]).sum() / Mgas
 
+        totLdm = unyt.unyt_array(
+            [0.0] * 3,
+            dtype=np.float32,
+            units="Msun*kpc*km/s",
+            registry=mass.units.registry,
+        )
         veldisp_dm = unyt.unyt_array(
             [0.0] * 6,
             dtype=np.float32,
             units="km**2/s**2",
             registry=mass.units.registry,
         )
-        if Mdm > 0.0:
-            vrel = velocity[type == "PartType1"] - vcom[None, :]
+        if Mdm > 0.0 * Mdm.units:
+            com_dm = (mass_dm[:, None] * pos_dm).sum(axis=0) / Mdm
+            vcom_dm = (mass_dm[:, None] * vel_dm).sum(axis=0) / Mdm
+            dm_relpos = pos_dm - com_dm[None, :]
+            dm_relvel = vel_dm - vcom_dm[None, :]
+            Ldm = mass_dm[:, None] * unyt.array.ucross(dm_relpos, dm_relvel)
+            totLdm[:] = Ldm.sum(axis=0)
+
+            vrel = vel_dm - vcom[None, :]
             veldisp_dm[0] += (mass_dm * vrel[:, 0] * vrel[:, 0]).sum() / Mdm
             veldisp_dm[1] += (mass_dm * vrel[:, 1] * vrel[:, 1]).sum() / Mdm
             veldisp_dm[2] += (mass_dm * vrel[:, 2] * vrel[:, 2]).sum() / Mdm
@@ -334,14 +403,45 @@ class ExclusiveSphereProperties(HaloProperty):
             veldisp_dm[4] += (mass_dm * vrel[:, 0] * vrel[:, 2]).sum() / Mdm
             veldisp_dm[5] += (mass_dm * vrel[:, 1] * vrel[:, 2]).sum() / Mdm
 
+        star_kappa_corot = unyt.unyt_array(
+            0.0, dtype=np.float32, units="dimensionless", registry=mass.units.registry
+        )
+        totLstar = unyt.unyt_array(
+            [0.0] * 3,
+            dtype=np.float32,
+            units="Msun*kpc*km/s",
+            registry=mass.units.registry,
+        )
         veldisp_star = unyt.unyt_array(
             [0.0] * 6,
             dtype=np.float32,
             units="km**2/s**2",
             registry=mass.units.registry,
         )
-        if Mstar > 0.0:
-            vrel = velocity[type == "PartType4"] - vcom[None, :]
+        if Mstar > 0.0 * Mstar.units:
+            com_star = (mass_star[:, None] * pos_star).sum(axis=0) / Mstar
+            vcom_star = (mass_star[:, None] * vel_star).sum(axis=0) / Mstar
+            star_relpos = pos_star - com_star[None, :]
+            star_relvel = vel_star - vcom_star[None, :]
+            Lstar = mass_star[:, None] * unyt.array.ucross(star_relpos, star_relvel)
+            totLstar[:] = Lstar.sum(axis=0)
+            Lnrm = unyt.array.unorm(totLstar)
+            if Lnrm > 0.0 * Lnrm.units:
+                K = 0.5 * (mass_star[:, None] * star_relvel**2).sum()
+                if K > 0.0 * K.units:
+                    Li = (Lstar * totLstar[None, :]).sum(axis=1) / Lnrm
+                    star_r2 = (
+                        star_relpos[:, 0] ** 2
+                        + star_relpos[:, 1] ** 2
+                        + star_relpos[:, 2] ** 2
+                    )
+                    rdotL = (star_relpos * totLstar[None, :]).sum(axis=1) / Lnrm
+                    Ri2 = star_r2 - rdotL**2
+                    Krot = 0.5 * (Li**2 / (mass_star * Ri2))
+                    Kcorot = Krot[Li > 0.0].sum()
+                    star_kappa_corot += Kcorot / K
+
+            vrel = vel_star - vcom[None, :]
             veldisp_star[0] += (mass_star * vrel[:, 0] * vrel[:, 0]).sum() / Mstar
             veldisp_star[1] += (mass_star * vrel[:, 1] * vrel[:, 1]).sum() / Mstar
             veldisp_star[2] += (mass_star * vrel[:, 2] * vrel[:, 2]).sum() / Mstar
@@ -354,13 +454,37 @@ class ExclusiveSphereProperties(HaloProperty):
         Tgas_no_agn = 0.0
         if Ngas > 0:
             gas_mask_all = data["PartType0"]["GroupNr_bound"] == index
-            SFR = data["PartType0"]["StarFormationRates"][gas_mask_all][
-                gas_mask_ap
-            ].sum()
+            SFR = data["PartType0"]["StarFormationRates"][gas_mask_all][gas_mask_ap]
+            # negative values of SFR are not SFR at all!
+            is_SFR = SFR > 0.0
+            SFR = SFR[is_SFR].sum()
+            Mgas_SFR = mass_gas[is_SFR].sum()
+            Mgas_noSFR = mass_gas[~is_SFR].sum()
             Mgasmetal = (
                 mass_gas
                 * data["PartType0"]["MetalMassFractions"][gas_mask_all][gas_mask_ap]
-            ).sum()
+            )
+            Mgasmetal_SFR = Mgasmetal[is_SFR].sum()
+            Mgasmetal_noSFR = Mgasmetal[~is_SFR].sum()
+            Mgasmetal = Mgasmetal.sum()
+            MgasO = (
+                mass_gas
+                * data["PartType0"]["SmoothedElementMassFractions"][gas_mask_all][
+                    gas_mask_ap
+                ][:,indexO]
+            )
+            MgasO_SFR = MgasO[is_SFR].sum()
+            MgasO_noSFR = MgasO[~is_SFR].sum()
+            MgasO = MgasO.sum()
+            MgasFe = (
+                mass_gas
+                * data["PartType0"]["SmoothedElementMassFractions"][gas_mask_all][
+                    gas_mask_ap
+                ][:,indexFe]
+            )
+            MgasFe_SFR = MgasFe[is_SFR].sum()
+            MgasFe_noSFR = MgasFe[~is_SFR].sum()
+            MgasFe = MgasFe.sum()
             gas_temp = data["PartType0"]["Temperatures"][gas_mask_all][gas_mask_ap]
             last_agn_gas = data["PartType0"]["LastAGNFeedbackScaleFactors"][
                 gas_mask_all
@@ -373,7 +497,15 @@ class ExclusiveSphereProperties(HaloProperty):
                 if Mgas_no_agn > 0.0:
                     Tgas_no_agn = (mass_gas_no_agn * gas_temp[no_agn]) / Mgas_no_agn
         else:
+            Mgasmetal_SFR = unyt.unyt_array(Mgas)
+            Mgasmetal_noSFR = unyt.unyt_array(Mgas)
             Mgasmetal = unyt.unyt_array(Mgas)
+            MgasO_SFR = unyt.unyt_array(Mgas)
+            MgasO_noSFR = unyt.unyt_array(Mgas)
+            MgasO = unyt.unyt_array(Mgas)
+            MgasFe_SFR = unyt.unyt_array(Mgas)
+            MgasFe_noSFR = unyt.unyt_array(Mgas)
+            MgasFe = unyt.unyt_array(Mgas)
         SFR = unyt.unyt_array(
             SFR, dtype=np.float32, units="Msun/yr", registry=mass.units.registry
         )
@@ -484,6 +616,23 @@ class ExclusiveSphereProperties(HaloProperty):
                 ),
                 f"{prefix}/com": (com, "Centre of mass"),
                 f"{prefix}/vcom": (vcom, "Centre of mass velocity"),
+                f"{prefix}/Lgas": (
+                    totLgas,
+                    "Total angular momentum of the gas, relative w.r.t. the gas centre of mass.",
+                ),
+                f"{prefix}/Ldm": (
+                    totLdm,
+                    "Total angular momentum of the dark matter, relative w.r.t. the dark matter centre of mass.",
+                ),
+                f"{prefix}/Lstar": (
+                    totLstar,
+                    "Total angular momentum of the stars, relative w.r.t. the stellar centre of mass.",
+                ),
+                f"{prefix}/kappa_corot_gas": (gas_kappa_corot, "Kappa corot for gas."),
+                f"{prefix}/kappa_corot_star": (
+                    star_kappa_corot,
+                    "Kappa corot for stars.",
+                ),
                 f"{prefix}/veldisp_gas": (
                     veldisp_gas,
                     "Velocity dispersion of the gas. Measured relative to the centre of mass velocity of all particles. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
@@ -496,7 +645,38 @@ class ExclusiveSphereProperties(HaloProperty):
                     veldisp_star,
                     "Velocity dispersion of the stars. Measured relative to the centre of mass velocity of all particles. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
                 ),
+                f"{prefix}/Mgas_SF": (Mgasmetal, "Total mass of star-forming gas."),
+                f"{prefix}/Mgas_noSF": (
+                    Mgasmetal,
+                    "Total mass of non star-forming gas.",
+                ),
                 f"{prefix}/Mgasmetal": (Mgasmetal, "Total gas mass in metals."),
+                f"{prefix}/Mgasmetal_SF": (
+                    Mgasmetal_SFR,
+                    "Total gas mass in metals for gas that is star-forming.",
+                ),
+                f"{prefix}/Mgasmetal_noSF": (
+                    Mgasmetal_noSFR,
+                    "Total gas mass in metals for gas that is non star-forming.",
+                ),
+                f"{prefix}/MgasO": (MgasO, "Total gas mass in oxygen."),
+                f"{prefix}/MgasO_SF": (
+                    MgasO_SFR,
+                    "Total gas mass in oxygen for gas that is star-forming.",
+                ),
+                f"{prefix}/MgasO_noSF": (
+                    MgasO_noSFR,
+                    "Total gas mass in oxygen for gas that is non star-forming.",
+                ),
+                f"{prefix}/MgasFe": (MgasFe, "Total gas mass in iron."),
+                f"{prefix}/MgasFe_SF": (
+                    MgasFe_SFR,
+                    "Total gas mass in iron for gas that is star-forming.",
+                ),
+                f"{prefix}/MgasFe_noSF": (
+                    MgasFe_noSFR,
+                    "Total gas mass in iron for gas that is non star-forming.",
+                ),
                 f"{prefix}/Tgas": (Tgas, "Mass-weighted gas temperature."),
                 f"{prefix}/Tgas_no_agn": (
                     Tgas,
