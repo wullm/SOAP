@@ -10,13 +10,17 @@ def get_half_mass_radius(radius, mass, total_mass):
 
     isort = np.argsort(radius)
     sorted_radius = radius[isort]
-    cumulative_mass = mass[isort].cumsum()
+    # compute sum in double precision to avoid numerical overflow due to
+    # weird unit conversions in unyt
+    cumulative_mass = mass[isort].cumsum(dtype=np.float64)
 
     # np.sum() and np.cumsum() use different orders, so we have to allow for
     # some small difference
     if cumulative_mass[-1] < 0.999 * total_mass:
         raise RuntimeError(
-            f"Masses sum up to less than the given total mass: cumulative_mass[-1] = {cumulative_mass[-1]}, total_mass = {total_mass}!"
+            "Masses sum up to less than the given total mass:"
+            f" cumulative_mass[-1] = {cumulative_mass[-1]},"
+            f" total_mass = {total_mass}!"
         )
 
     ihalf = np.argmax(cumulative_mass >= target_mass)
@@ -33,6 +37,19 @@ def get_half_mass_radius(radius, mass, total_mass):
         half_mass_radius = 0.5 * (rmin + rmax)
     else:
         half_mass_radius = rmin + (target_mass - Mmin) / (Mmax - Mmin) * (rmax - rmin)
+
+    if half_mass_radius >= sorted_radius[-1]:
+        raise RuntimeError(
+            "Half mass radius larger than input radii:"
+            f" half_mass_radius = {half_mass_radius},"
+            f" sorted_radius[-1] = {sorted_radius[-1]}!"
+            f" ihalf = {ihalf}, Npart = {len(radius)},"
+            f" target_mass = {target_mass},"
+            f" rmin = {rmin}, rmax = {rmax},"
+            f" Mmin = {Mmin}, Mmax = {Mmax},"
+            f" sorted_radius = {sorted_radius},"
+            f" cumulative_mass = {cumulative_mass}"
+        )
 
     return half_mass_radius
 

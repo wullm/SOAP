@@ -9,6 +9,32 @@ from half_mass_radius import get_half_mass_radius
 
 
 class ProjectedApertureProperties(HaloProperty):
+    particle_properties = {
+        "PartType0": [
+            "Coordinates",
+            "GroupNr_bound",
+            "Masses",
+            "StarFormationRates",
+            "Velocities",
+        ],
+        "PartType1": ["Coordinates", "GroupNr_bound", "Masses", "Velocities"],
+        "PartType4": [
+            "Coordinates",
+            "GroupNr_bound",
+            "InitialMasses",
+            "Luminosities",
+            "Masses",
+            "Velocities",
+        ],
+        "PartType5": [
+            "Coordinates",
+            "DynamicalMasses",
+            "GroupNr_bound",
+            "SubgridMasses",
+            "Velocities",
+        ],
+    }
+
     def __init__(self, cellgrid, physical_radius_kpc):
         super().__init__(cellgrid)
 
@@ -20,32 +46,6 @@ class ProjectedApertureProperties(HaloProperty):
         self.physical_radius_mpc = 0.001 * physical_radius_kpc
 
         self.name = f"projected_aperture_{physical_radius_kpc:.0f}kpc"
-
-        self.particle_properties = {
-            "PartType0": [
-                "Coordinates",
-                "Velocities",
-                "Masses",
-                "GroupNr_bound",
-                "StarFormationRates",
-            ],
-            "PartType1": ["Coordinates", "Velocities", "Masses", "GroupNr_bound"],
-            "PartType4": [
-                "Coordinates",
-                "Velocities",
-                "Masses",
-                "InitialMasses",
-                "GroupNr_bound",
-                "Luminosities",
-            ],
-            "PartType5": [
-                "Coordinates",
-                "Velocities",
-                "DynamicalMasses",
-                "SubgridMasses",
-                "GroupNr_bound",
-            ],
-        }
 
     def calculate(self, input_halo, data, halo_result):
         """
@@ -161,9 +161,11 @@ class ProjectedApertureProperties(HaloProperty):
                     axis=0
                 ) / proj_Mtot
                 proj_com[:] += centre
-                proj_vcom[:] = (proj_mass[:, None] * proj_velocity).sum(
+                # perform the mass division before the multiplication to avoid
+                # numerical overflow
+                proj_vcom[:] = ((proj_mass[:, None] / proj_Mtot) * proj_velocity).sum(
                     axis=0
-                ) / proj_Mtot
+                )
 
             proj_SFR = 0.0
             if np.any(gas_mask_ap):
@@ -196,9 +198,16 @@ class ProjectedApertureProperties(HaloProperty):
                 half_mass_radius = get_half_mass_radius(r, m, M)
                 if half_mass_radius >= self.physical_radius_mpc * unyt.Mpc:
                     raise RuntimeError(
-                        "Half mass radius larger than aperture! This should not happen."
+                        "Half mass radius larger than aperture"
+                        f" ({half_mass_radius} >="
+                        f" {self.physical_radius_mpc * unyt.Mpc}!"
+                        " This should not happen."
                     )
-                halfmass[name] = half_mass_radius
+                halfmass[name] = unyt.unyt_array(
+                    half_mass_radius.value,
+                    dtype=np.float32,
+                    units=half_mass_radius.units,
+                )
 
             prefix = (
                 f"ProjectedAperture/{self.physical_radius_mpc*1000.:.0f}kpc/{projname}"
@@ -242,3 +251,144 @@ class ProjectedApertureProperties(HaloProperty):
             )
 
         return
+
+
+class DummyProjectedApertureProperties(ProjectedApertureProperties):
+    def __init__(self):
+        self.physical_radius_mpc = 0.001
+
+
+def test_projected_aperture_properties():
+
+    property_calculator = DummyProjectedApertureProperties()
+
+    np.random.seed(127)
+    for i in range(100):
+        npart = np.random.choice([1, 10, 100, 1000, 10000])
+
+        centre = 100.0 * np.random.random(3) * unyt.Mpc
+        groupnr_halo = 1
+
+        radius = np.random.exponential(1.0, npart)
+        phi = 2.0 * np.pi * np.random.random(npart)
+        sintheta = 2.0 * np.random.random(npart) - 1.0
+        costheta = np.sqrt((1.0 - sintheta) * (1.0 + sintheta))
+        cosphi = np.cos(phi)
+        sinphi = np.sin(phi)
+        coords = np.zeros((npart, 3))
+        coords[:, 0] = radius * cosphi * sintheta
+        coords[:, 1] = radius * sinphi * sintheta
+        coords[:, 2] = radius * costheta
+        coords = unyt.unyt_array(coords, dtype=np.float64, units=unyt.kpc)
+        coords += centre
+        mass = unyt.unyt_array(
+            1.0e9 * (1.0 - 0.2 * np.random.random(npart)),
+            dtype=np.float32,
+            units=unyt.Msun,
+        )
+        vs = unyt.unyt_array(
+            200.0 * (np.random.random((npart, 3)) - 0.5),
+            dtype=np.float32,
+            units=unyt.km / unyt.s,
+        )
+
+        types = np.random.choice(
+            ["PartType0", "PartType1", "PartType4", "PartType5"], size=npart
+        )
+        groupnr = np.random.choice([groupnr_halo, 2, 3], size=npart)
+
+        data = {}
+        gas_mask = types == "PartType0"
+        Ngas = int(gas_mask.sum())
+        if Ngas > 0:
+            data["PartType0"] = {}
+            data["PartType0"]["Coordinates"] = coords[gas_mask]
+            data["PartType0"]["GroupNr_bound"] = groupnr[gas_mask]
+            data["PartType0"]["Masses"] = mass[gas_mask]
+            data["PartType0"]["StarFormationRates"] = unyt.unyt_array(
+                (np.random.random(Ngas) - 0.5),
+                dtype=np.float32,
+                units=unyt.Msun / unyt.yr,
+            )
+            data["PartType0"]["Velocities"] = vs[gas_mask]
+
+        dm_mask = types == "PartType1"
+        Ndm = int(dm_mask.sum())
+        if Ndm > 0:
+            data["PartType1"] = {}
+            data["PartType1"]["Coordinates"] = coords[dm_mask]
+            data["PartType1"]["GroupNr_bound"] = groupnr[dm_mask]
+            data["PartType1"]["Masses"] = mass[dm_mask]
+            data["PartType1"]["Velocities"] = vs[dm_mask]
+
+        star_mask = types == "PartType4"
+        Nstar = int(star_mask.sum())
+        if Nstar > 0:
+            data["PartType4"] = {}
+            data["PartType4"]["Coordinates"] = coords[star_mask]
+            data["PartType4"]["GroupNr_bound"] = groupnr[star_mask]
+            data["PartType4"]["InitialMasses"] = unyt.unyt_array(
+                mass[star_mask].value * (0.9 + 0.1 * np.random.random(Nstar)),
+                dtype=np.float32,
+                units=unyt.Msun,
+            )
+            data["PartType4"]["Luminosities"] = unyt.unyt_array(
+                np.random.random((Nstar, 9)), dtype=np.float32, units=unyt.dimensionless
+            )
+            data["PartType4"]["Masses"] = mass[star_mask]
+            data["PartType4"]["Velocities"] = vs[star_mask]
+
+        bh_mask = types == "PartType5"
+        Nbh = int(bh_mask.sum())
+        if Nbh > 0:
+            data["PartType5"] = {}
+            data["PartType5"]["Coordinates"] = coords[bh_mask]
+            data["PartType5"]["DynamicalMasses"] = mass[bh_mask]
+            data["PartType5"]["GroupNr_bound"] = groupnr[bh_mask]
+            data["PartType5"]["SubgridMasses"] = unyt.unyt_array(
+                mass[bh_mask].value * (0.9 + 0.1 * np.random.random(Nbh)),
+                dtype=np.float32,
+                units=unyt.Msun,
+            )
+            data["PartType5"]["Velocities"] = vs[bh_mask]
+
+        input_halo = {}
+        input_halo["cofp"] = centre
+        input_halo["index"] = groupnr_halo
+
+        halo_result = {}
+
+        property_calculator.calculate(input_halo, data, halo_result)
+
+        for name, size, dtype, unit in [
+            ("ProjectedAperture/1kpc/projx/Mtot", 1, np.float32, unyt.Msun),
+            ("ProjectedAperture/1kpc/projx/Mgas", 1, np.float32, unyt.Msun),
+            ("ProjectedAperture/1kpc/projx/Mdm", 1, np.float32, unyt.Msun),
+            ("ProjectedAperture/1kpc/projx/Mstar", 1, np.float32, unyt.Msun),
+            ("ProjectedAperture/1kpc/projx/Mstar_init", 1, np.float32, unyt.Msun),
+            ("ProjectedAperture/1kpc/projx/Mbh", 1, np.float32, unyt.Msun),
+            ("ProjectedAperture/1kpc/projx/Mbh_subgrid", 1, np.float32, unyt.Msun),
+            ("ProjectedAperture/1kpc/projx/com", 3, np.float32, unyt.kpc),
+            ("ProjectedAperture/1kpc/projx/vcom", 3, np.float32, unyt.km / unyt.s),
+            ("ProjectedAperture/1kpc/projx/SFR", 1, np.float32, unyt.Msun / unyt.yr),
+            (
+                "ProjectedAperture/1kpc/projx/Luminosity",
+                9,
+                np.float32,
+                unyt.dimensionless,
+            ),
+            ("ProjectedAperture/1kpc/projx/HalfMassRadiusTot", 1, np.float32, unyt.kpc),
+            ("ProjectedAperture/1kpc/projx/HalfMassRadiusGas", 1, np.float32, unyt.kpc),
+            ("ProjectedAperture/1kpc/projx/HalfMassRadiusDM", 1, np.float32, unyt.kpc),
+            (
+                "ProjectedAperture/1kpc/projx/HalfMassRadiusStar",
+                1,
+                np.float32,
+                unyt.kpc,
+            ),
+        ]:
+            assert name in halo_result
+            result = halo_result[name][0]
+            assert (len(result.shape) == 0 and size == 1) or result.shape[0] == size
+            assert result.dtype == dtype
+            assert result.units.same_dimensions_as(unit.units)
