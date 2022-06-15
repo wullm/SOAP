@@ -38,7 +38,8 @@ def get_half_mass_radius(radius, mass, total_mass):
     else:
         half_mass_radius = rmin + (target_mass - Mmin) / (Mmax - Mmin) * (rmax - rmin)
 
-    if half_mass_radius >= sorted_radius[-1]:
+    # we cannot use '>=', since equality would happen if half_mass_radius==0
+    if half_mass_radius > sorted_radius[-1]:
         raise RuntimeError(
             "Half mass radius larger than input radii:"
             f" half_mass_radius = {half_mass_radius},"
