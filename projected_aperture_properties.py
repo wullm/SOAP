@@ -5,6 +5,7 @@ import unyt
 
 from halo_properties import HaloProperty
 from dataset_names import mass_dataset
+from half_mass_radius import get_half_mass_radius
 
 
 class ProjectedApertureProperties(HaloProperty):
@@ -180,56 +181,24 @@ class ProjectedApertureProperties(HaloProperty):
             )
 
             # sort according to radius
-            isort_tot = np.argsort(proj_radius)
-            isort_gas = np.argsort(proj_radius[proj_type == "PartType0"])
-            isort_dm = np.argsort(proj_radius[proj_type == "PartType1"])
-            isort_star = np.argsort(proj_radius[proj_type == "PartType4"])
-            Mcum_tot = proj_mass[isort_tot].cumsum()
-            Mcum_gas = proj_mass_gas[isort_gas].cumsum()
-            Mcum_dm = proj_mass_dm[isort_dm].cumsum()
-            Mcum_star = proj_mass_star[isort_star].cumsum()
             halfmass = {}
-            for name, Mcum, Mtarget, rad in zip(
+            for name, r, m, M in zip(
                 ["tot", "gas", "dm", "star"],
-                [Mcum_tot, Mcum_gas, Mcum_dm, Mcum_star],
-                [0.5 * proj_Mtot, 0.5 * proj_Mgas, 0.5 * proj_Mdm, 0.5 * proj_Mstar],
                 [
-                    proj_radius[isort_tot],
-                    proj_radius[proj_type == "PartType0"][isort_gas],
-                    proj_radius[proj_type == "PartType1"][isort_dm],
-                    proj_radius[proj_type == "PartType4"][isort_star],
+                    proj_radius,
+                    proj_radius[proj_type == "PartType0"],
+                    proj_radius[proj_type == "PartType1"],
+                    proj_radius[proj_type == "PartType4"],
                 ],
+                [proj_mass, proj_mass_gas, proj_mass_dm, proj_mass_star],
+                [proj_Mtot, proj_Mgas, proj_Mdm, proj_Mstar],
             ):
-                if Mtarget == 0.0 * unyt.Msun or len(Mcum) < 1:
-                    halfmass[name] = unyt.unyt_array(
-                        0.0, dtype=np.float64, units="kpc", registry=mass.units.registry
+                half_mass_radius = get_half_mass_radius(r, m, M)
+                if half_mass_radius >= self.physical_radius_mpc * unyt.Mpc:
+                    raise RuntimeError(
+                        "Half mass radius larger than aperture! This should not happen."
                     )
-                else:
-                    ihalf = np.argmax(Mcum >= Mtarget)
-                    if ihalf == 0:
-                        # it is possible that we only have one particle, or that there is no
-                        # particle with a mass below the target value
-                        # in this case, we linearly interpolate from the centre
-                        rmin = 0.0 * unyt.kpc
-                        Mmin = 0.0 * unyt.Msun
-                    else:
-                        rmin = rad[ihalf - 1]
-                        Mmin = Mcum[ihalf - 1]
-                    rmax = rad[ihalf]
-                    Mmax = Mcum[ihalf]
-                    if Mmin == Mmax:
-                        # this deals with the degenerate case where we have no particles below the
-                        # target and the first particle above the target is exactly at the centre
-                        halfmass[name] = 0.5 * (rmax + rmin)
-                    else:
-                        halfmass[name] = (Mtarget - Mmin) / (Mmax - Mmin) * (
-                            rmax - rmin
-                        ) + rmin
-                    halfmass[name].convert_to_units("kpc")
-                    if halfmass[name] >= self.physical_radius_mpc * unyt.Mpc:
-                        raise RuntimeError(
-                            "Half mass radius larger than aperture! This should not happen."
-                        )
+                halfmass[name] = half_mass_radius
 
             prefix = (
                 f"ProjectedAperture/{self.physical_radius_mpc*1000.:.0f}kpc/{projname}"
