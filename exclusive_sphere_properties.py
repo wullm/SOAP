@@ -5,6 +5,7 @@ import unyt
 
 from halo_properties import HaloProperty
 from dataset_names import mass_dataset
+from half_mass_radius import get_half_mass_radius
 
 from astropy.cosmology import w0waCDM, z_at_value
 import astropy.constants as const
@@ -49,6 +50,7 @@ class RecentlyHeatedGasFilter:
         Omega_m = cellgrid.cosmology["Omega_m"]
         w_0 = cellgrid.cosmology["w_0"]
         w_a = cellgrid.cosmology["w_a"]
+        z_now = cellgrid.cosmology["Redshift"]
 
         # expressions taken directly from astropy, since they do no longer
         # allow access to these attributes (since version 5.1+)
@@ -74,12 +76,17 @@ class RecentlyHeatedGasFilter:
             Ob0=Omega_b,
         )
 
-        z_now = cellgrid.cosmology["Redshift"]
         lookback_time_now = cosmology.lookback_time(z_now)
         lookback_time_limit = lookback_time_now + delta_time.to_astropy()
         z_limit = z_at_value(cosmology.lookback_time, lookback_time_limit)
 
-        self.a_limit = 1.0 / (1.0 + z_limit)
+        # for some reason, the return type of z_at_value has changed between
+        # astropy versions. We make sure it is not some astropy quantity
+        # before using it.
+        if hasattr(z_limit, "value"):
+            z_limit = z_limit.value
+
+        self.a_limit = 1.0 / (1.0 + z_limit) * unyt.dimensionless
 
         self.Tmin = AGN_delta_T * 10.0**delta_logT_min
         self.Tmax = AGN_delta_T * 10.0**delta_logT_max
@@ -93,6 +100,41 @@ class RecentlyHeatedGasFilter:
 
 
 class ExclusiveSphereProperties(HaloProperty):
+
+    particle_properties = {
+        "PartType0": [
+            "Coordinates",
+            "GroupNr_bound",
+            "LastAGNFeedbackScaleFactors",
+            "Masses",
+            "MetalMassFractions",
+            "SmoothedElementMassFractions",
+            "StarFormationRates",
+            "Temperatures",
+            "Velocities",
+        ],
+        "PartType1": ["Coordinates", "GroupNr_bound", "Masses", "Velocities"],
+        "PartType4": [
+            "Coordinates",
+            "GroupNr_bound",
+            "InitialMasses",
+            "Luminosities",
+            "Masses",
+            "MetalMassFractions",
+            "Velocities",
+        ],
+        "PartType5": [
+            "AccretionRates",
+            "Coordinates",
+            "DynamicalMasses",
+            "GroupNr_bound",
+            "LastAGNFeedbackScaleFactors",
+            "ParticleIDs",
+            "SubgridMasses",
+            "Velocities",
+        ],
+    }
+
     def __init__(self, cellgrid, physical_radius_kpc, recently_heated_gas_filter):
         super().__init__(cellgrid)
 
@@ -106,40 +148,6 @@ class ExclusiveSphereProperties(HaloProperty):
         self.physical_radius_mpc = 0.001 * physical_radius_kpc
 
         self.name = f"exclusive_sphere_{physical_radius_kpc:.0f}kpc"
-
-        self.particle_properties = {
-            "PartType0": [
-                "Coordinates",
-                "GroupNr_bound",
-                "LastAGNFeedbackScaleFactors",
-                "Masses",
-                "MetalMassFractions",
-                "SmoothedElementMassFractions",
-                "StarFormationRates",
-                "Temperatures",
-                "Velocities",
-            ],
-            "PartType1": ["Coordinates", "GroupNr_bound", "Masses", "Velocities"],
-            "PartType4": [
-                "Coordinates",
-                "GroupNr_bound",
-                "InitialMasses",
-                "Luminosities",
-                "Masses",
-                "MetalMassFractions",
-                "Velocities",
-            ],
-            "PartType5": [
-                "AccretionRates",
-                "Coordinates",
-                "DynamicalMasses",
-                "GroupNr_bound",
-                "LastAGNFeedbackScaleFactors",
-                "ParticleIDs",
-                "SubgridMasses",
-                "Velocities",
-            ],
-        }
 
     def calculate(self, input_halo, data, halo_result):
         """
@@ -334,14 +342,14 @@ class ExclusiveSphereProperties(HaloProperty):
         if Mtot > 0.0 * Mtot.units:
             com[:] = (mass[:, None] * position).sum(axis=0) / Mtot
             com[:] += centre
-            vcom[:] = (mass[:, None] * velocity).sum(axis=0) / Mtot
+            vcom[:] = ((mass[:, None] / Mtot) * velocity).sum(axis=0)
 
         gas_kappa_corot = unyt.unyt_array(
             0.0, dtype=np.float32, units="dimensionless", registry=mass.units.registry
         )
         totLgas = unyt.unyt_array(
             [0.0] * 3,
-            dtype=np.float32,
+            dtype=np.float64,
             units="Msun*kpc*km/s",
             registry=mass.units.registry,
         )
@@ -352,17 +360,19 @@ class ExclusiveSphereProperties(HaloProperty):
             registry=mass.units.registry,
         )
         if Mgas > 0.0 * Mgas.units:
-            com_gas = (mass_gas[:, None] * pos_gas).sum(axis=0) / Mgas
-            vcom_gas = (mass_gas[:, None] * vel_gas).sum(axis=0) / Mgas
+            frac_mgas = mass_gas / Mgas
+            com_gas = (frac_mgas[:, None] * pos_gas).sum(axis=0)
+            vcom_gas = (frac_mgas[:, None] * vel_gas).sum(axis=0)
             gas_relpos = pos_gas - com_gas[None, :]
             gas_relvel = vel_gas - vcom_gas[None, :]
             Lgas = mass_gas[:, None] * unyt.array.ucross(gas_relpos, gas_relvel)
             totLgas[:] = Lgas.sum(axis=0)
             Lnrm = unyt.array.unorm(totLgas)
             if Lnrm > 0.0 * Lnrm.units:
-                K = 0.5 * (mass_gas[:, None] * gas_relvel**2).sum()
+                K = gas_relvel.astype(np.float64)
+                K = 0.5 * (mass_gas[:, None] * K**2).sum()
                 if K > 0.0 * K.units:
-                    Li = (Lgas * totLgas[None, :]).sum(axis=1) / Lnrm
+                    Li = ((Lgas / Lnrm) * totLgas[None, :]).sum(axis=1)
                     gas_r2 = (
                         gas_relpos[:, 0] ** 2
                         + gas_relpos[:, 1] ** 2
@@ -375,16 +385,16 @@ class ExclusiveSphereProperties(HaloProperty):
                     gas_kappa_corot += Kcorot / K
 
             vrel = vel_gas - vcom[None, :]
-            veldisp_gas[0] += (mass_gas * vrel[:, 0] * vrel[:, 0]).sum() / Mgas
-            veldisp_gas[1] += (mass_gas * vrel[:, 1] * vrel[:, 1]).sum() / Mgas
-            veldisp_gas[2] += (mass_gas * vrel[:, 2] * vrel[:, 2]).sum() / Mgas
-            veldisp_gas[3] += (mass_gas * vrel[:, 0] * vrel[:, 1]).sum() / Mgas
-            veldisp_gas[4] += (mass_gas * vrel[:, 0] * vrel[:, 2]).sum() / Mgas
-            veldisp_gas[5] += (mass_gas * vrel[:, 1] * vrel[:, 2]).sum() / Mgas
+            veldisp_gas[0] += (frac_mgas * vrel[:, 0] * vrel[:, 0]).sum()
+            veldisp_gas[1] += (frac_mgas * vrel[:, 1] * vrel[:, 1]).sum()
+            veldisp_gas[2] += (frac_mgas * vrel[:, 2] * vrel[:, 2]).sum()
+            veldisp_gas[3] += (frac_mgas * vrel[:, 0] * vrel[:, 1]).sum()
+            veldisp_gas[4] += (frac_mgas * vrel[:, 0] * vrel[:, 2]).sum()
+            veldisp_gas[5] += (frac_mgas * vrel[:, 1] * vrel[:, 2]).sum()
 
         totLdm = unyt.unyt_array(
             [0.0] * 3,
-            dtype=np.float32,
+            dtype=np.float64,
             units="Msun*kpc*km/s",
             registry=mass.units.registry,
         )
@@ -395,27 +405,28 @@ class ExclusiveSphereProperties(HaloProperty):
             registry=mass.units.registry,
         )
         if Mdm > 0.0 * Mdm.units:
-            com_dm = (mass_dm[:, None] * pos_dm).sum(axis=0) / Mdm
-            vcom_dm = (mass_dm[:, None] * vel_dm).sum(axis=0) / Mdm
+            frac_mdm = mass_dm / Mdm
+            com_dm = (frac_mdm[:, None] * pos_dm).sum(axis=0)
+            vcom_dm = (frac_mdm[:, None] * vel_dm).sum(axis=0)
             dm_relpos = pos_dm - com_dm[None, :]
             dm_relvel = vel_dm - vcom_dm[None, :]
             Ldm = mass_dm[:, None] * unyt.array.ucross(dm_relpos, dm_relvel)
             totLdm[:] = Ldm.sum(axis=0)
 
             vrel = vel_dm - vcom[None, :]
-            veldisp_dm[0] += (mass_dm * vrel[:, 0] * vrel[:, 0]).sum() / Mdm
-            veldisp_dm[1] += (mass_dm * vrel[:, 1] * vrel[:, 1]).sum() / Mdm
-            veldisp_dm[2] += (mass_dm * vrel[:, 2] * vrel[:, 2]).sum() / Mdm
-            veldisp_dm[3] += (mass_dm * vrel[:, 0] * vrel[:, 1]).sum() / Mdm
-            veldisp_dm[4] += (mass_dm * vrel[:, 0] * vrel[:, 2]).sum() / Mdm
-            veldisp_dm[5] += (mass_dm * vrel[:, 1] * vrel[:, 2]).sum() / Mdm
+            veldisp_dm[0] += (frac_mdm * vrel[:, 0] * vrel[:, 0]).sum()
+            veldisp_dm[1] += (frac_mdm * vrel[:, 1] * vrel[:, 1]).sum()
+            veldisp_dm[2] += (frac_mdm * vrel[:, 2] * vrel[:, 2]).sum()
+            veldisp_dm[3] += (frac_mdm * vrel[:, 0] * vrel[:, 1]).sum()
+            veldisp_dm[4] += (frac_mdm * vrel[:, 0] * vrel[:, 2]).sum()
+            veldisp_dm[5] += (frac_mdm * vrel[:, 1] * vrel[:, 2]).sum()
 
         star_kappa_corot = unyt.unyt_array(
             0.0, dtype=np.float32, units="dimensionless", registry=mass.units.registry
         )
         totLstar = unyt.unyt_array(
             [0.0] * 3,
-            dtype=np.float32,
+            dtype=np.float64,
             units="Msun*kpc*km/s",
             registry=mass.units.registry,
         )
@@ -426,17 +437,19 @@ class ExclusiveSphereProperties(HaloProperty):
             registry=mass.units.registry,
         )
         if Mstar > 0.0 * Mstar.units:
-            com_star = (mass_star[:, None] * pos_star).sum(axis=0) / Mstar
-            vcom_star = (mass_star[:, None] * vel_star).sum(axis=0) / Mstar
+            frac_mstar = mass_star / Mstar
+            com_star = (frac_mstar[:, None] * pos_star).sum(axis=0)
+            vcom_star = (frac_mstar[:, None] * vel_star).sum(axis=0)
             star_relpos = pos_star - com_star[None, :]
             star_relvel = vel_star - vcom_star[None, :]
             Lstar = mass_star[:, None] * unyt.array.ucross(star_relpos, star_relvel)
             totLstar[:] = Lstar.sum(axis=0)
             Lnrm = unyt.array.unorm(totLstar)
             if Lnrm > 0.0 * Lnrm.units:
-                K = 0.5 * (mass_star[:, None] * star_relvel**2).sum()
+                K = star_relvel.astype(np.float64)
+                K = 0.5 * (mass_star[:, None] * K**2).sum()
                 if K > 0.0 * K.units:
-                    Li = (Lstar * totLstar[None, :]).sum(axis=1) / Lnrm
+                    Li = ((Lstar / Lnrm) * totLstar[None, :]).sum(axis=1)
                     star_r2 = (
                         star_relpos[:, 0] ** 2
                         + star_relpos[:, 1] ** 2
@@ -449,12 +462,12 @@ class ExclusiveSphereProperties(HaloProperty):
                     star_kappa_corot += Kcorot / K
 
             vrel = vel_star - vcom[None, :]
-            veldisp_star[0] += (mass_star * vrel[:, 0] * vrel[:, 0]).sum() / Mstar
-            veldisp_star[1] += (mass_star * vrel[:, 1] * vrel[:, 1]).sum() / Mstar
-            veldisp_star[2] += (mass_star * vrel[:, 2] * vrel[:, 2]).sum() / Mstar
-            veldisp_star[3] += (mass_star * vrel[:, 0] * vrel[:, 1]).sum() / Mstar
-            veldisp_star[4] += (mass_star * vrel[:, 0] * vrel[:, 2]).sum() / Mstar
-            veldisp_star[5] += (mass_star * vrel[:, 1] * vrel[:, 2]).sum() / Mstar
+            veldisp_star[0] += (frac_mstar * vrel[:, 0] * vrel[:, 0]).sum()
+            veldisp_star[1] += (frac_mstar * vrel[:, 1] * vrel[:, 1]).sum()
+            veldisp_star[2] += (frac_mstar * vrel[:, 2] * vrel[:, 2]).sum()
+            veldisp_star[3] += (frac_mstar * vrel[:, 0] * vrel[:, 1]).sum()
+            veldisp_star[4] += (frac_mstar * vrel[:, 0] * vrel[:, 2]).sum()
+            veldisp_star[5] += (frac_mstar * vrel[:, 1] * vrel[:, 2]).sum()
 
         SFR = 0.0
         Tgas = 0.0
@@ -497,12 +510,12 @@ class ExclusiveSphereProperties(HaloProperty):
                 gas_mask_all
             ][gas_mask_ap]
             no_agn = ~self.filter.is_recently_heated(last_agn_gas, gas_temp)
-            Tgas = (mass_gas * gas_temp).sum() / Mgas
+            Tgas = ((mass_gas / Mgas) * gas_temp).sum()
             if np.any(no_agn):
                 mass_gas_no_agn = mass_gas[no_agn]
                 Mgas_no_agn = mass_gas_no_agn.sum()
                 if Mgas_no_agn > 0.0:
-                    Tgas_no_agn = (mass_gas_no_agn * gas_temp[no_agn]) / Mgas_no_agn
+                    Tgas_no_agn = (mass_gas_no_agn / Mgas_no_agn) * gas_temp[no_agn]
         else:
             Mgasmetal_SFR = unyt.unyt_array(Mgas)
             Mgasmetal_noSFR = unyt.unyt_array(Mgas)
@@ -523,61 +536,31 @@ class ExclusiveSphereProperties(HaloProperty):
             Tgas_no_agn, dtype=np.float32, units="K", registry=mass.units.registry
         )
 
-        # sort according to radius
-        isort_tot = np.argsort(radius)
-        isort_gas = np.argsort(radius[type == "PartType0"])
-        isort_dm = np.argsort(radius[type == "PartType1"])
-        isort_star = np.argsort(radius[type == "PartType4"])
-        Mcum_tot = mass[isort_tot].cumsum()
-        Mcum_gas = mass_gas[isort_gas].cumsum()
-        Mcum_dm = mass_dm[isort_dm].cumsum()
-        Mcum_star = mass_star[isort_star].cumsum()
         halfmass = {}
-        for name, Mcum, Mtarget, rad in zip(
+        for name, r, m, M in zip(
             ["tot", "gas", "dm", "star"],
-            [Mcum_tot, Mcum_gas, Mcum_dm, Mcum_star],
-            [0.5 * Mtot, 0.5 * Mgas, 0.5 * Mdm, 0.5 * Mstar],
             [
-                radius[isort_tot],
-                radius[type == "PartType0"][isort_gas],
-                radius[type == "PartType1"][isort_dm],
-                radius[type == "PartType4"][isort_star],
+                radius,
+                radius[type == "PartType0"],
+                radius[type == "PartType1"],
+                radius[type == "PartType4"],
             ],
+            [mass, mass_gas, mass_dm, mass_star],
+            [Mtot, Mgas, Mdm, Mstar],
         ):
-            if Mtarget == 0.0 * unyt.Msun or len(Mcum) < 1:
-                halfmass[name] = unyt.unyt_array(
-                    0.0, dtype=np.float64, units="kpc", registry=mass.units.registry
+            half_mass_radius = get_half_mass_radius(r, m, M)
+            if half_mass_radius >= self.physical_radius_mpc * unyt.Mpc:
+                raise RuntimeError(
+                    "Half mass radius larger than aperture"
+                    f" ({half_mass_radius} >="
+                    f" {self.physical_radius_mpc * unyt.Mpc}!"
+                    " This should not happen."
                 )
-            else:
-                ihalf = np.argmax(Mcum >= Mtarget)
-                if ihalf == 0:
-                    # it is possible that we only have one particle, or that there is no
-                    # particle with a mass below the target value
-                    # in this case, we linearly interpolate from the centre
-                    rmin = 0.0 * unyt.kpc
-                    Mmin = 0.0 * unyt.Msun
-                else:
-                    rmin = rad[ihalf - 1]
-                    Mmin = Mcum[ihalf - 1]
-                rmax = rad[ihalf]
-                Mmax = Mcum[ihalf]
-                if Mmin == Mmax:
-                    # this deals with the degenerate case where we have no particles below the
-                    # target and the first particle above the target is exactly at the centre
-                    halfmass[name] = 0.5 * (rmax + rmin)
-                else:
-                    # note that the unit registry of the first variable in the
-                    # expression is used for the result. If rmin was set to
-                    # 0, we do not want to use its registry. We rearranged the
-                    # expression to enforce the correct registry.
-                    halfmass[name] = (Mtarget - Mmin) / (Mmax - Mmin) * (
-                        rmax - rmin
-                    ) + rmin
-                halfmass[name].convert_to_units("kpc")
-                if halfmass[name] >= self.physical_radius_mpc * unyt.Mpc:
-                    raise RuntimeError(
-                        "Half mass radius larger than aperture! This should not happen."
-                    )
+            halfmass[name] = unyt.unyt_array(
+                half_mass_radius.value,
+                dtype=np.float32,
+                units=half_mass_radius.units,
+            )
 
         prefix = f"ExclusiveSphere/{self.physical_radius_mpc*1000.:.0f}kpc"
         halo_result.update(
@@ -712,3 +695,299 @@ class ExclusiveSphereProperties(HaloProperty):
         )
 
         return
+
+
+class DummyCellGrid:
+    def __init__(self):
+        self.cosmology = {
+            "H0 [internal units]": 68.09999996711613,
+            "Omega_b": 0.0486,
+            "Omega_lambda": 0.693922,
+            "Omega_r": 7.791804710018577e-05,
+            "Omega_m": 0.30461099999999997,
+            "w_0": -1.0,
+            "w_a": 0.0,
+            "Redshift": 0.1,
+        }
+        reg = unyt.unit_registry.UnitRegistry()
+        unyt.define_unit("snap_length", 3.08567758e24 * unyt.cm, registry=reg)
+        unyt.define_unit("snap_mass", 1.98841e43 * unyt.g, registry=reg)
+        unyt.define_unit("snap_time", 3.08567758e19 * unyt.s, registry=reg)
+        unyt.define_unit("snap_temperature", 1.0 * unyt.K, registry=reg)
+        unyt.define_unit("snap_angle", 1.0 * unyt.rad, registry=reg)
+        unyt.define_unit("snap_current", 1.0 * unyt.A, registry=reg)
+
+        us = unyt.UnitSystem(
+            "snap_units",
+            unyt.Unit("snap_length", registry=reg),
+            unyt.Unit("snap_mass", registry=reg),
+            unyt.Unit("snap_time", registry=reg),
+            unyt.Unit("snap_temperature", registry=reg),
+            unyt.Unit("snap_angle", registry=reg),
+            unyt.Unit("snap_current", registry=reg),
+            registry=reg,
+        )
+        self.snap_unit_registry = unyt.unit_registry.UnitRegistry(
+            lut=reg.lut, unit_system=us
+        )
+
+
+class DummyExclusiveSphereProperties(ExclusiveSphereProperties):
+    def __init__(self):
+
+        self.cellgrid = DummyCellGrid()
+        self.filter = RecentlyHeatedGasFilter(self.cellgrid)
+        self.physical_radius_mpc = 0.001
+
+
+def test_exclusive_sphere_properties():
+
+    property_calculator = DummyExclusiveSphereProperties()
+    reg = property_calculator.cellgrid.snap_unit_registry
+
+    np.random.seed(3589)
+    for i in range(100):
+        npart = np.random.choice([1, 10, 100, 1000, 10000])
+
+        centre = unyt.unyt_array(
+            100.0 * np.random.random(3), dtype=np.float64, units=unyt.Mpc, registry=reg
+        )
+        groupnr_halo = 1
+
+        radius = np.random.exponential(1.0, npart)
+        phi = 2.0 * np.pi * np.random.random(npart)
+        sintheta = 2.0 * np.random.random(npart) - 1.0
+        costheta = np.sqrt((1.0 - sintheta) * (1.0 + sintheta))
+        cosphi = np.cos(phi)
+        sinphi = np.sin(phi)
+        coords = np.zeros((npart, 3))
+        coords[:, 0] = radius * cosphi * sintheta
+        coords[:, 1] = radius * sinphi * sintheta
+        coords[:, 2] = radius * costheta
+        coords = unyt.unyt_array(coords, dtype=np.float64, units=unyt.kpc, registry=reg)
+        coords += centre
+        mass = unyt.unyt_array(
+            1.0e9 * (1.0 - 0.2 * np.random.random(npart)),
+            dtype=np.float32,
+            units=unyt.Msun,
+            registry=reg,
+        )
+        vs = unyt.unyt_array(
+            200.0 * (np.random.random((npart, 3)) - 0.5),
+            dtype=np.float32,
+            units=unyt.km / unyt.s,
+            registry=reg,
+        )
+
+        types = np.random.choice(
+            ["PartType0", "PartType1", "PartType4", "PartType5"], size=npart
+        )
+        groupnr = np.random.choice([groupnr_halo, 2, 3], size=npart)
+
+        data = {}
+        gas_mask = types == "PartType0"
+        Ngas = int(gas_mask.sum())
+        if Ngas > 0:
+            data["PartType0"] = {}
+            data["PartType0"]["Coordinates"] = coords[gas_mask]
+            data["PartType0"]["GroupNr_bound"] = groupnr[gas_mask]
+            data["PartType0"]["LastAGNFeedbackScaleFactors"] = unyt.unyt_array(
+                1.0 / 1.1 + 0.01 * np.random.random(Ngas),
+                dtype=np.float32,
+                units=unyt.dimensionless,
+                registry=reg,
+            )
+            data["PartType0"]["Masses"] = mass[gas_mask]
+            data["PartType0"]["MetalMassFractions"] = unyt.unyt_array(
+                1.0e-4 * np.random.random(Ngas),
+                dtype=np.float32,
+                units=unyt.dimensionless,
+                registry=reg,
+            )
+            data["PartType0"]["SmoothedElementMassFractions"] = unyt.unyt_array(
+                1.0e-4 * np.random.random((Ngas, 9)),
+                dtype=np.float32,
+                units=unyt.dimensionless,
+                registry=reg,
+            )
+            data["PartType0"]["StarFormationRates"] = unyt.unyt_array(
+                (np.random.random(Ngas) - 0.5),
+                dtype=np.float32,
+                units=unyt.Msun / unyt.yr,
+                registry=reg,
+            )
+            data["PartType0"]["Temperatures"] = unyt.unyt_array(
+                10.0 ** (10.0 * np.random.random(Ngas)),
+                dtype=np.float32,
+                units=unyt.K,
+                registry=reg,
+            )
+            data["PartType0"]["Velocities"] = vs[gas_mask]
+
+        dm_mask = types == "PartType1"
+        Ndm = int(dm_mask.sum())
+        if Ndm > 0:
+            data["PartType1"] = {}
+            data["PartType1"]["Coordinates"] = coords[dm_mask]
+            data["PartType1"]["GroupNr_bound"] = groupnr[dm_mask]
+            data["PartType1"]["Masses"] = mass[dm_mask]
+            data["PartType1"]["Velocities"] = vs[dm_mask]
+
+        star_mask = types == "PartType4"
+        Nstar = int(star_mask.sum())
+        if Nstar > 0:
+            data["PartType4"] = {}
+            data["PartType4"]["Coordinates"] = coords[star_mask]
+            data["PartType4"]["GroupNr_bound"] = groupnr[star_mask]
+            data["PartType4"]["InitialMasses"] = unyt.unyt_array(
+                mass[star_mask].value * (0.9 + 0.1 * np.random.random(Nstar)),
+                dtype=np.float32,
+                units=unyt.Msun,
+                registry=reg,
+            )
+            data["PartType4"]["Luminosities"] = unyt.unyt_array(
+                np.random.random((Nstar, 9)),
+                dtype=np.float32,
+                units=unyt.dimensionless,
+                registry=reg,
+            )
+            data["PartType4"]["Masses"] = mass[star_mask]
+            data["PartType4"]["MetalMassFractions"] = unyt.unyt_array(
+                1.0e-4 * np.random.random(Nstar),
+                dtype=np.float32,
+                units=unyt.dimensionless,
+                registry=reg,
+            )
+            data["PartType4"]["Velocities"] = vs[star_mask]
+
+        bh_mask = types == "PartType5"
+        Nbh = int(bh_mask.sum())
+        if Nbh > 0:
+            data["PartType5"] = {}
+            data["PartType5"]["AccretionRates"] = unyt.unyt_array(
+                np.random.random(Nbh),
+                dtype=np.float32,
+                units=unyt.Msun / unyt.yr,
+                registry=reg,
+            )
+            data["PartType5"]["Coordinates"] = coords[bh_mask]
+            data["PartType5"]["DynamicalMasses"] = mass[bh_mask]
+            data["PartType5"]["GroupNr_bound"] = groupnr[bh_mask]
+            data["PartType5"]["LastAGNFeedbackScaleFactors"] = unyt.unyt_array(
+                1.0 / 1.1 + 0.01 * np.random.random(Nbh),
+                dtype=np.float32,
+                units=unyt.dimensionless,
+                registry=reg,
+            )
+            data["PartType5"]["ParticleIDs"] = unyt.unyt_array(
+                np.arange(Nbh, dtype=np.uint64),
+                dtype=np.uint64,
+                units=unyt.dimensionless,
+                registry=reg,
+            )
+            data["PartType5"]["SubgridMasses"] = unyt.unyt_array(
+                mass[bh_mask].value * (0.9 + 0.1 * np.random.random(Nbh)),
+                dtype=np.float32,
+                units=unyt.Msun,
+                registry=reg,
+            )
+            data["PartType5"]["Velocities"] = vs[bh_mask]
+
+        input_halo = {}
+        input_halo["cofp"] = centre
+        input_halo["index"] = groupnr_halo
+
+        halo_result = {}
+
+        property_calculator.calculate(input_halo, data, halo_result)
+
+        for name, size, dtype, unit in [
+            ("ExclusiveSphere/1kpc/Mtot", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/1kpc/Mgas", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/1kpc/Mdm", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/1kpc/Mstar", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/1kpc/Mstar_init", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/1kpc/Mbh", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/1kpc/Mbh_subgrid", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/1kpc/Ngas", 1, np.uint32, unyt.dimensionless),
+            ("ExclusiveSphere/1kpc/Ndm", 1, np.uint32, unyt.dimensionless),
+            ("ExclusiveSphere/1kpc/Nstar", 1, np.uint32, unyt.dimensionless),
+            ("ExclusiveSphere/1kpc/Nbh", 1, np.uint32, unyt.dimensionless),
+            ("ExclusiveSphere/1kpc/BHlasteventa", 1, np.float32, unyt.dimensionless),
+            ("ExclusiveSphere/1kpc/BHmaxM", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/1kpc/BHmaxID", 1, np.uint64, unyt.dimensionless),
+            ("ExclusiveSphere/1kpc/BHmaxpos", 3, np.float64, unyt.kpc),
+            ("ExclusiveSphere/1kpc/BHmaxvel", 3, np.float32, unyt.km / unyt.s),
+            ("ExclusiveSphere/1kpc/BHmaxAR", 1, np.float32, unyt.Msun / unyt.yr),
+            ("ExclusiveSphere/1kpc/BHmaxlasteventa", 1, np.float32, unyt.dimensionless),
+            ("ExclusiveSphere/1kpc/com", 3, np.float32, unyt.kpc),
+            ("ExclusiveSphere/1kpc/vcom", 3, np.float32, unyt.km / unyt.s),
+            (
+                "ExclusiveSphere/1kpc/Lgas",
+                3,
+                np.float64,
+                unyt.Msun * unyt.kpc * unyt.km / unyt.s,
+            ),
+            (
+                "ExclusiveSphere/1kpc/Ldm",
+                3,
+                np.float64,
+                unyt.Msun * unyt.kpc * unyt.km / unyt.s,
+            ),
+            (
+                "ExclusiveSphere/1kpc/Lstar",
+                3,
+                np.float64,
+                unyt.Msun * unyt.kpc * unyt.km / unyt.s,
+            ),
+            ("ExclusiveSphere/1kpc/kappa_corot_gas", 1, np.float32, unyt.dimensionless),
+            (
+                "ExclusiveSphere/1kpc/kappa_corot_star",
+                1,
+                np.float32,
+                unyt.dimensionless,
+            ),
+            (
+                "ExclusiveSphere/1kpc/veldisp_gas",
+                6,
+                np.float32,
+                unyt.km**2 / unyt.s**2,
+            ),
+            (
+                "ExclusiveSphere/1kpc/veldisp_dm",
+                6,
+                np.float32,
+                unyt.km**2 / unyt.s**2,
+            ),
+            (
+                "ExclusiveSphere/1kpc/veldisp_star",
+                6,
+                np.float32,
+                unyt.km**2 / unyt.s**2,
+            ),
+            ("ExclusiveSphere/1kpc/Mgas_SF", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/1kpc/Mgas_noSF", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/1kpc/Mgasmetal", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/1kpc/Mgasmetal_SF", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/1kpc/Mgasmetal_noSF", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/1kpc/MgasO", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/1kpc/MgasO_SF", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/1kpc/MgasO_noSF", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/1kpc/MgasFe", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/1kpc/MgasFe_SF", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/1kpc/MgasFe_noSF", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/1kpc/Tgas", 1, np.float32, unyt.K),
+            ("ExclusiveSphere/1kpc/Tgas_no_agn", 1, np.float32, unyt.K),
+            ("ExclusiveSphere/1kpc/SFR", 1, np.float32, unyt.Msun / unyt.yr),
+            ("ExclusiveSphere/1kpc/Luminosity", 9, np.float32, unyt.dimensionless),
+            ("ExclusiveSphere/1kpc/Mstarmetal", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/1kpc/HalfMassRadiusTot", 1, np.float32, unyt.kpc),
+            ("ExclusiveSphere/1kpc/HalfMassRadiusGas", 1, np.float32, unyt.kpc),
+            ("ExclusiveSphere/1kpc/HalfMassRadiusDM", 1, np.float32, unyt.kpc),
+            ("ExclusiveSphere/1kpc/HalfMassRadiusStar", 1, np.float32, unyt.kpc),
+        ]:
+            assert name in halo_result
+            result = halo_result[name][0]
+            assert (len(result.shape) == 0 and size == 1) or result.shape[0] == size
+            assert result.dtype == dtype
+            assert result.units.same_dimensions_as(unit.units)
