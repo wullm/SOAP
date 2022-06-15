@@ -164,6 +164,7 @@ class ProjectedApertureProperties(HaloProperty):
                     axis=0
                 ) / proj_Mtot
 
+            proj_SFR = 0.0
             if np.any(gas_mask_ap):
                 gas_mask_all = data["PartType0"]["GroupNr_bound"] == index
                 proj_SFR = data["PartType0"]["StarFormationRates"][gas_mask_all][
@@ -171,10 +172,12 @@ class ProjectedApertureProperties(HaloProperty):
                 ]
                 # Negative SFR are not SFR at all!
                 proj_SFR = proj_SFR[proj_SFR > 0.0].sum()
-            else:
-                proj_SFR = unyt.unyt_array(
-                    0.0, dtype=np.float32, units="Msun/yr", registry=mass.units.registry
-                )
+            proj_SFR = unyt.unyt_array(
+                proj_SFR,
+                dtype=np.float32,
+                units="Msun/yr",
+                registry=mass.units.registry,
+            )
 
             # sort according to radius
             isort_tot = np.argsort(proj_radius)
