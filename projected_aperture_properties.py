@@ -112,6 +112,10 @@ class ProjectedApertureProperties(HaloProperty):
             proj_radius = projr[projmask]
             proj_type = types[projmask]
 
+            gas_mask_ap = projmask[types == "PartType0"]
+            star_mask_ap = projmask[types == "PartType4"]
+            bh_mask_ap = projmask[types == "PartType5"]
+
             proj_mass_gas = proj_mass[proj_type == "PartType0"]
             proj_mass_dm = proj_mass[proj_type == "PartType1"]
             proj_mass_star = proj_mass[proj_type == "PartType4"]
@@ -120,11 +124,14 @@ class ProjectedApertureProperties(HaloProperty):
             proj_Mgas = proj_mass_gas.sum()
             proj_Mdm = proj_mass_dm.sum()
             proj_Mstar = proj_mass_star.sum()
-            if "PartType4" in data:
-                star_mask = data["PartType4"]["GroupNr_bound"] == index
-                star_mask[star_mask][~projmask[types == "PartType4"]] = False
-                proj_Mstar_init = data["PartType4"]["InitialMasses"][star_mask].sum()
-                proj_lum = data["PartType4"]["Luminosities"][star_mask].sum(axis=0)
+            if np.any(star_mask_ap):
+                star_mask_all = data["PartType4"]["GroupNr_bound"] == index
+                proj_Mstar_init = data["PartType4"]["InitialMasses"][star_mask_all][
+                    star_mask_ap
+                ].sum()
+                proj_lum = data["PartType4"]["Luminosities"][star_mask_all][
+                    star_mask_ap
+                ].sum(axis=0)
             else:
                 proj_Mstar_init = unyt.unyt_array(proj_Mstar)
                 proj_lum = unyt.unyt_array(
@@ -134,21 +141,36 @@ class ProjectedApertureProperties(HaloProperty):
                     registry=mass.units.registry,
                 )
             proj_Mbh = proj_mass[proj_type == "PartType5"].sum()
-            if "PartType5" in data:
-                bh_mask = data["PartType5"]["GroupNr_bound"] == index
-                bh_mask[bh_mask][~projmask[types == "PartType5"]] = False
-                proj_Mbh_subgrid = data["PartType5"]["SubgridMasses"][bh_mask].sum()
+            if np.any(bh_mask_ap):
+                bh_mask_all = data["PartType5"]["GroupNr_bound"] == index
+                proj_Mbh_subgrid = data["PartType5"]["SubgridMasses"][bh_mask_all][
+                    bh_mask_ap
+                ].sum()
             else:
                 proj_Mbh_subgrid = unyt.unyt_array(proj_Mbh)
 
-            proj_com = (proj_mass[:, None] * proj_position).sum(axis=0) / proj_Mtot
-            proj_com += centre
-            proj_vcom = (proj_mass[:, None] * proj_velocity).sum(axis=0) / proj_Mtot
+            proj_com = unyt.unyt_array(
+                [0.0] * 3, dtype=np.float32, units="Mpc", registry=mass.units.registry
+            )
+            proj_vcom = unyt.unyt_array(
+                [0.0] * 3, dtype=np.float32, units="km/s", registry=mass.units.registry
+            )
+            if proj_Mtot > 0.0 * proj_Mtot.units:
+                proj_com[:] = (proj_mass[:, None] * proj_position).sum(
+                    axis=0
+                ) / proj_Mtot
+                proj_com[:] += centre
+                proj_vcom[:] = (proj_mass[:, None] * proj_velocity).sum(
+                    axis=0
+                ) / proj_Mtot
 
-            if "PartType0" in data:
-                gas_mask = data["PartType0"]["GroupNr_bound"] == index
-                gas_mask[gas_mask][~projmask[types == "PartType0"]] = False
-                proj_SFR = data["PartType0"]["StarFormationRates"][gas_mask].sum()
+            if np.any(gas_mask_ap):
+                gas_mask_all = data["PartType0"]["GroupNr_bound"] == index
+                proj_SFR = data["PartType0"]["StarFormationRates"][gas_mask_all][
+                    gas_mask_ap
+                ]
+                # Negative SFR are not SFR at all!
+                proj_SFR = proj_SFR[proj_SFR > 0.0].sum()
             else:
                 proj_SFR = unyt.unyt_array(
                     0.0, dtype=np.float32, units="Msun/yr", registry=mass.units.registry
