@@ -15,6 +15,9 @@ SEARCH_RADIUS_FACTOR=1.2
 # Factor by which to increase the region read in around a halo if too small
 READ_RADIUS_FACTOR=1.5
 
+# Radius in Mpc at which we report halos which have a large search radius
+REPORT_RADIUS=20.0
+
 
 def process_single_halo(mesh, unit_registry, data, halo_prop_list,
                         critical_density, mean_density, boxsize, input_halo,
@@ -46,7 +49,7 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
     snap_density = snap_mass / (snap_length**3)
 
     # Record which calculations are still to do for this halo
-    halo_prop_done = np.zeros(len(halo_props), dtype=bool)
+    halo_prop_done = np.zeros(len(halo_prop_list), dtype=bool)
 
     # Dict to store the results
     halo_result = {}
@@ -55,7 +58,10 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
     current_radius = input_halo["search_radius"]
     while True:
         
+        # Sanity checks on the radius
         assert current_radius <= input_halo["read_radius"]
+        if current_radius > REPORT_RADIUS*swift_mpc:
+            print("Halo ID={input_halo['ID']} has large search radius {current_radius}")
 
         # Find the mass within the search radius
         mass_total = unyt.unyt_quantity(0.0, units=snap_mass)
