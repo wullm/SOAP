@@ -9,6 +9,12 @@ from dataset_names import mass_dataset, ptypes_for_so_masses
 import shared_array
 import result_set
 
+# Factor by which to increase search radius when looking for density threshold
+SEARCH_RADIUS_FACTOR=1.2
+
+# Factor by which to increase the region read in around a halo if too small
+READ_RADIUS_FACTOR=2.0
+
 
 def process_single_halo(mesh, unit_registry, data, halo_prop_list,
                         critical_density, mean_density, boxsize, input_halo,
@@ -92,7 +98,7 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
             return None
         else:
             # Increase the search radius (subject to the maximum radius read in) and try again
-            current_radius = min(current_radius*1.2, input_halo["read_radius"])
+            current_radius = min(current_radius*SEARCH_RADIUS_FACTOR, input_halo["read_radius"])
 
     # Add the halo index to the result set
     halo_result["VR/index"]         = (input_halo["index"],         "Index of this halo in the input catalogue")
@@ -200,7 +206,7 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
                     halo_arrays["done"].full[task_to_do] = 1
                 else:
                     # We didn't read in a large enough region
-                    halo_arrays["read_radius"].full[task_to_do] *= 2.0
+                    halo_arrays["read_radius"].full[task_to_do] *= READ_RADIUS_FACTOR
 
             t1_task = time.time()
             task_time += (t1_task-t0_task)
