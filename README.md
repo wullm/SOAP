@@ -126,13 +126,15 @@ mpirun.
 The `-Werror` flag is useful for making pdb stop on warnings. E.g. division by
 zero in the halo property calculations will be caught.
 
+It is also possible to select individual halos to process with the `--halo-ids`
+flag. This specifies the VELOCIraptor IDs of the required halos. E.g.
+```
+python3 -Werror -m pdb ./compute_halo_properties.py --halo-ids 1 2 3 ...
+```
+
 ## TODO
 
 Possible improvements:
 
-  * More flexible domain decomposition (e.g. Gadget style space filling curve)
-  * Assign initial search radii to halos individually and repeat part of calculation if too small
-  * Compute cells to read halo by halo instead of just using the bounding box
   * Specify multi-file inputs/outputs more consistently
   * Use swiftsimio cosmo_arrays (may require a more complete wrapping of unyt_array).
-  * Specify on the command line which halo property calculations to do

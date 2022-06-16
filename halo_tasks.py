@@ -10,6 +10,15 @@ import shared_array
 import result_set
 import halo_properties
 
+# Factor by which to increase search radius when looking for density threshold
+SEARCH_RADIUS_FACTOR=1.2
+
+# Factor by which to increase the region read in around a halo if too small
+READ_RADIUS_FACTOR=1.5
+
+# Radius in Mpc at which we report halos which have a large search radius
+REPORT_RADIUS=20.0
+
 
 def process_single_halo(mesh, unit_registry, data, halo_prop_list,
                         critical_density, mean_density, boxsize, input_halo,
@@ -34,14 +43,26 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
 
     Returns None if we need to try again with a larger region.
     """
-    
+
+    swift_mpc   = unyt.Unit("swift_mpc", registry=unit_registry)    
     snap_length = unyt.Unit("snap_length", registry=unit_registry)
     snap_mass   = unyt.Unit("snap_mass", registry=unit_registry)
     snap_density = snap_mass / (snap_length**3)
 
+    # Record which calculations are still to do for this halo
+    halo_prop_done = np.zeros(len(halo_prop_list), dtype=bool)
+
+    # Dict to store the results
+    halo_result = {}
+
     # Loop until we fall below the required density
     current_radius = input_halo["search_radius"]
     while True:
+        
+        # Sanity checks on the radius
+        assert current_radius <= input_halo["read_radius"]
+        if current_radius > REPORT_RADIUS*swift_mpc:
+            print("Halo ID={input_halo['ID']} has large search radius {current_radius}")
 
         # Find the mass within the search radius
         mass_total = unyt.unyt_quantity(0.0, units=snap_mass)
@@ -56,46 +77,60 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
         # Find mean density in the search radius
         density = mass_total / (4./3.*np.pi*current_radius**3)
 
-        # If we have no target density, there's no need to iterate
-        if target_density is None:
-            target_density = unyt.unyt_quantity(0.0, units=snap_density)
-            break
+        # If we've reached the target density, we can try to compute halo properties
+        max_physical_radius_mpc = 0.0 # Will store the largest physical radius requested by any calculation
+        if target_density is None or density <= target_density:
 
-        # Check if we reached the density threshold
-        if density <= target_density:
-            # Reached the density threshold, so we're done
-            break
+            # Extract particles in this halo
+            particle_data = {}
+            for ptype in data:
+                particle_data[ptype] = {}
+                for name in data[ptype]:
+                    particle_data[ptype][name] = data[ptype][name].full[idx[ptype],...]
+
+            # Wrap coordinates to copy closest to the halo centre
+            for ptype in particle_data:
+                pos = particle_data[ptype]["Coordinates"]
+                # Shift halo to box centre, wrap all particles into box, shift halo back
+                offset = input_halo["cofp"] - 0.5*boxsize
+                pos[:,:] = ((pos - offset) % boxsize) + offset
+
+            # Try to compute properties of this halo which haven't been done yet
+            for prop_nr, halo_prop in enumerate(halo_prop_list):
+                if halo_prop_done[prop_nr]:
+                    # Already have the result for this one
+                    continue
+                try:
+                    halo_prop.calculate(input_halo, particle_data, halo_result)
+                except ReadRadiusTooSmallException:
+                    # Search radius was too small, so will need to try again with a larger radius.
+                    max_physical_radius_mpc = max(max_physical_radius_mpc, halo_prop.physical_radius_mpc)
+                    break
+                else:
+                    # The property calculation worked!
+                    halo_prop_done[prop_nr] = True
+
+            # If we computed all of the properties, we're done with this halo
+            if np.all(halo_prop_done):
+                break
+
+        # Either the density is still too high or the property calculation failed.
+        required_radius = max_physical_radius_mpc*swift_mpc
+        if required_radius > input_halo["read_radius"]:
+            # A calculation has set its physical_radius_mpc larger than the region
+            # which we read in, so we can't process the halo on this iteration regardless
+            # of the current radius.
+            input_halo["search_radius"] = max(input_halo["search_radius"], required_radius)
+            return None
         elif current_radius >= input_halo["read_radius"]:
-            # Still above target density and we've exceeded the region guaranteed to be read in
+            # The current radius has exceeded the region read in. Will need to redo this
+            # halo using current_radius as the starting point for the next iteration.
+            input_halo["search_radius"] = max(input_halo["search_radius"], current_radius)
             return None
         else:
-            # Need to increase the search radius and try again
-            current_radius = min(current_radius*1.2, input_halo["read_radius"])
-            if current_radius >= 20.*unyt.Mpc:
-                raise RuntimeError("Search radius reached absolute maximum (20 Mpc)!")
-
-    # Extract particles in this halo
-    particle_data = {}
-    for ptype in data:
-        particle_data[ptype] = {}
-        for name in data[ptype]:
-            particle_data[ptype][name] = data[ptype][name].full[idx[ptype],...]
-
-    # Wrap coordinates to copy closest to the halo centre
-    for ptype in particle_data:
-        pos = particle_data[ptype]["Coordinates"]
-        # Shift halo to box centre, wrap all particles into box, shift halo back
-        offset = input_halo["cofp"] - 0.5*boxsize
-        pos[:,:] = ((pos - offset) % boxsize) + offset
-
-    # Compute properties of this halo        
-    halo_result = {}
-    for halo_prop in halo_prop_list:
-        try:
-            halo_prop.calculate(input_halo, particle_data, halo_result)
-        except halo_properties.ReadRadiusTooSmallError:
-            # Need to repeat this halo
-            return None
+            # We still have a large enough region in memory that we can try a larger radius
+            current_radius = min(current_radius*SEARCH_RADIUS_FACTOR, input_halo["read_radius"])
+            current_radius = max(current_radius, required_radius)
 
     # Add the halo index to the result set
     halo_result["VR/index"]         = (input_halo["index"],         "Index of this halo in the input catalogue")
@@ -202,8 +237,15 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
                     nr_done_this_rank += 1
                     halo_arrays["done"].full[task_to_do] = 1
                 else:
-                    # We didn't read in a large enough region
-                    halo_arrays["read_radius"].full[task_to_do] *= 2.0
+                    # We didn't read in a large enough region. Update the shared radius
+                    # arrays so that we read a larger region next time and start the
+                    # search from whatever radius we had reached this time.
+                    new_read_radius = max(input_halo["read_radius"] * READ_RADIUS_FACTOR,
+                                          input_halo["search_radius"])
+                    # Set the radius around the halo to read in
+                    halo_arrays["read_radius"].full[task_to_do] = new_read_radius
+                    # Set the initial guess at the radius we need
+                    halo_arrays["search_radius"].full[task_to_do] = input_halo["search_radius"]
 
             t1_task = time.time()
             task_time += (t1_task-t0_task)
