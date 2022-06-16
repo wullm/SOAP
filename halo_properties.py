@@ -3,7 +3,7 @@
 import numpy as np
 import unyt
 
-class ReadRadiusTooSmallError(Exception):
+class SearchRadiusTooSmallError(Exception):
     pass
 
 class HaloProperty:

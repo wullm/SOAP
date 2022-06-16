@@ -102,7 +102,7 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
                     continue
                 try:
                     halo_prop.calculate(input_halo, particle_data, halo_result)
-                except ReadRadiusTooSmallException:
+                except SearchRadiusTooSmallException:
                     # Search radius was too small, so will need to try again with a larger radius.
                     max_physical_radius_mpc = max(max_physical_radius_mpc, halo_prop.physical_radius_mpc)
                     break

@@ -4,7 +4,7 @@ import numpy as np
 import unyt
 from scipy.optimize import brentq
 
-from halo_properties import HaloProperty, ReadRadiusTooSmallError
+from halo_properties import HaloProperty, SearchRadiusTooSmallError
 
 from dataset_names import mass_dataset
 
@@ -92,7 +92,7 @@ def find_SO_radius_and_mass(
                     raise RuntimeError(
                         "Cannot find SO radius, but search radius is already larger than 20 Mpc!"
                     )
-                raise ReadRadiusTooSmallError(
+                raise SearchRadiusTooSmallError(
                     "SO radius multiple estimate was too small!"
                 )
     else:
@@ -132,7 +132,7 @@ def find_SO_radius_and_mass(
                 raise RuntimeError(
                     "Cannot find SO radius, but search radius is already larger than 20 Mpc!"
                 )
-            raise ReadRadiusTooSmallError("SO radius multiple estimate was too small!")
+            raise SearchRadiusTooSmallError("SO radius multiple estimate was too small!")
         # take the next interval
         r1 = r2
         r2 = ordered_radius[i]
@@ -637,10 +637,10 @@ class SOProperties(HaloProperty):
                     )
                     SO["r"] += SO_r
                     SO["mass"] += SO_mass
-                except ReadRadiusTooSmallError:
+                except SearchRadiusTooSmallError:
                     self.mean_density_multiple *= 0.9
                     self.critical_density_multiple *= 0.9
-                    raise ReadRadiusTooSmallError("SO radius multiple was too small!")
+                    raise SearchRadiusTooSmallError("SO radius multiple was too small!")
         elif self.physical_radius_mpc > 0.0:
             SO["r"] += self.physical_radius_mpc * unyt.Mpc
             if nr_parts > 0:
@@ -947,7 +947,7 @@ class RadiusMultipleSOProperties(SOProperties):
 
         # Check that we read in a large enough radius
         if self.multiple * halo_result[key][0] > input_halo["read_radius"]:
-            raise ReadRadiusTooSmallError("SO radius multiple estimate was too small!")
+            raise SearchRadiusTooSmallError("SO radius multiple estimate was too small!")
 
         super().calculate(input_halo, data, halo_result)
         return
