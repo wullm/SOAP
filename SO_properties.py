@@ -948,5 +948,5 @@ class RadiusMultipleSOProperties(SOProperties):
         if self.multiple * halo_result[key][0] > search_radius:
             raise SearchRadiusTooSmallError("SO radius multiple estimate was too small!")
 
-        super().calculate(input_halo, data, halo_result)
+        super().calculate(input_halo, search_radius, data, halo_result)
         return
