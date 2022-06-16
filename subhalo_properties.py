@@ -41,12 +41,13 @@ class SubhaloMasses(HaloProperty):
             "PartType5" : ["Coordinates", "Velocities", "DynamicalMasses", "SubgridMasses", self.grnr]
         }
 
-    def calculate(self, input_halo, data, halo_result):
+    def calculate(self, input_halo, search_radius, data, halo_result):
         """
         Compute centre of mass etc of bound particles
 
         input_halo       - dict with halo properties passed in from VR (see
                            halo_centres.py)
+        search_radius    - radius in which we have all particles
         data             - contains particle data. E.g. data["PartType1"]["Coordinates"]
                            has the particle coordinates for type 1
         halo_result      - dict with halo properties computed so far. Properties

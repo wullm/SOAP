@@ -529,12 +529,13 @@ class SOProperties(HaloProperty):
             self.SO_name = "BN98"
             self.label = f"within which the density is {self.critical_density_multiple:.2f} times the critical value"
 
-    def calculate(self, input_halo, data, halo_result):
+    def calculate(self, input_halo, search_radius, data, halo_result):
         """
         Compute spherical masses and overdensities for a halo
 
         input_halo       - dict with halo properties passed in from VR (see
                            halo_centres.py)
+        search_radius    - radius in which we have all particles
         data             - contains particle data. E.g. data["PartType1"]["Coordinates"]
                            has the particle coordinates for type 1
         halo_result      - dict with halo properties computed so far. Properties
@@ -935,7 +936,7 @@ class RadiusMultipleSOProperties(SOProperties):
         self.requested_SOval = SOval
         self.multiple = multiple
 
-    def calculate(self, input_halo, data, halo_result):
+    def calculate(self, input_halo, search_radius, data, halo_result):
 
         # find the actual physical radius we want
         key = f"SO/{self.requested_SOval:.0f}_{self.requested_type}/r"
@@ -946,7 +947,7 @@ class RadiusMultipleSOProperties(SOProperties):
         self.physical_radius_mpc = self.multiple * (halo_result[key][0].to("Mpc").value)
 
         # Check that we read in a large enough radius
-        if self.multiple * halo_result[key][0] > input_halo["read_radius"]:
+        if self.multiple * halo_result[key][0] > search_radius:
             raise SearchRadiusTooSmallError("SO radius multiple estimate was too small!")
 
         super().calculate(input_halo, data, halo_result)
