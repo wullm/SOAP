@@ -55,40 +55,44 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
         # Find mean density in the search radius
         density = mass_total / (4./3.*np.pi*current_radius**3)
 
-        # If we have no target density, there's no need to iterate
-        if target_density is None:
-            target_density = unyt.unyt_quantity(0.0, units=snap_density)
-            break
+        # If we've reached the target density, we can try to compute halo properties
+        if target_density is None or density <= target_density:
 
-        # Check if we reached the density threshold
-        if density <= target_density:
-            # Reached the density threshold, so we're done
-            break
-        elif current_radius >= input_halo["read_radius"]:
-            # Still above target density and we've exceeded the region guaranteed to be read in
+            # Extract particles in this halo
+            particle_data = {}
+            for ptype in data:
+                particle_data[ptype] = {}
+                for name in data[ptype]:
+                    particle_data[ptype][name] = data[ptype][name].full[idx[ptype],...]
+
+            # Wrap coordinates to copy closest to the halo centre
+            for ptype in particle_data:
+                pos = particle_data[ptype]["Coordinates"]
+                # Shift halo to box centre, wrap all particles into box, shift halo back
+                offset = input_halo["cofp"] - 0.5*boxsize
+                pos[:,:] = ((pos - offset) % boxsize) + offset
+
+            # Compute properties of this halo, if we can
+            try:
+                halo_result = {}
+                for halo_prop in halo_prop_list:
+                    halo_prop.calculate(input_halo, particle_data, halo_result)
+            except ReadRadiusTooSmallException:
+                # Search radius was too small, will need to try again
+                pass
+            else:
+                # This halo is done
+                break
+
+        # Either the density is still too high or the property calculation failed.
+        # Need to increase the search radius and try again.
+        if current_radius >= input_halo["read_radius"]:
+            # The region is not large enough but we've exceeded the region read in.
+            # Will need to repeat the chunk.
             return None
         else:
-            # Need to increase the search radius and try again
+            # Increase the search radius (subject to the maximum radius read in) and try again
             current_radius = min(current_radius*1.2, input_halo["read_radius"])
-
-    # Extract particles in this halo
-    particle_data = {}
-    for ptype in data:
-        particle_data[ptype] = {}
-        for name in data[ptype]:
-            particle_data[ptype][name] = data[ptype][name].full[idx[ptype],...]
-
-    # Wrap coordinates to copy closest to the halo centre
-    for ptype in particle_data:
-        pos = particle_data[ptype]["Coordinates"]
-        # Shift halo to box centre, wrap all particles into box, shift halo back
-        offset = input_halo["cofp"] - 0.5*boxsize
-        pos[:,:] = ((pos - offset) % boxsize) + offset
-
-    # Compute properties of this halo        
-    halo_result = {}
-    for halo_prop in halo_prop_list:
-        halo_prop.calculate(input_halo, particle_data, halo_result)
 
     # Add the halo index to the result set
     halo_result["VR/index"]         = (input_halo["index"],         "Index of this halo in the input catalogue")
