@@ -639,8 +639,6 @@ class SOProperties(HaloProperty):
                     SO["r"] += SO_r
                     SO["mass"] += SO_mass
                 except SearchRadiusTooSmallError:
-                    self.mean_density_multiple *= 0.9
-                    self.critical_density_multiple *= 0.9
                     raise SearchRadiusTooSmallError("SO radius multiple was too small!")
         elif self.physical_radius_mpc > 0.0:
             SO["r"] += self.physical_radius_mpc * unyt.Mpc
