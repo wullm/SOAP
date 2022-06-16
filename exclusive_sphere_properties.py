@@ -349,7 +349,7 @@ class ExclusiveSphereProperties(HaloProperty):
         )
         totLgas = unyt.unyt_array(
             [0.0] * 3,
-            dtype=np.float64,
+            dtype=np.float32,
             units="Msun*kpc*km/s",
             registry=mass.units.registry,
         )
@@ -369,8 +369,7 @@ class ExclusiveSphereProperties(HaloProperty):
             totLgas[:] = Lgas.sum(axis=0)
             Lnrm = unyt.array.unorm(totLgas)
             if Lnrm > 0.0 * Lnrm.units:
-                K = gas_relvel.astype(np.float64)
-                K = 0.5 * (mass_gas[:, None] * K**2).sum()
+                K = 0.5 * (mass_gas[:, None] * gas_relvel**2).sum()
                 if K > 0.0 * K.units:
                     Li = ((Lgas / Lnrm) * totLgas[None, :]).sum(axis=1)
                     gas_r2 = (
@@ -394,7 +393,7 @@ class ExclusiveSphereProperties(HaloProperty):
 
         totLdm = unyt.unyt_array(
             [0.0] * 3,
-            dtype=np.float64,
+            dtype=np.float32,
             units="Msun*kpc*km/s",
             registry=mass.units.registry,
         )
@@ -426,7 +425,7 @@ class ExclusiveSphereProperties(HaloProperty):
         )
         totLstar = unyt.unyt_array(
             [0.0] * 3,
-            dtype=np.float64,
+            dtype=np.float32,
             units="Msun*kpc*km/s",
             registry=mass.units.registry,
         )
@@ -446,8 +445,7 @@ class ExclusiveSphereProperties(HaloProperty):
             totLstar[:] = Lstar.sum(axis=0)
             Lnrm = unyt.array.unorm(totLstar)
             if Lnrm > 0.0 * Lnrm.units:
-                K = star_relvel.astype(np.float64)
-                K = 0.5 * (mass_star[:, None] * K**2).sum()
+                K = 0.5 * (mass_star[:, None] * star_relvel**2).sum()
                 if K > 0.0 * K.units:
                     Li = ((Lstar / Lnrm) * totLstar[None, :]).sum(axis=1)
                     star_r2 = (
@@ -737,7 +735,7 @@ class DummyExclusiveSphereProperties(ExclusiveSphereProperties):
 
         self.cellgrid = DummyCellGrid()
         self.filter = RecentlyHeatedGasFilter(self.cellgrid)
-        self.physical_radius_mpc = 0.001
+        self.physical_radius_mpc = 0.05
 
 
 def test_exclusive_sphere_properties():
@@ -745,16 +743,61 @@ def test_exclusive_sphere_properties():
     property_calculator = DummyExclusiveSphereProperties()
     reg = property_calculator.cellgrid.snap_unit_registry
 
+    """
+    # to get a rough idea of the ranges found in a typical halo:
+    types = [
+      "PartType0": {
+        "Coordinates": (np.float64, a*snap_length, 0., boxsize),
+        "GroupNr_bound": (np.int32, dimensionless, meh),
+        "LastAGNFeedbackScaleFactors": (np.float32, dimensionless, meh),
+        "Masses": (np.float32, snap_mass, 0.1, 0.1),
+        "MetalMassFractions": (np.float32, dimensionless, 0., 0.06),
+        "SmoothedElementMassFractions": (np.float32, dimensionless, [0.68, 0.24, 0., 0., 0., 0., 0., 0., 0.],
+            [0.75, 0.29, 0.006, 0.001, 0.01, 0.002, 0.0008, 0.002, 0.002]),
+        "StarFormationRates": (np.float32, snap_mass/snap_time, -0.99, 246.5),
+        "Temperatures": (np.float32, snap_temperature, 1.e3, 1.e10),
+        "Velocities": (np.float32, snap_length/snap_time, -1.e3, 1.e3),
+      },
+      "PartType1": {
+        "Coordinates": (np.float64, a*snap_length, 0., boxsize),
+        "GroupNr_bound": (np.int32, dimensionless, meh),
+        "Masses": (np.float32, snap_mass, 0.5, 0.5),
+        "Velocities": (np.float32, snap_length/snap_time, -1.e3, 1.e3),
+      }
+      "PartType4": {
+        "Coordinates": (np.float64, a*snap_length, 0., boxsize),
+        "GroupNr_bound": (np.int32, dimensionless, meh),
+        "InitialMasses": (np.float32, snap_mass, 0.1, 0.3),
+        "Luminosities": (np.float32, dimensionless, 1.e5, 1.e10),
+        "Masses": (np.float32, snap_mass, 0.06, 0.1),
+        "MetalMassFractions": (np.float32, dimensionless, 0., 0.075),
+        "Velocities": (np.float32, snap_length/snap_time, -1.e3, 1.e3),
+      }
+      "PartType5": {
+        "AccretionRates": (np.float32, snap_mass/snap_time, 0., 0.07),
+        "Coordinates": (np.float64, a*snap_length, 0., boxsize),
+        "DynamicalMasses": (np.float32, snap_mass, 0.1, 0.1),
+        "GroupNr_bound": (np.int32, dimensionless, meh),
+        "LastAGNFeedbackScaleFactors": (np.float32, dimensionless, meh),
+        "ParticleIDs": (np.int64, dimensionless, meh),
+        "SubgridMasses": (np.float32, snap_mass, 0.00001, 0.1),
+        "Velocities": (np.float32, snap_length/snap_time, -1.e3, 1.e3),
+      }
+    """
+
     np.random.seed(3589)
     for i in range(100):
         npart = np.random.choice([1, 10, 100, 1000, 10000])
 
         centre = unyt.unyt_array(
-            100.0 * np.random.random(3), dtype=np.float64, units=unyt.Mpc, registry=reg
+            100.0 * np.random.random(3),
+            dtype=np.float64,
+            units="snap_length",
+            registry=reg,
         )
         groupnr_halo = 1
 
-        radius = np.random.exponential(1.0, npart)
+        radius = np.random.exponential(1.0 / 60.0, npart)
         phi = 2.0 * np.pi * np.random.random(npart)
         sintheta = 2.0 * np.random.random(npart) - 1.0
         costheta = np.sqrt((1.0 - sintheta) * (1.0 + sintheta))
@@ -764,25 +807,32 @@ def test_exclusive_sphere_properties():
         coords[:, 0] = radius * cosphi * sintheta
         coords[:, 1] = radius * sinphi * sintheta
         coords[:, 2] = radius * costheta
-        coords = unyt.unyt_array(coords, dtype=np.float64, units=unyt.kpc, registry=reg)
+        coords = unyt.unyt_array(
+            coords, dtype=np.float64, units="snap_length", registry=reg
+        )
         coords += centre
         mass = unyt.unyt_array(
-            1.0e9 * (1.0 - 0.2 * np.random.random(npart)),
+            0.1 + 0.4 * np.random.random(npart),
             dtype=np.float32,
-            units=unyt.Msun,
+            units="snap_mass",
             registry=reg,
         )
         vs = unyt.unyt_array(
-            200.0 * (np.random.random((npart, 3)) - 0.5),
+            1000.0 * (np.random.random((npart, 3)) - 0.5),
             dtype=np.float32,
-            units=unyt.km / unyt.s,
+            units="snap_length/snap_time",
             registry=reg,
         )
 
         types = np.random.choice(
             ["PartType0", "PartType1", "PartType4", "PartType5"], size=npart
         )
-        groupnr = np.random.choice([groupnr_halo, 2, 3], size=npart)
+        groupnr = unyt.unyt_array(
+            np.random.choice([groupnr_halo, 2, 3], size=npart),
+            dtype=np.int32,
+            units=unyt.dimensionless,
+            registry=reg,
+        )
 
         data = {}
         gas_mask = types == "PartType0"
@@ -799,27 +849,37 @@ def test_exclusive_sphere_properties():
             )
             data["PartType0"]["Masses"] = mass[gas_mask]
             data["PartType0"]["MetalMassFractions"] = unyt.unyt_array(
-                1.0e-4 * np.random.random(Ngas),
+                1.0e-2 * np.random.random(Ngas),
                 dtype=np.float32,
                 units=unyt.dimensionless,
                 registry=reg,
             )
+            semf = np.zeros((Ngas, 9))
+            semf[:, 0] = 0.68 + 0.07 * np.random.random(Ngas)
+            semf[:, 1] = 0.25 + 0.04 * np.random.random(Ngas)
+            semf[:, 2] = 0.006 * np.random.random(Ngas)
+            semf[:, 3] = 0.001 * np.random.random(Ngas)
+            semf[:, 4] = 0.01 * np.random.random(Ngas)
+            semf[:, 5] = 0.002 * np.random.random(Ngas)
+            semf[:, 6] = 0.001 * np.random.random(Ngas)
+            semf[:, 7] = 0.002 * np.random.random(Ngas)
+            semf[:, 8] = 0.002 * np.random.random(Ngas)
             data["PartType0"]["SmoothedElementMassFractions"] = unyt.unyt_array(
-                1.0e-4 * np.random.random((Ngas, 9)),
+                semf,
                 dtype=np.float32,
                 units=unyt.dimensionless,
                 registry=reg,
             )
             data["PartType0"]["StarFormationRates"] = unyt.unyt_array(
-                (np.random.random(Ngas) - 0.5),
+                300.0 * np.random.random(Ngas) - 1.0 / 1.1,
                 dtype=np.float32,
-                units=unyt.Msun / unyt.yr,
+                units="snap_mass/snap_time",
                 registry=reg,
             )
             data["PartType0"]["Temperatures"] = unyt.unyt_array(
                 10.0 ** (10.0 * np.random.random(Ngas)),
                 dtype=np.float32,
-                units=unyt.K,
+                units="snap_temperature",
                 registry=reg,
             )
             data["PartType0"]["Velocities"] = vs[gas_mask]
@@ -842,18 +902,18 @@ def test_exclusive_sphere_properties():
             data["PartType4"]["InitialMasses"] = unyt.unyt_array(
                 mass[star_mask].value * (0.9 + 0.1 * np.random.random(Nstar)),
                 dtype=np.float32,
-                units=unyt.Msun,
+                units="snap_mass",
                 registry=reg,
             )
             data["PartType4"]["Luminosities"] = unyt.unyt_array(
-                np.random.random((Nstar, 9)),
+                1.0e10 * np.random.random((Nstar, 9)),
                 dtype=np.float32,
                 units=unyt.dimensionless,
                 registry=reg,
             )
             data["PartType4"]["Masses"] = mass[star_mask]
             data["PartType4"]["MetalMassFractions"] = unyt.unyt_array(
-                1.0e-4 * np.random.random(Nstar),
+                1.0e-2 * np.random.random(Nstar),
                 dtype=np.float32,
                 units=unyt.dimensionless,
                 registry=reg,
@@ -865,9 +925,9 @@ def test_exclusive_sphere_properties():
         if Nbh > 0:
             data["PartType5"] = {}
             data["PartType5"]["AccretionRates"] = unyt.unyt_array(
-                np.random.random(Nbh),
+                0.1 * np.random.random(Nbh),
                 dtype=np.float32,
-                units=unyt.Msun / unyt.yr,
+                units="snap_mass/snap_time",
                 registry=reg,
             )
             data["PartType5"]["Coordinates"] = coords[bh_mask]
@@ -881,14 +941,14 @@ def test_exclusive_sphere_properties():
             )
             data["PartType5"]["ParticleIDs"] = unyt.unyt_array(
                 np.arange(Nbh, dtype=np.uint64),
-                dtype=np.uint64,
+                dtype=np.int64,
                 units=unyt.dimensionless,
                 registry=reg,
             )
             data["PartType5"]["SubgridMasses"] = unyt.unyt_array(
                 mass[bh_mask].value * (0.9 + 0.1 * np.random.random(Nbh)),
                 dtype=np.float32,
-                units=unyt.Msun,
+                units="snap_mass",
                 registry=reg,
             )
             data["PartType5"]["Velocities"] = vs[bh_mask]
@@ -902,92 +962,113 @@ def test_exclusive_sphere_properties():
         property_calculator.calculate(input_halo, data, halo_result)
 
         for name, size, dtype, unit in [
-            ("ExclusiveSphere/1kpc/Mtot", 1, np.float32, unyt.Msun),
-            ("ExclusiveSphere/1kpc/Mgas", 1, np.float32, unyt.Msun),
-            ("ExclusiveSphere/1kpc/Mdm", 1, np.float32, unyt.Msun),
-            ("ExclusiveSphere/1kpc/Mstar", 1, np.float32, unyt.Msun),
-            ("ExclusiveSphere/1kpc/Mstar_init", 1, np.float32, unyt.Msun),
-            ("ExclusiveSphere/1kpc/Mbh", 1, np.float32, unyt.Msun),
-            ("ExclusiveSphere/1kpc/Mbh_subgrid", 1, np.float32, unyt.Msun),
-            ("ExclusiveSphere/1kpc/Ngas", 1, np.uint32, unyt.dimensionless),
-            ("ExclusiveSphere/1kpc/Ndm", 1, np.uint32, unyt.dimensionless),
-            ("ExclusiveSphere/1kpc/Nstar", 1, np.uint32, unyt.dimensionless),
-            ("ExclusiveSphere/1kpc/Nbh", 1, np.uint32, unyt.dimensionless),
-            ("ExclusiveSphere/1kpc/BHlasteventa", 1, np.float32, unyt.dimensionless),
-            ("ExclusiveSphere/1kpc/BHmaxM", 1, np.float32, unyt.Msun),
-            ("ExclusiveSphere/1kpc/BHmaxID", 1, np.uint64, unyt.dimensionless),
-            ("ExclusiveSphere/1kpc/BHmaxpos", 3, np.float64, unyt.kpc),
-            ("ExclusiveSphere/1kpc/BHmaxvel", 3, np.float32, unyt.km / unyt.s),
-            ("ExclusiveSphere/1kpc/BHmaxAR", 1, np.float32, unyt.Msun / unyt.yr),
-            ("ExclusiveSphere/1kpc/BHmaxlasteventa", 1, np.float32, unyt.dimensionless),
-            ("ExclusiveSphere/1kpc/com", 3, np.float32, unyt.kpc),
-            ("ExclusiveSphere/1kpc/vcom", 3, np.float32, unyt.km / unyt.s),
+            ("ExclusiveSphere/50kpc/Mtot", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/50kpc/Mgas", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/50kpc/Mdm", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/50kpc/Mstar", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/50kpc/Mstar_init", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/50kpc/Mbh", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/50kpc/Mbh_subgrid", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/50kpc/Ngas", 1, np.uint32, unyt.dimensionless),
+            ("ExclusiveSphere/50kpc/Ndm", 1, np.uint32, unyt.dimensionless),
+            ("ExclusiveSphere/50kpc/Nstar", 1, np.uint32, unyt.dimensionless),
+            ("ExclusiveSphere/50kpc/Nbh", 1, np.uint32, unyt.dimensionless),
+            ("ExclusiveSphere/50kpc/BHlasteventa", 1, np.float32, unyt.dimensionless),
+            ("ExclusiveSphere/50kpc/BHmaxM", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/50kpc/BHmaxID", 1, np.uint64, unyt.dimensionless),
+            ("ExclusiveSphere/50kpc/BHmaxpos", 3, np.float64, unyt.kpc),
+            ("ExclusiveSphere/50kpc/BHmaxvel", 3, np.float32, unyt.km / unyt.s),
+            ("ExclusiveSphere/50kpc/BHmaxAR", 1, np.float32, unyt.Msun / unyt.yr),
             (
-                "ExclusiveSphere/1kpc/Lgas",
+                "ExclusiveSphere/50kpc/BHmaxlasteventa",
+                1,
+                np.float32,
+                unyt.dimensionless,
+            ),
+            ("ExclusiveSphere/50kpc/com", 3, np.float32, unyt.kpc),
+            ("ExclusiveSphere/50kpc/vcom", 3, np.float32, unyt.km / unyt.s),
+            (
+                "ExclusiveSphere/50kpc/Lgas",
                 3,
-                np.float64,
+                np.float32,
                 unyt.Msun * unyt.kpc * unyt.km / unyt.s,
             ),
             (
-                "ExclusiveSphere/1kpc/Ldm",
+                "ExclusiveSphere/50kpc/Ldm",
                 3,
-                np.float64,
+                np.float32,
                 unyt.Msun * unyt.kpc * unyt.km / unyt.s,
             ),
             (
-                "ExclusiveSphere/1kpc/Lstar",
+                "ExclusiveSphere/50kpc/Lstar",
                 3,
-                np.float64,
+                np.float32,
                 unyt.Msun * unyt.kpc * unyt.km / unyt.s,
             ),
-            ("ExclusiveSphere/1kpc/kappa_corot_gas", 1, np.float32, unyt.dimensionless),
             (
-                "ExclusiveSphere/1kpc/kappa_corot_star",
+                "ExclusiveSphere/50kpc/kappa_corot_gas",
                 1,
                 np.float32,
                 unyt.dimensionless,
             ),
             (
-                "ExclusiveSphere/1kpc/veldisp_gas",
+                "ExclusiveSphere/50kpc/kappa_corot_star",
+                1,
+                np.float32,
+                unyt.dimensionless,
+            ),
+            (
+                "ExclusiveSphere/50kpc/veldisp_gas",
                 6,
                 np.float32,
                 unyt.km**2 / unyt.s**2,
             ),
             (
-                "ExclusiveSphere/1kpc/veldisp_dm",
+                "ExclusiveSphere/50kpc/veldisp_dm",
                 6,
                 np.float32,
                 unyt.km**2 / unyt.s**2,
             ),
             (
-                "ExclusiveSphere/1kpc/veldisp_star",
+                "ExclusiveSphere/50kpc/veldisp_star",
                 6,
                 np.float32,
                 unyt.km**2 / unyt.s**2,
             ),
-            ("ExclusiveSphere/1kpc/Mgas_SF", 1, np.float32, unyt.Msun),
-            ("ExclusiveSphere/1kpc/Mgas_noSF", 1, np.float32, unyt.Msun),
-            ("ExclusiveSphere/1kpc/Mgasmetal", 1, np.float32, unyt.Msun),
-            ("ExclusiveSphere/1kpc/Mgasmetal_SF", 1, np.float32, unyt.Msun),
-            ("ExclusiveSphere/1kpc/Mgasmetal_noSF", 1, np.float32, unyt.Msun),
-            ("ExclusiveSphere/1kpc/MgasO", 1, np.float32, unyt.Msun),
-            ("ExclusiveSphere/1kpc/MgasO_SF", 1, np.float32, unyt.Msun),
-            ("ExclusiveSphere/1kpc/MgasO_noSF", 1, np.float32, unyt.Msun),
-            ("ExclusiveSphere/1kpc/MgasFe", 1, np.float32, unyt.Msun),
-            ("ExclusiveSphere/1kpc/MgasFe_SF", 1, np.float32, unyt.Msun),
-            ("ExclusiveSphere/1kpc/MgasFe_noSF", 1, np.float32, unyt.Msun),
-            ("ExclusiveSphere/1kpc/Tgas", 1, np.float32, unyt.K),
-            ("ExclusiveSphere/1kpc/Tgas_no_agn", 1, np.float32, unyt.K),
-            ("ExclusiveSphere/1kpc/SFR", 1, np.float32, unyt.Msun / unyt.yr),
-            ("ExclusiveSphere/1kpc/Luminosity", 9, np.float32, unyt.dimensionless),
-            ("ExclusiveSphere/1kpc/Mstarmetal", 1, np.float32, unyt.Msun),
-            ("ExclusiveSphere/1kpc/HalfMassRadiusTot", 1, np.float32, unyt.kpc),
-            ("ExclusiveSphere/1kpc/HalfMassRadiusGas", 1, np.float32, unyt.kpc),
-            ("ExclusiveSphere/1kpc/HalfMassRadiusDM", 1, np.float32, unyt.kpc),
-            ("ExclusiveSphere/1kpc/HalfMassRadiusStar", 1, np.float32, unyt.kpc),
+            ("ExclusiveSphere/50kpc/Mgas_SF", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/50kpc/Mgas_noSF", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/50kpc/Mgasmetal", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/50kpc/Mgasmetal_SF", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/50kpc/Mgasmetal_noSF", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/50kpc/MgasO", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/50kpc/MgasO_SF", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/50kpc/MgasO_noSF", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/50kpc/MgasFe", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/50kpc/MgasFe_SF", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/50kpc/MgasFe_noSF", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/50kpc/Tgas", 1, np.float32, unyt.K),
+            ("ExclusiveSphere/50kpc/Tgas_no_agn", 1, np.float32, unyt.K),
+            ("ExclusiveSphere/50kpc/SFR", 1, np.float32, unyt.Msun / unyt.yr),
+            ("ExclusiveSphere/50kpc/Luminosity", 9, np.float32, unyt.dimensionless),
+            ("ExclusiveSphere/50kpc/Mstarmetal", 1, np.float32, unyt.Msun),
+            ("ExclusiveSphere/50kpc/HalfMassRadiusTot", 1, np.float32, unyt.kpc),
+            ("ExclusiveSphere/50kpc/HalfMassRadiusGas", 1, np.float32, unyt.kpc),
+            ("ExclusiveSphere/50kpc/HalfMassRadiusDM", 1, np.float32, unyt.kpc),
+            ("ExclusiveSphere/50kpc/HalfMassRadiusStar", 1, np.float32, unyt.kpc),
         ]:
             assert name in halo_result
             result = halo_result[name][0]
             assert (len(result.shape) == 0 and size == 1) or result.shape[0] == size
             assert result.dtype == dtype
             assert result.units.same_dimensions_as(unit.units)
+
+
+if __name__ == "__main__":
+    """
+    Standalone version of the program: just run the unit test.
+
+    Note that this can also be achieved by running "pytest *.py" in the folder.
+    """
+    print("Running test_exclusive_sphere_properties()...")
+    test_exclusive_sphere_properties()
+    print("Test passed.")
