@@ -13,7 +13,7 @@ import result_set
 SEARCH_RADIUS_FACTOR=1.2
 
 # Factor by which to increase the region read in around a halo if too small
-READ_RADIUS_FACTOR=2.0
+READ_RADIUS_FACTOR=1.5
 
 
 def process_single_halo(mesh, unit_registry, data, halo_prop_list,
@@ -39,7 +39,8 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
 
     Returns None if we need to try again with a larger region.
     """
-    
+
+    swift_mpc   = unyt.Unit("swift_mpc", registry=unit_registry)    
     snap_length = unyt.Unit("snap_length", registry=unit_registry)
     snap_mass   = unyt.Unit("snap_mass", registry=unit_registry)
     snap_density = snap_mass / (snap_length**3)
@@ -47,6 +48,8 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
     # Loop until we fall below the required density
     current_radius = input_halo["search_radius"]
     while True:
+        
+        assert current_radius <= input_halo["read_radius"]
 
         # Find the mass within the search radius
         mass_total = unyt.unyt_quantity(0.0, units=snap_mass)
@@ -62,6 +65,7 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
         density = mass_total / (4./3.*np.pi*current_radius**3)
 
         # If we've reached the target density, we can try to compute halo properties
+        max_physical_radius_mpc = 0.0 # Will store the largest physical radius requested by any calculation
         if target_density is None or density <= target_density:
 
             # Extract particles in this halo
@@ -85,20 +89,28 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
                     halo_prop.calculate(input_halo, particle_data, halo_result)
             except ReadRadiusTooSmallException:
                 # Search radius was too small, will need to try again
-                pass
+                max_physical_radius_mpc = max(max_physical_radius_mpc, halo_prop.physical_radius_mpc)
             else:
                 # This halo is done
                 break
 
         # Either the density is still too high or the property calculation failed.
-        # Need to increase the search radius and try again.
-        if current_radius >= input_halo["read_radius"]:
-            # The region is not large enough but we've exceeded the region read in.
-            # Will need to repeat the chunk.
+        required_radius = max_physical_radius_mpc*swift_mpc
+        if required_radius > input_halo["read_radius"]:
+            # A calculation has set its physical_radius_mpc larger than the region
+            # which we read in, so we can't process the halo on this iteration regardless
+            # of the current radius.
+            input_halo["search_radius"] = max(input_halo["search_radius"], required_radius)
+            return None
+        elif current_radius >= input_halo["read_radius"]:
+            # The current radius has exceeded the region read in. Will need to redo this
+            # halo using current_radius as the starting point for the next iteration.
+            input_halo["search_radius"] = max(input_halo["search_radius"], current_radius)
             return None
         else:
-            # Increase the search radius (subject to the maximum radius read in) and try again
+            # We still have a large enough region in memory that we can try a larger radius
             current_radius = min(current_radius*SEARCH_RADIUS_FACTOR, input_halo["read_radius"])
+            current_radius = max(current_radius, required_radius)
 
     # Add the halo index to the result set
     halo_result["VR/index"]         = (input_halo["index"],         "Index of this halo in the input catalogue")
@@ -205,8 +217,15 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
                     nr_done_this_rank += 1
                     halo_arrays["done"].full[task_to_do] = 1
                 else:
-                    # We didn't read in a large enough region
-                    halo_arrays["read_radius"].full[task_to_do] *= READ_RADIUS_FACTOR
+                    # We didn't read in a large enough region. Update the shared radius
+                    # arrays so that we read a larger region next time and start the
+                    # search from whatever radius we had reached this time.
+                    new_read_radius = max(input_halo["read_radius"] * READ_RADIUS_FACTOR,
+                                          input_halo["search_radius"])
+                    # Set the radius around the halo to read in
+                    halo_arrays["read_radius"].full[task_to_do] = new_read_radius
+                    # Set the initial guess at the radius we need
+                    halo_arrays["search_radius"].full[task_to_do] = input_halo["search_radius"]
 
             t1_task = time.time()
             task_time += (t1_task-t0_task)
