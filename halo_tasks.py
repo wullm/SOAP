@@ -45,6 +45,12 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
     snap_mass   = unyt.Unit("snap_mass", registry=unit_registry)
     snap_density = snap_mass / (snap_length**3)
 
+    # Record which calculations are still to do for this halo
+    halo_prop_done = np.zeros(len(halo_props), dtype=bool)
+
+    # Dict to store the results
+    halo_result = {}
+
     # Loop until we fall below the required density
     current_radius = input_halo["search_radius"]
     while True:
@@ -82,16 +88,23 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
                 offset = input_halo["cofp"] - 0.5*boxsize
                 pos[:,:] = ((pos - offset) % boxsize) + offset
 
-            # Compute properties of this halo, if we can
-            try:
-                halo_result = {}
-                for halo_prop in halo_prop_list:
+            # Try to compute properties of this halo which haven't been done yet
+            for prop_nr, halo_prop in enumerate(halo_prop_list):
+                if halo_prop_done[prop_nr]:
+                    # Already have the result for this one
+                    continue
+                try:
                     halo_prop.calculate(input_halo, particle_data, halo_result)
-            except ReadRadiusTooSmallException:
-                # Search radius was too small, will need to try again
-                max_physical_radius_mpc = max(max_physical_radius_mpc, halo_prop.physical_radius_mpc)
-            else:
-                # This halo is done
+                except ReadRadiusTooSmallException:
+                    # Search radius was too small, so will need to try again with a larger radius.
+                    max_physical_radius_mpc = max(max_physical_radius_mpc, halo_prop.physical_radius_mpc)
+                    break
+                else:
+                    # The property calculation worked!
+                    halo_prop_done[prop_nr] = True
+
+            # If we computed all of the properties, we're done with this halo
+            if np.all(halo_prop_done):
                 break
 
         # Either the density is still too high or the property calculation failed.
