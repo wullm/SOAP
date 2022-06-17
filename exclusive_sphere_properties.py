@@ -100,7 +100,14 @@ class RecentlyHeatedGasFilter:
 
 
 class ExclusiveSphereProperties(HaloProperty):
+    """
+    Compute exclusive sphere properties for halos.
 
+    The exclusive sphere has a fixed radius and only includes particles that
+    are bound to the halo.
+    """
+
+    # List of particle properties we need to read in
     particle_properties = {
         "PartType0": [
             "Coordinates",
@@ -136,11 +143,17 @@ class ExclusiveSphereProperties(HaloProperty):
     }
 
     def __init__(self, cellgrid, physical_radius_kpc, recently_heated_gas_filter):
+        """
+        Construct an ExclusiveSphereProperties object with the given physical
+        radius (in Mpc) that uses the given filter to filter out recently
+        heated gas particles.
+        """
+
         super().__init__(cellgrid)
 
         self.filter = recently_heated_gas_filter
 
-        # This specifies how large a sphere is read in:
+        # no density criterion for these properties
         self.mean_density_multiple = None
         self.critical_density_multiple = None
 
@@ -695,272 +708,47 @@ class ExclusiveSphereProperties(HaloProperty):
         return
 
 
-class DummyCellGrid:
-    def __init__(self):
-        self.cosmology = {
-            "H0 [internal units]": 68.09999996711613,
-            "Omega_b": 0.0486,
-            "Omega_lambda": 0.693922,
-            "Omega_r": 7.791804710018577e-05,
-            "Omega_m": 0.30461099999999997,
-            "w_0": -1.0,
-            "w_a": 0.0,
-            "Redshift": 0.1,
-        }
-        reg = unyt.unit_registry.UnitRegistry()
-        unyt.define_unit("snap_length", 3.08567758e24 * unyt.cm, registry=reg)
-        unyt.define_unit("snap_mass", 1.98841e43 * unyt.g, registry=reg)
-        unyt.define_unit("snap_time", 3.08567758e19 * unyt.s, registry=reg)
-        unyt.define_unit("snap_temperature", 1.0 * unyt.K, registry=reg)
-        unyt.define_unit("snap_angle", 1.0 * unyt.rad, registry=reg)
-        unyt.define_unit("snap_current", 1.0 * unyt.A, registry=reg)
-
-        us = unyt.UnitSystem(
-            "snap_units",
-            unyt.Unit("snap_length", registry=reg),
-            unyt.Unit("snap_mass", registry=reg),
-            unyt.Unit("snap_time", registry=reg),
-            unyt.Unit("snap_temperature", registry=reg),
-            unyt.Unit("snap_angle", registry=reg),
-            unyt.Unit("snap_current", registry=reg),
-            registry=reg,
-        )
-        self.snap_unit_registry = unyt.unit_registry.UnitRegistry(
-            lut=reg.lut, unit_system=us
-        )
-
-
 class DummyExclusiveSphereProperties(ExclusiveSphereProperties):
-    def __init__(self):
+    """
+    Dummy ExclusiveSphereProperties object that can be used to test the code.
 
-        self.cellgrid = DummyCellGrid()
-        self.filter = RecentlyHeatedGasFilter(self.cellgrid)
+    The dummy object does not require any input arguments, except for a
+    DummyHaloGenerator that can generate a minimal cellgrid that is needed
+    for the RecentlyHeatedGasFilter.
+    """
+
+    def __init__(self, dummy_halos):
+
+        self.filter = RecentlyHeatedGasFilter(dummy_halos.get_cell_grid())
         self.physical_radius_mpc = 0.05
 
 
 def test_exclusive_sphere_properties():
-
-    property_calculator = DummyExclusiveSphereProperties()
-    reg = property_calculator.cellgrid.snap_unit_registry
-
     """
-    # to get a rough idea of the ranges found in a typical halo:
-    types = [
-      "PartType0": {
-        "Coordinates": (np.float64, a*snap_length, 0., boxsize),
-        "GroupNr_bound": (np.int32, dimensionless, meh),
-        "LastAGNFeedbackScaleFactors": (np.float32, dimensionless, meh),
-        "Masses": (np.float32, snap_mass, 0.1, 0.1),
-        "MetalMassFractions": (np.float32, dimensionless, 0., 0.06),
-        "SmoothedElementMassFractions": (np.float32, dimensionless, [0.68, 0.24, 0., 0., 0., 0., 0., 0., 0.],
-            [0.75, 0.29, 0.006, 0.001, 0.01, 0.002, 0.0008, 0.002, 0.002]),
-        "StarFormationRates": (np.float32, snap_mass/snap_time, -0.99, 246.5),
-        "Temperatures": (np.float32, snap_temperature, 1.e3, 1.e10),
-        "Velocities": (np.float32, snap_length/snap_time, -1.e3, 1.e3),
-      },
-      "PartType1": {
-        "Coordinates": (np.float64, a*snap_length, 0., boxsize),
-        "GroupNr_bound": (np.int32, dimensionless, meh),
-        "Masses": (np.float32, snap_mass, 0.5, 0.5),
-        "Velocities": (np.float32, snap_length/snap_time, -1.e3, 1.e3),
-      }
-      "PartType4": {
-        "Coordinates": (np.float64, a*snap_length, 0., boxsize),
-        "GroupNr_bound": (np.int32, dimensionless, meh),
-        "InitialMasses": (np.float32, snap_mass, 0.1, 0.3),
-        "Luminosities": (np.float32, dimensionless, 1.e5, 1.e10),
-        "Masses": (np.float32, snap_mass, 0.06, 0.1),
-        "MetalMassFractions": (np.float32, dimensionless, 0., 0.075),
-        "Velocities": (np.float32, snap_length/snap_time, -1.e3, 1.e3),
-      }
-      "PartType5": {
-        "AccretionRates": (np.float32, snap_mass/snap_time, 0., 0.07),
-        "Coordinates": (np.float64, a*snap_length, 0., boxsize),
-        "DynamicalMasses": (np.float32, snap_mass, 0.1, 0.1),
-        "GroupNr_bound": (np.int32, dimensionless, meh),
-        "LastAGNFeedbackScaleFactors": (np.float32, dimensionless, meh),
-        "ParticleIDs": (np.int64, dimensionless, meh),
-        "SubgridMasses": (np.float32, snap_mass, 0.00001, 0.1),
-        "Velocities": (np.float32, snap_length/snap_time, -1.e3, 1.e3),
-      }
+    Unit test for the exclusive sphere property calculations.
+
+    We generate 100 random "dummy" halos and feed them to
+    ExclusiveSphereProperties::calculate(). We check that the returned values
+    are present, and have the right units, size and dtype
     """
 
-    np.random.seed(3589)
+    from dummy_halo_generator import DummyHaloGenerator
+
+    # initialise the DummyHaloGenerator with a random seed
+    dummy_halos = DummyHaloGenerator(3256)
+
+    # generate a minimal ExclusiveSphereProperties object that does not require
+    # an actual snapshot
+    property_calculator = DummyExclusiveSphereProperties(dummy_halos)
+
+    # generate 100 random halos
     for i in range(100):
-        npart = np.random.choice([1, 10, 100, 1000, 10000])
-
-        centre = unyt.unyt_array(
-            100.0 * np.random.random(3),
-            dtype=np.float64,
-            units="snap_length",
-            registry=reg,
-        )
-        groupnr_halo = 1
-
-        radius = np.random.exponential(1.0 / 60.0, npart)
-        phi = 2.0 * np.pi * np.random.random(npart)
-        sintheta = 2.0 * np.random.random(npart) - 1.0
-        costheta = np.sqrt((1.0 - sintheta) * (1.0 + sintheta))
-        cosphi = np.cos(phi)
-        sinphi = np.sin(phi)
-        coords = np.zeros((npart, 3))
-        coords[:, 0] = radius * cosphi * sintheta
-        coords[:, 1] = radius * sinphi * sintheta
-        coords[:, 2] = radius * costheta
-        coords = unyt.unyt_array(
-            coords, dtype=np.float64, units="snap_length", registry=reg
-        )
-        coords += centre
-        mass = unyt.unyt_array(
-            0.1 + 0.4 * np.random.random(npart),
-            dtype=np.float32,
-            units="snap_mass",
-            registry=reg,
-        )
-        vs = unyt.unyt_array(
-            1000.0 * (np.random.random((npart, 3)) - 0.5),
-            dtype=np.float32,
-            units="snap_length/snap_time",
-            registry=reg,
-        )
-
-        types = np.random.choice(
-            ["PartType0", "PartType1", "PartType4", "PartType5"], size=npart
-        )
-        groupnr = unyt.unyt_array(
-            np.random.choice([groupnr_halo, 2, 3], size=npart),
-            dtype=np.int32,
-            units=unyt.dimensionless,
-            registry=reg,
-        )
-
-        data = {}
-        gas_mask = types == "PartType0"
-        Ngas = int(gas_mask.sum())
-        if Ngas > 0:
-            data["PartType0"] = {}
-            data["PartType0"]["Coordinates"] = coords[gas_mask]
-            data["PartType0"]["GroupNr_bound"] = groupnr[gas_mask]
-            data["PartType0"]["LastAGNFeedbackScaleFactors"] = unyt.unyt_array(
-                1.0 / 1.1 + 0.01 * np.random.random(Ngas),
-                dtype=np.float32,
-                units=unyt.dimensionless,
-                registry=reg,
-            )
-            data["PartType0"]["Masses"] = mass[gas_mask]
-            data["PartType0"]["MetalMassFractions"] = unyt.unyt_array(
-                1.0e-2 * np.random.random(Ngas),
-                dtype=np.float32,
-                units=unyt.dimensionless,
-                registry=reg,
-            )
-            semf = np.zeros((Ngas, 9))
-            semf[:, 0] = 0.68 + 0.07 * np.random.random(Ngas)
-            semf[:, 1] = 0.25 + 0.04 * np.random.random(Ngas)
-            semf[:, 2] = 0.006 * np.random.random(Ngas)
-            semf[:, 3] = 0.001 * np.random.random(Ngas)
-            semf[:, 4] = 0.01 * np.random.random(Ngas)
-            semf[:, 5] = 0.002 * np.random.random(Ngas)
-            semf[:, 6] = 0.001 * np.random.random(Ngas)
-            semf[:, 7] = 0.002 * np.random.random(Ngas)
-            semf[:, 8] = 0.002 * np.random.random(Ngas)
-            data["PartType0"]["SmoothedElementMassFractions"] = unyt.unyt_array(
-                semf,
-                dtype=np.float32,
-                units=unyt.dimensionless,
-                registry=reg,
-            )
-            data["PartType0"]["StarFormationRates"] = unyt.unyt_array(
-                300.0 * np.random.random(Ngas) - 1.0 / 1.1,
-                dtype=np.float32,
-                units="snap_mass/snap_time",
-                registry=reg,
-            )
-            data["PartType0"]["Temperatures"] = unyt.unyt_array(
-                10.0 ** (10.0 * np.random.random(Ngas)),
-                dtype=np.float32,
-                units="snap_temperature",
-                registry=reg,
-            )
-            data["PartType0"]["Velocities"] = vs[gas_mask]
-
-        dm_mask = types == "PartType1"
-        Ndm = int(dm_mask.sum())
-        if Ndm > 0:
-            data["PartType1"] = {}
-            data["PartType1"]["Coordinates"] = coords[dm_mask]
-            data["PartType1"]["GroupNr_bound"] = groupnr[dm_mask]
-            data["PartType1"]["Masses"] = mass[dm_mask]
-            data["PartType1"]["Velocities"] = vs[dm_mask]
-
-        star_mask = types == "PartType4"
-        Nstar = int(star_mask.sum())
-        if Nstar > 0:
-            data["PartType4"] = {}
-            data["PartType4"]["Coordinates"] = coords[star_mask]
-            data["PartType4"]["GroupNr_bound"] = groupnr[star_mask]
-            data["PartType4"]["InitialMasses"] = unyt.unyt_array(
-                mass[star_mask].value * (0.9 + 0.1 * np.random.random(Nstar)),
-                dtype=np.float32,
-                units="snap_mass",
-                registry=reg,
-            )
-            data["PartType4"]["Luminosities"] = unyt.unyt_array(
-                1.0e10 * np.random.random((Nstar, 9)),
-                dtype=np.float32,
-                units=unyt.dimensionless,
-                registry=reg,
-            )
-            data["PartType4"]["Masses"] = mass[star_mask]
-            data["PartType4"]["MetalMassFractions"] = unyt.unyt_array(
-                1.0e-2 * np.random.random(Nstar),
-                dtype=np.float32,
-                units=unyt.dimensionless,
-                registry=reg,
-            )
-            data["PartType4"]["Velocities"] = vs[star_mask]
-
-        bh_mask = types == "PartType5"
-        Nbh = int(bh_mask.sum())
-        if Nbh > 0:
-            data["PartType5"] = {}
-            data["PartType5"]["AccretionRates"] = unyt.unyt_array(
-                0.1 * np.random.random(Nbh),
-                dtype=np.float32,
-                units="snap_mass/snap_time",
-                registry=reg,
-            )
-            data["PartType5"]["Coordinates"] = coords[bh_mask]
-            data["PartType5"]["DynamicalMasses"] = mass[bh_mask]
-            data["PartType5"]["GroupNr_bound"] = groupnr[bh_mask]
-            data["PartType5"]["LastAGNFeedbackScaleFactors"] = unyt.unyt_array(
-                1.0 / 1.1 + 0.01 * np.random.random(Nbh),
-                dtype=np.float32,
-                units=unyt.dimensionless,
-                registry=reg,
-            )
-            data["PartType5"]["ParticleIDs"] = unyt.unyt_array(
-                np.arange(Nbh, dtype=np.uint64),
-                dtype=np.int64,
-                units=unyt.dimensionless,
-                registry=reg,
-            )
-            data["PartType5"]["SubgridMasses"] = unyt.unyt_array(
-                mass[bh_mask].value * (0.9 + 0.1 * np.random.random(Nbh)),
-                dtype=np.float32,
-                units="snap_mass",
-                registry=reg,
-            )
-            data["PartType5"]["Velocities"] = vs[bh_mask]
-
-        input_halo = {}
-        input_halo["cofp"] = centre
-        input_halo["index"] = groupnr_halo
+        input_halo, data = dummy_halos.get_random_halo([1, 10, 100, 1000, 10000])
 
         halo_result = {}
-
         property_calculator.calculate(input_halo, data, halo_result)
 
+        # check that the calculation returns the correct values
         for name, size, dtype, unit in [
             ("ExclusiveSphere/50kpc/Mtot", 1, np.float32, unyt.Msun),
             ("ExclusiveSphere/50kpc/Mgas", 1, np.float32, unyt.Msun),
