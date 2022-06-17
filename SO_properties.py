@@ -132,7 +132,9 @@ def find_SO_radius_and_mass(
                 raise RuntimeError(
                     "Cannot find SO radius, but search radius is already larger than 20 Mpc!"
                 )
-            raise SearchRadiusTooSmallError("SO radius multiple estimate was too small!")
+            raise SearchRadiusTooSmallError(
+                "SO radius multiple estimate was too small!"
+            )
         # take the next interval
         r1 = r2
         r2 = ordered_radius[i]
@@ -663,7 +665,10 @@ class SOProperties(HaloProperty):
             if not hasattr(self, "multiple"):
                 raise ("Physical radius was set to 0! This should not happen!")
 
-        if SO["r"] > 0.0 * radius.units:
+        # the second condition is necessary to deal with physical SO radii and
+        # no particles
+        if SO["r"] > 0.0 * radius.units and SO["mass"] > 0.0 * mass.units:
+
             gas_selection = radius[types == "PartType0"] < SO["r"]
             dm_selection = radius[types == "PartType1"] < SO["r"]
             star_selection = radius[types == "PartType4"] < SO["r"]
@@ -946,7 +951,41 @@ class RadiusMultipleSOProperties(SOProperties):
 
         # Check that we read in a large enough radius
         if self.multiple * halo_result[key][0] > search_radius:
-            raise SearchRadiusTooSmallError("SO radius multiple estimate was too small!")
+            raise SearchRadiusTooSmallError(
+                "SO radius multiple estimate was too small!"
+            )
 
         super().calculate(input_halo, search_radius, data, halo_result)
         return
+
+
+def test_SO_properties():
+
+    from dummy_halo_generator import DummyHaloGenerator
+
+    dummy_halos = DummyHaloGenerator(4251)
+    property_calculator = SOProperties(dummy_halos.get_cell_grid(), 50.0, "physical")
+
+    for i in range(100):
+        input_halo, data = dummy_halos.get_random_halo([1, 10, 100, 1000, 10000])
+
+        halo_result = {}
+        property_calculator.calculate(input_halo, 100.0 * unyt.kpc, data, halo_result)
+
+        for name, size, dtype, unit_string, _ in property_calculator.SO_properties:
+            full_name = f"SO/50_kpc/{name}"
+            assert full_name in halo_result
+            result = halo_result[full_name][0]
+            assert (len(result.shape) == 0 and size == 1) or result.shape[0] == size
+            assert result.dtype == dtype
+            unit = unyt.Unit(unit_string)
+            assert result.units.same_dimensions_as(unit.units)
+
+
+if __name__ == "__main__":
+    """
+    Standalone mode. Just run test_SO_properties().
+    """
+    print("Calling test_SO_properties()...")
+    test_SO_properties()
+    print("Test passed.")
