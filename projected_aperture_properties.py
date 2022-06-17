@@ -9,6 +9,16 @@ from half_mass_radius import get_half_mass_radius
 
 
 class ProjectedApertureProperties(HaloProperty):
+    """
+    Calculate projected aperture properties.
+
+    These contain all particles bound to a halo. For projections along the three
+    principal coordinate axes, all particles within a given fixed aperture
+    radius are used. The depth of the projection is always the full extent of
+    the halo along the projection axis.
+    """
+
+    # Particle properties that are used
     particle_properties = {
         "PartType0": [
             "Coordinates",
@@ -38,7 +48,7 @@ class ProjectedApertureProperties(HaloProperty):
     def __init__(self, cellgrid, physical_radius_kpc):
         super().__init__(cellgrid)
 
-        # This specifies how large a sphere is read in:
+        # No density criterion
         self.mean_density_multiple = None
         self.critical_density_multiple = None
 
@@ -254,134 +264,68 @@ class ProjectedApertureProperties(HaloProperty):
 
 
 class DummyProjectedApertureProperties(ProjectedApertureProperties):
+    """
+    Minimal version of ProjectedApertureProperties, only used for testing.
+    """
+
     def __init__(self):
-        self.physical_radius_mpc = 0.001
+        self.physical_radius_mpc = 0.03
 
 
 def test_projected_aperture_properties():
+    """
+    Unit test for the projected aperture calculation.
+
+    Generates 100 random halos and passes them on to
+    ProjectedApertureProperties::calculate().
+    Tests that all expected return values are computed and have the right size,
+    dtype and units.
+    """
+
+    from dummy_halo_generator import DummyHaloGenerator
+
+    dummy_halos = DummyHaloGenerator(127)
 
     property_calculator = DummyProjectedApertureProperties()
 
-    np.random.seed(127)
     for i in range(100):
-        npart = np.random.choice([1, 10, 100, 1000, 10000])
-
-        centre = 100.0 * np.random.random(3) * unyt.Mpc
-        groupnr_halo = 1
-
-        radius = np.random.exponential(1.0, npart)
-        phi = 2.0 * np.pi * np.random.random(npart)
-        sintheta = 2.0 * np.random.random(npart) - 1.0
-        costheta = np.sqrt((1.0 - sintheta) * (1.0 + sintheta))
-        cosphi = np.cos(phi)
-        sinphi = np.sin(phi)
-        coords = np.zeros((npart, 3))
-        coords[:, 0] = radius * cosphi * sintheta
-        coords[:, 1] = radius * sinphi * sintheta
-        coords[:, 2] = radius * costheta
-        coords = unyt.unyt_array(coords, dtype=np.float64, units=unyt.kpc)
-        coords += centre
-        mass = unyt.unyt_array(
-            1.0e9 * (1.0 - 0.2 * np.random.random(npart)),
-            dtype=np.float32,
-            units=unyt.Msun,
-        )
-        vs = unyt.unyt_array(
-            200.0 * (np.random.random((npart, 3)) - 0.5),
-            dtype=np.float32,
-            units=unyt.km / unyt.s,
-        )
-
-        types = np.random.choice(
-            ["PartType0", "PartType1", "PartType4", "PartType5"], size=npart
-        )
-        groupnr = np.random.choice([groupnr_halo, 2, 3], size=npart)
-
-        data = {}
-        gas_mask = types == "PartType0"
-        Ngas = int(gas_mask.sum())
-        if Ngas > 0:
-            data["PartType0"] = {}
-            data["PartType0"]["Coordinates"] = coords[gas_mask]
-            data["PartType0"]["GroupNr_bound"] = groupnr[gas_mask]
-            data["PartType0"]["Masses"] = mass[gas_mask]
-            data["PartType0"]["StarFormationRates"] = unyt.unyt_array(
-                (np.random.random(Ngas) - 0.5),
-                dtype=np.float32,
-                units=unyt.Msun / unyt.yr,
-            )
-            data["PartType0"]["Velocities"] = vs[gas_mask]
-
-        dm_mask = types == "PartType1"
-        Ndm = int(dm_mask.sum())
-        if Ndm > 0:
-            data["PartType1"] = {}
-            data["PartType1"]["Coordinates"] = coords[dm_mask]
-            data["PartType1"]["GroupNr_bound"] = groupnr[dm_mask]
-            data["PartType1"]["Masses"] = mass[dm_mask]
-            data["PartType1"]["Velocities"] = vs[dm_mask]
-
-        star_mask = types == "PartType4"
-        Nstar = int(star_mask.sum())
-        if Nstar > 0:
-            data["PartType4"] = {}
-            data["PartType4"]["Coordinates"] = coords[star_mask]
-            data["PartType4"]["GroupNr_bound"] = groupnr[star_mask]
-            data["PartType4"]["InitialMasses"] = unyt.unyt_array(
-                mass[star_mask].value * (0.9 + 0.1 * np.random.random(Nstar)),
-                dtype=np.float32,
-                units=unyt.Msun,
-            )
-            data["PartType4"]["Luminosities"] = unyt.unyt_array(
-                np.random.random((Nstar, 9)), dtype=np.float32, units=unyt.dimensionless
-            )
-            data["PartType4"]["Masses"] = mass[star_mask]
-            data["PartType4"]["Velocities"] = vs[star_mask]
-
-        bh_mask = types == "PartType5"
-        Nbh = int(bh_mask.sum())
-        if Nbh > 0:
-            data["PartType5"] = {}
-            data["PartType5"]["Coordinates"] = coords[bh_mask]
-            data["PartType5"]["DynamicalMasses"] = mass[bh_mask]
-            data["PartType5"]["GroupNr_bound"] = groupnr[bh_mask]
-            data["PartType5"]["SubgridMasses"] = unyt.unyt_array(
-                mass[bh_mask].value * (0.9 + 0.1 * np.random.random(Nbh)),
-                dtype=np.float32,
-                units=unyt.Msun,
-            )
-            data["PartType5"]["Velocities"] = vs[bh_mask]
-
-        input_halo = {}
-        input_halo["cofp"] = centre
-        input_halo["index"] = groupnr_halo
+        input_halo, data = dummy_halos.get_random_halo([1, 10, 100, 1000, 10000])
 
         halo_result = {}
-
         property_calculator.calculate(input_halo, data, halo_result)
 
         for name, size, dtype, unit in [
-            ("ProjectedAperture/1kpc/projx/Mtot", 1, np.float32, unyt.Msun),
-            ("ProjectedAperture/1kpc/projx/Mgas", 1, np.float32, unyt.Msun),
-            ("ProjectedAperture/1kpc/projx/Mdm", 1, np.float32, unyt.Msun),
-            ("ProjectedAperture/1kpc/projx/Mstar", 1, np.float32, unyt.Msun),
-            ("ProjectedAperture/1kpc/projx/Mstar_init", 1, np.float32, unyt.Msun),
-            ("ProjectedAperture/1kpc/projx/Mbh", 1, np.float32, unyt.Msun),
-            ("ProjectedAperture/1kpc/projx/Mbh_subgrid", 1, np.float32, unyt.Msun),
-            ("ProjectedAperture/1kpc/projx/com", 3, np.float32, unyt.kpc),
-            ("ProjectedAperture/1kpc/projx/vcom", 3, np.float32, unyt.km / unyt.s),
-            ("ProjectedAperture/1kpc/projx/SFR", 1, np.float32, unyt.Msun / unyt.yr),
+            ("ProjectedAperture/30kpc/projx/Mtot", 1, np.float32, unyt.Msun),
+            ("ProjectedAperture/30kpc/projx/Mgas", 1, np.float32, unyt.Msun),
+            ("ProjectedAperture/30kpc/projx/Mdm", 1, np.float32, unyt.Msun),
+            ("ProjectedAperture/30kpc/projx/Mstar", 1, np.float32, unyt.Msun),
+            ("ProjectedAperture/30kpc/projx/Mstar_init", 1, np.float32, unyt.Msun),
+            ("ProjectedAperture/30kpc/projx/Mbh", 1, np.float32, unyt.Msun),
+            ("ProjectedAperture/30kpc/projx/Mbh_subgrid", 1, np.float32, unyt.Msun),
+            ("ProjectedAperture/30kpc/projx/com", 3, np.float32, unyt.kpc),
+            ("ProjectedAperture/30kpc/projx/vcom", 3, np.float32, unyt.km / unyt.s),
+            ("ProjectedAperture/30kpc/projx/SFR", 1, np.float32, unyt.Msun / unyt.yr),
             (
-                "ProjectedAperture/1kpc/projx/Luminosity",
+                "ProjectedAperture/30kpc/projx/Luminosity",
                 9,
                 np.float32,
                 unyt.dimensionless,
             ),
-            ("ProjectedAperture/1kpc/projx/HalfMassRadiusTot", 1, np.float32, unyt.kpc),
-            ("ProjectedAperture/1kpc/projx/HalfMassRadiusGas", 1, np.float32, unyt.kpc),
-            ("ProjectedAperture/1kpc/projx/HalfMassRadiusDM", 1, np.float32, unyt.kpc),
             (
-                "ProjectedAperture/1kpc/projx/HalfMassRadiusStar",
+                "ProjectedAperture/30kpc/projx/HalfMassRadiusTot",
+                1,
+                np.float32,
+                unyt.kpc,
+            ),
+            (
+                "ProjectedAperture/30kpc/projx/HalfMassRadiusGas",
+                1,
+                np.float32,
+                unyt.kpc,
+            ),
+            ("ProjectedAperture/30kpc/projx/HalfMassRadiusDM", 1, np.float32, unyt.kpc),
+            (
+                "ProjectedAperture/30kpc/projx/HalfMassRadiusStar",
                 1,
                 np.float32,
                 unyt.kpc,
@@ -392,3 +336,16 @@ def test_projected_aperture_properties():
             assert (len(result.shape) == 0 and size == 1) or result.shape[0] == size
             assert result.dtype == dtype
             assert result.units.same_dimensions_as(unit.units)
+
+
+if __name__ == "__main__":
+    """
+    Standalone mode: simply run the unit test.
+
+    Note that this can also be achieved by running
+    python3 -m pytest *.py
+    in the main folder.
+    """
+    print("Calling test_projected_aperture_properties()...")
+    test_projected_aperture_properties()
+    print("Test passed.")
