@@ -462,4 +462,4 @@ class DummyHaloGenerator:
         input_halo["cofp"] = centre
         input_halo["index"] = groupnr_halo
 
-        return input_halo, data, rmax, Mtot
+        return input_halo, data, rmax, Mtot, npart

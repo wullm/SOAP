@@ -663,7 +663,9 @@ class SOProperties(HaloProperty):
             # in that case, SO["r"] should remain 0
             # in any other case, something went wrong
             if not hasattr(self, "multiple"):
-                raise ("Physical radius was set to 0! This should not happen!")
+                raise RuntimeError(
+                    "Physical radius was set to 0! This should not happen!"
+                )
 
         # the second condition is necessary to deal with physical SO radii and
         # no particles
@@ -979,14 +981,59 @@ def test_SO_properties():
     )
 
     for i in range(100):
-        input_halo, data, rmax, Mtot = dummy_halos.get_random_halo(
+        input_halo, data, rmax, Mtot, Npart = dummy_halos.get_random_halo(
             [1, 10, 100, 1000, 10000]
         )
+        rho_ref = Mtot / (4.0 / 3.0 * np.pi * rmax**3)
+
+        # force the SO radius to be outside the search sphere and check that
+        # we get a SearchRadiusTooSmallError
+        property_calculator_2500mean.reference_density = 0.01 * rho_ref
+        property_calculator_2500crit.reference_density = 0.01 * rho_ref
+        property_calculator_BN98.reference_density = 0.01 * rho_ref
+        for prop_calc in [
+            property_calculator_2500mean,
+            property_calculator_2500crit,
+            property_calculator_BN98,
+        ]:
+            fail = False
+            try:
+                halo_result = {}
+                prop_calc.calculate(input_halo, rmax, data, halo_result)
+            except SearchRadiusTooSmallError:
+                fail = True
+            # 1 particle halos don't fail, since we always assume that the first
+            # particle is at the centre of potential (which means we exclude it
+            # in the SO calculation)
+            assert (Npart == 1) or fail
+
+        # force the radius multiple to trip over not having computed the
+        # required radius
+        fail = False
+        try:
+            halo_result = {}
+            property_calculator_5x2500mean.calculate(
+                input_halo, rmax, data, halo_result
+            )
+        except RuntimeError:
+            fail = True
+        assert fail
+
+        # force the radius multiple to trip over the search radius
+        fail = False
+        try:
+            halo_result = {"SO/2500_mean/r": (0.1 * rmax, "Dummy value.")}
+            property_calculator_5x2500mean.calculate(
+                input_halo, 0.2 * rmax, data, halo_result
+            )
+        except SearchRadiusTooSmallError:
+            fail = True
+        assert fail
+
         # force the SO radius to be within the search sphere
-        rho_ref = 2.0 * Mtot / (4.0 / 3.0 * np.pi * rmax**3)
-        property_calculator_2500mean.reference_density = rho_ref
-        property_calculator_2500crit.reference_density = rho_ref
-        property_calculator_BN98.reference_density = rho_ref
+        property_calculator_2500mean.reference_density = 2.0 * rho_ref
+        property_calculator_2500crit.reference_density = 2.0 * rho_ref
+        property_calculator_BN98.reference_density = 2.0 * rho_ref
 
         for SO_name, prop_calc in [
             ("50_kpc", property_calculator_50kpc),
@@ -997,6 +1044,7 @@ def test_SO_properties():
         ]:
 
             halo_result = {}
+            # make sure the radius multiple is found this time
             if SO_name == "5xR_2500_mean":
                 halo_result["SO/2500_mean/r"] = (
                     0.1 * rmax,
