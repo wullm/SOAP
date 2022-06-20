@@ -257,6 +257,7 @@ class DummyHaloGenerator:
         coords = unyt.unyt_array(
             coords, dtype=np.float64, units="snap_length", registry=reg
         )
+        rmax = np.sqrt(coords[:,0]**2+coords[:,1]**2+coords[:,2]**2).max()
         # add the (random) halo centre
         coords += centre
         mass = unyt.unyt_array(
@@ -265,6 +266,7 @@ class DummyHaloGenerator:
             units="snap_mass",
             registry=reg,
         )
+        Mtot = mass.sum()
         vs = unyt.unyt_array(
             1000.0 * (np.random.random((npart, 3)) - 0.5),
             dtype=np.float32,
@@ -460,4 +462,4 @@ class DummyHaloGenerator:
         input_halo["cofp"] = centre
         input_halo["index"] = groupnr_halo
 
-        return input_halo, data
+        return input_halo, data, rmax, Mtot

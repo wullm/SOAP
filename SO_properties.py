@@ -964,22 +964,54 @@ def test_SO_properties():
     from dummy_halo_generator import DummyHaloGenerator
 
     dummy_halos = DummyHaloGenerator(4251)
-    property_calculator = SOProperties(dummy_halos.get_cell_grid(), 50.0, "physical")
+    property_calculator_50kpc = SOProperties(
+        dummy_halos.get_cell_grid(), 50.0, "physical"
+    )
+    property_calculator_2500mean = SOProperties(
+        dummy_halos.get_cell_grid(), 2500.0, "mean"
+    )
+    property_calculator_2500crit = SOProperties(
+        dummy_halos.get_cell_grid(), 2500.0, "crit"
+    )
+    property_calculator_BN98 = SOProperties(dummy_halos.get_cell_grid(), 0.0, "BN98")
+    property_calculator_5x2500mean = RadiusMultipleSOProperties(
+        dummy_halos.get_cell_grid(), 2500.0, 5.0, "mean"
+    )
 
     for i in range(100):
-        input_halo, data = dummy_halos.get_random_halo([1, 10, 100, 1000, 10000])
+        input_halo, data, rmax, Mtot = dummy_halos.get_random_halo(
+            [1, 10, 100, 1000, 10000]
+        )
+        # force the SO radius to be within the search sphere
+        rho_ref = 2.0 * Mtot / (4.0 / 3.0 * np.pi * rmax**3)
+        property_calculator_2500mean.reference_density = rho_ref
+        property_calculator_2500crit.reference_density = rho_ref
+        property_calculator_BN98.reference_density = rho_ref
 
-        halo_result = {}
-        property_calculator.calculate(input_halo, 100.0 * unyt.kpc, data, halo_result)
+        for SO_name, prop_calc in [
+            ("50_kpc", property_calculator_50kpc),
+            ("2500_mean", property_calculator_2500mean),
+            ("2500_crit", property_calculator_2500crit),
+            ("BN98", property_calculator_BN98),
+            ("5xR_2500_mean", property_calculator_5x2500mean),
+        ]:
 
-        for name, size, dtype, unit_string, _ in property_calculator.SO_properties:
-            full_name = f"SO/50_kpc/{name}"
-            assert full_name in halo_result
-            result = halo_result[full_name][0]
-            assert (len(result.shape) == 0 and size == 1) or result.shape[0] == size
-            assert result.dtype == dtype
-            unit = unyt.Unit(unit_string)
-            assert result.units.same_dimensions_as(unit.units)
+            halo_result = {}
+            if SO_name == "5xR_2500_mean":
+                halo_result["SO/2500_mean/r"] = (
+                    0.1 * rmax,
+                    "Dummy value to force correct behaviour",
+                )
+            prop_calc.calculate(input_halo, rmax, data, halo_result)
+
+            for name, size, dtype, unit_string, _ in prop_calc.SO_properties:
+                full_name = f"SO/{SO_name}/{name}"
+                assert full_name in halo_result
+                result = halo_result[full_name][0]
+                assert (len(result.shape) == 0 and size == 1) or result.shape[0] == size
+                assert result.dtype == dtype
+                unit = unyt.Unit(unit_string)
+                assert result.units.same_dimensions_as(unit.units)
 
 
 if __name__ == "__main__":
