@@ -1050,7 +1050,12 @@ def test_SO_properties():
                     0.1 * rmax,
                     "Dummy value to force correct behaviour",
                 )
+            input_halo_copy = input_halo.copy()
+            data_copy = data.copy()
             prop_calc.calculate(input_halo, rmax, data, halo_result)
+            # make sure the calculation does not change the input
+            assert input_halo_copy == input_halo
+            assert data_copy == data
 
             for name, size, dtype, unit_string, _ in prop_calc.SO_properties:
                 full_name = f"SO/{SO_name}/{name}"
