@@ -6,6 +6,11 @@ import unyt
 from halo_properties import HaloProperty
 from dataset_names import mass_dataset
 from half_mass_radius import get_half_mass_radius
+from kinematic_properties import (
+    get_velocity_dispersion_matrix,
+    get_angular_momentum,
+    get_angular_momentum_and_kappa_corot,
+)
 
 from astropy.cosmology import w0waCDM, z_at_value
 import astropy.constants as const
@@ -496,120 +501,41 @@ class ExclusiveSphereProperties(HaloProperty):
             frac_mgas = mass_gas / exclusive_sphere["Mgas"]
             com_gas = (frac_mgas[:, None] * pos_gas).sum(axis=0)
             vcom_gas = (frac_mgas[:, None] * vel_gas).sum(axis=0)
-            gas_relpos = pos_gas - com_gas[None, :]
-            gas_relvel = vel_gas - vcom_gas[None, :]
-            Lgas = mass_gas[:, None] * unyt.array.ucross(gas_relpos, gas_relvel)
-            exclusive_sphere["Lgas"][:] = Lgas.sum(axis=0)
-            Lnrm = unyt.array.unorm(exclusive_sphere["Lgas"])
-            if Lnrm > 0.0 * Lnrm.units:
-                K = 0.5 * (mass_gas[:, None] * gas_relvel**2).sum()
-                if K > 0.0 * K.units:
-                    Ldir = exclusive_sphere["Lgas"] / Lnrm
-                    Li = (Lgas * Ldir[None, :]).sum(axis=1)
-                    gas_r2 = (
-                        gas_relpos[:, 0] ** 2
-                        + gas_relpos[:, 1] ** 2
-                        + gas_relpos[:, 2] ** 2
-                    )
-                    rdotL = (gas_relpos * Ldir[None, :]).sum(axis=1)
-                    Ri2 = gas_r2 - rdotL**2
-                    Krot = 0.5 * (Li**2 / (mass_gas * Ri2))
-                    Kcorot = Krot[Li > 0.0].sum()
-                    exclusive_sphere["kappa_corot_gas"] += Kcorot / K
+            Lgas, kappa = get_angular_momentum_and_kappa_corot(
+                mass_gas, pos_gas, vel_gas, com_gas, vcom_gas
+            )
+            exclusive_sphere["Lgas"][:] = Lgas
+            exclusive_sphere["kappa_corot_gas"] += kappa
 
-            vrel = vel_gas - exclusive_sphere["vcom"][None, :]
-            exclusive_sphere["veldisp_gas"][0] += (
-                frac_mgas * vrel[:, 0] * vrel[:, 0]
-            ).sum()
-            exclusive_sphere["veldisp_gas"][1] += (
-                frac_mgas * vrel[:, 1] * vrel[:, 1]
-            ).sum()
-            exclusive_sphere["veldisp_gas"][2] += (
-                frac_mgas * vrel[:, 2] * vrel[:, 2]
-            ).sum()
-            exclusive_sphere["veldisp_gas"][3] += (
-                frac_mgas * vrel[:, 0] * vrel[:, 1]
-            ).sum()
-            exclusive_sphere["veldisp_gas"][4] += (
-                frac_mgas * vrel[:, 0] * vrel[:, 2]
-            ).sum()
-            exclusive_sphere["veldisp_gas"][5] += (
-                frac_mgas * vrel[:, 1] * vrel[:, 2]
-            ).sum()
+            exclusive_sphere["veldisp_gas"][:] = get_velocity_dispersion_matrix(
+                frac_mgas, vel_gas, exclusive_sphere["vcom"]
+            )
 
         if exclusive_sphere["Mdm"] > 0.0 * exclusive_sphere["Mdm"].units:
             frac_mdm = mass_dm / exclusive_sphere["Mdm"]
             com_dm = (frac_mdm[:, None] * pos_dm).sum(axis=0)
             vcom_dm = (frac_mdm[:, None] * vel_dm).sum(axis=0)
-            dm_relpos = pos_dm - com_dm[None, :]
-            dm_relvel = vel_dm - vcom_dm[None, :]
-            Ldm = mass_dm[:, None] * unyt.array.ucross(dm_relpos, dm_relvel)
-            exclusive_sphere["Ldm"][:] = Ldm.sum(axis=0)
+            exclusive_sphere["Ldm"][:] = get_angular_momentum(
+                mass_dm, pos_dm, vel_dm, com_dm, vcom_dm
+            )
 
-            vrel = vel_dm - exclusive_sphere["vcom"][None, :]
-            exclusive_sphere["veldisp_dm"][0] += (
-                frac_mdm * vrel[:, 0] * vrel[:, 0]
-            ).sum()
-            exclusive_sphere["veldisp_dm"][1] += (
-                frac_mdm * vrel[:, 1] * vrel[:, 1]
-            ).sum()
-            exclusive_sphere["veldisp_dm"][2] += (
-                frac_mdm * vrel[:, 2] * vrel[:, 2]
-            ).sum()
-            exclusive_sphere["veldisp_dm"][3] += (
-                frac_mdm * vrel[:, 0] * vrel[:, 1]
-            ).sum()
-            exclusive_sphere["veldisp_dm"][4] += (
-                frac_mdm * vrel[:, 0] * vrel[:, 2]
-            ).sum()
-            exclusive_sphere["veldisp_dm"][5] += (
-                frac_mdm * vrel[:, 1] * vrel[:, 2]
-            ).sum()
+            exclusive_sphere["veldisp_dm"][:] = get_velocity_dispersion_matrix(
+                frac_mdm, vel_dm, exclusive_sphere["vcom"]
+            )
 
         if exclusive_sphere["Mstar"] > 0.0 * exclusive_sphere["Mstar"].units:
             frac_mstar = mass_star / exclusive_sphere["Mstar"]
             com_star = (frac_mstar[:, None] * pos_star).sum(axis=0)
             vcom_star = (frac_mstar[:, None] * vel_star).sum(axis=0)
-            star_relpos = pos_star - com_star[None, :]
-            star_relvel = vel_star - vcom_star[None, :]
-            Lstar = mass_star[:, None] * unyt.array.ucross(star_relpos, star_relvel)
-            exclusive_sphere["Lstar"][:] = Lstar.sum(axis=0)
-            Lnrm = unyt.array.unorm(exclusive_sphere["Lstar"])
-            if Lnrm > 0.0 * Lnrm.units:
-                K = 0.5 * (mass_star[:, None] * star_relvel**2).sum()
-                if K > 0.0 * K.units:
-                    Ldir = exclusive_sphere["Lstar"] / Lnrm
-                    Li = (Lstar * Ldir[None, :]).sum(axis=1)
-                    star_r2 = (
-                        star_relpos[:, 0] ** 2
-                        + star_relpos[:, 1] ** 2
-                        + star_relpos[:, 2] ** 2
-                    )
-                    rdotL = (star_relpos * Ldir[None, :]).sum(axis=1)
-                    Ri2 = star_r2 - rdotL**2
-                    Krot = 0.5 * (Li**2 / (mass_star * Ri2))
-                    Kcorot = Krot[Li > 0.0].sum()
-                    exclusive_sphere["kappa_corot_star"] += Kcorot / K
+            Lstar, kappa = get_angular_momentum_and_kappa_corot(
+                mass_star, pos_star, vel_star, com_star, vcom_star
+            )
+            exclusive_sphere["Lstar"][:] = Lstar
+            exclusive_sphere["kappa_corot_star"] += kappa
 
-            vrel = vel_star - exclusive_sphere["vcom"][None, :]
-            exclusive_sphere["veldisp_star"][0] += (
-                frac_mstar * vrel[:, 0] * vrel[:, 0]
-            ).sum()
-            exclusive_sphere["veldisp_star"][1] += (
-                frac_mstar * vrel[:, 1] * vrel[:, 1]
-            ).sum()
-            exclusive_sphere["veldisp_star"][2] += (
-                frac_mstar * vrel[:, 2] * vrel[:, 2]
-            ).sum()
-            exclusive_sphere["veldisp_star"][3] += (
-                frac_mstar * vrel[:, 0] * vrel[:, 1]
-            ).sum()
-            exclusive_sphere["veldisp_star"][4] += (
-                frac_mstar * vrel[:, 0] * vrel[:, 2]
-            ).sum()
-            exclusive_sphere["veldisp_star"][5] += (
-                frac_mstar * vrel[:, 1] * vrel[:, 2]
-            ).sum()
+            exclusive_sphere["veldisp_star"][:] = get_velocity_dispersion_matrix(
+                frac_mstar, vel_star, exclusive_sphere["vcom"]
+            )
 
         if exclusive_sphere["Ngas"] > 0:
             gas_mask_all = data["PartType0"]["GroupNr_bound"] == index
