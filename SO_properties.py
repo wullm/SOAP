@@ -198,7 +198,7 @@ class SOProperties(HaloProperty):
             "SubgridMasses",
             "Velocities",
         ],
-        #        "PartType6": ["Coordinates", "Masses", "Weights"],
+        "PartType6": ["Coordinates", "Masses", "Weights"],
     }
 
     # List of properties that get computed
@@ -982,7 +982,7 @@ def test_SO_properties():
 
     for i in range(100):
         input_halo, data, rmax, Mtot, Npart = dummy_halos.get_random_halo(
-            [1, 10, 100, 1000, 10000]
+            [1, 10, 100, 1000, 10000], has_neutrinos=True
         )
         rho_ref = Mtot / (4.0 / 3.0 * np.pi * rmax**3)
 

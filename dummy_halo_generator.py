@@ -156,6 +156,7 @@ class DummyHaloGenerator:
         """
         self.dummy_snapshot = DummySnapshot()
         self.unit_registry = unit_registry_from_snapshot(self.dummy_snapshot)
+        self.dummy_cellgrid = DummyCellGrid(self.unit_registry, self.dummy_snapshot)
         np.random.seed(seed)
 
     def get_cell_grid(self):
@@ -163,7 +164,7 @@ class DummyHaloGenerator:
         Return a minimal cell grid that is consistent with the random halos
         that are generated.
         """
-        return DummyCellGrid(self.unit_registry, self.dummy_snapshot)
+        return self.dummy_cellgrid
 
     def get_random_halo(self, npart, has_neutrinos=False):
         """
@@ -223,6 +224,11 @@ class DummyHaloGenerator:
           "SubgridMasses": (np.float32, snap_mass, 0.00001, 0.1),
           "Velocities": (np.float32, snap_length/snap_time, -1.e3, 1.e3),
         }
+        "PartType6": (based on the L1000N1800/HYDRO_FIDUCIAL snapshot) {
+          "Coordinates": (np.float64, a*snap_length, 0., boxsize),
+          "Masses": (np.float32, snap_mass, 0.018, 0.018),
+          "Weights": (np.float64, dimensionless, -0.46, 0.71),
+        }
         """
 
         if isinstance(npart, list):
@@ -257,7 +263,7 @@ class DummyHaloGenerator:
         coords = unyt.unyt_array(
             coords, dtype=np.float64, units="snap_length", registry=reg
         )
-        rmax = np.sqrt(coords[:,0]**2+coords[:,1]**2+coords[:,2]**2).max()
+        rmax = np.sqrt(coords[:, 0] ** 2 + coords[:, 1] ** 2 + coords[:, 2] ** 2).max()
         # add the (random) halo centre
         coords += centre
         mass = unyt.unyt_array(
@@ -266,7 +272,6 @@ class DummyHaloGenerator:
             units="snap_mass",
             registry=reg,
         )
-        Mtot = mass.sum()
         vs = unyt.unyt_array(
             1000.0 * (np.random.random((npart, 3)) - 0.5),
             dtype=np.float32,
@@ -282,7 +287,12 @@ class DummyHaloGenerator:
         if has_neutrinos:
             possible_types.append("PartType6")
             probability_for_type.append(0.1)
+            probability_for_type = np.array(probability_for_type)
+            probability_for_type /= probability_for_type.sum()
         types = np.random.choice(possible_types, size=npart, p=probability_for_type)
+        # make sure we have at least 1 non neutrino particle
+        if (types == "PartType6").sum() == npart:
+            types[0] = "PartType1"
         # randomly assign bound particles to the halo
         # we make sure most particles will be bound, and use two different
         # alternative values just in case that matters
@@ -293,6 +303,7 @@ class DummyHaloGenerator:
             registry=reg,
         )
 
+        Mtot = 0.0
         data = {}
         # gas particle variables
         gas_mask = types == "PartType0"
@@ -322,6 +333,7 @@ class DummyHaloGenerator:
                 registry=reg,
             )
             data["PartType0"]["Masses"] = mass[gas_mask]
+            Mtot += data["PartType0"]["Masses"].sum()
             data["PartType0"]["MetalMassFractions"] = unyt.unyt_array(
                 1.0e-2 * np.random.random(Ngas),
                 dtype=np.float32,
@@ -389,6 +401,7 @@ class DummyHaloGenerator:
             data["PartType1"]["Coordinates"] = coords[dm_mask]
             data["PartType1"]["GroupNr_bound"] = groupnr[dm_mask]
             data["PartType1"]["Masses"] = mass[dm_mask]
+            Mtot += data["PartType1"]["Masses"].sum()
             data["PartType1"]["Velocities"] = vs[dm_mask]
 
         # star properties
@@ -412,6 +425,7 @@ class DummyHaloGenerator:
                 registry=reg,
             )
             data["PartType4"]["Masses"] = mass[star_mask]
+            Mtot += data["PartType4"]["Masses"].sum()
             data["PartType4"]["MetalMassFractions"] = unyt.unyt_array(
                 1.0e-2 * np.random.random(Nstar),
                 dtype=np.float32,
@@ -433,6 +447,7 @@ class DummyHaloGenerator:
             )
             data["PartType5"]["Coordinates"] = coords[bh_mask]
             data["PartType5"]["DynamicalMasses"] = mass[bh_mask]
+            Mtot += data["PartType5"]["DynamicalMasses"].sum()
             data["PartType5"]["GroupNr_bound"] = groupnr[bh_mask]
             data["PartType5"]["LastAGNFeedbackScaleFactors"] = unyt.unyt_array(
                 1.0 / 1.1 + 0.01 * np.random.random(Nbh),
@@ -457,9 +472,39 @@ class DummyHaloGenerator:
             )
             data["PartType5"]["Velocities"] = vs[bh_mask]
 
+        # Neutrino properties
+        nu_mask = types == "PartType6"
+        Nnu = int(nu_mask.sum())
+        if Nnu > 0:
+            data["PartType6"] = {}
+            data["PartType6"]["Coordinates"] = coords[nu_mask]
+            # make sure neutrino masses are lower, since that is also the case
+            # in the snapshots
+            data["PartType6"]["Masses"] = 0.1 * mass[nu_mask]
+            data["PartType6"]["Weights"] = unyt.unyt_array(
+                1.17 * np.random.random(Nnu) - 0.46,
+                dtype=np.float64,
+                units="dimensionless",
+                registry=reg,
+            )
+            Mtot += (data["PartType6"]["Masses"] * data["PartType6"]["Weights"]).sum()
+
         # set the required halo properties
         input_halo = {}
         input_halo["cofp"] = centre
         input_halo["index"] = groupnr_halo
+
+        nu_density = (
+            self.dummy_cellgrid.cosmology["Omega_nu_0"]
+            * self.dummy_cellgrid.critical_density
+            * (
+                self.dummy_cellgrid.cosmology["H0 [internal units]"]
+                / self.dummy_cellgrid.cosmology["H [internal units]"]
+            )
+            ** 2
+            / self.dummy_cellgrid.a**3
+        )
+
+        Mtot += nu_density * 4.0 * np.pi / 3.0 * rmax**3
 
         return input_halo, data, rmax, Mtot, npart
