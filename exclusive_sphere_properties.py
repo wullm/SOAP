@@ -695,3 +695,17 @@ if __name__ == "__main__":
     print("Running test_exclusive_sphere_properties()...")
     test_exclusive_sphere_properties()
     print("Test passed.")
+
+    print("Name & Size & Unit & Type & Description \\\\")
+    for (
+        name,
+        size,
+        dtype,
+        unit,
+        description,
+    ) in ExclusiveSphereProperties.exclusive_sphere_properties:
+        unit_str = unit.__str__()
+        unit_str = unit_str.replace("1.98841586e+30 kg", "M$_\odot{}$")
+        print(
+            f"\\verb+{name}+ & {size} & {unit_str} & {dtype.__name__} & {description} \\\\"
+        )
