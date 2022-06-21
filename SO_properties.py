@@ -1074,3 +1074,18 @@ if __name__ == "__main__":
     print("Calling test_SO_properties()...")
     test_SO_properties()
     print("Test passed.")
+
+    print("Name & Size & Unit & Type & Description \\\\")
+    for (
+        name,
+        size,
+        dtype,
+        unit,
+        description,
+    ) in SOProperties.SO_properties:
+        unit_str = unit.__str__()
+        unit_str = unit_str.replace("1.98841586e+30 kg", "M$_\odot{}$")
+        unit_str = unit_str.replace(">", "$>$")
+        print(
+            f"\\verb+{name}+ & {size} & {unit_str} & {dtype.__name__} & {description.format(label='with a radius as determined for this particular SO type.')} \\\\"
+        )
