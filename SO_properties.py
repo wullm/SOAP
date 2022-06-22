@@ -1084,7 +1084,7 @@ if __name__ == "__main__":
         description,
     ) in SOProperties.SO_properties:
         unit_str = unit.__str__()
-        unit_str = unit_str.replace("1.98841586e+30 kg", "M$_\odot{}$")
+        unit_str = unit_str.replace("1.98841586e+30 kg", "M$_\\odot{}$")
         unit_str = unit_str.replace(">", "$>$")
         print(
             f"\\verb+{name}+ & {size} & {unit_str} & {dtype.__name__} & {description.format(label='with a radius as determined for this particular SO type.')} \\\\"
