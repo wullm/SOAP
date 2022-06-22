@@ -150,11 +150,12 @@ def find_SO_radius_and_mass(
         cumulative_mass_intersection, 1.0, r2 / r1, args=(rho_dim, slope_dim)
     )
 
+    SO_volume = 4.0 / 3.0 * np.pi * SO_r**3
     # compute the SO mass by requiring that the mean density in the SO is the
     # target density
-    SO_mass = 4.0 / 3.0 * np.pi * SO_r**3 * reference_density
+    SO_mass = SO_volume * reference_density
 
-    return SO_r, SO_mass
+    return SO_r, SO_mass, SO_volume
 
 
 class SOProperties(HaloProperty):
@@ -605,9 +606,7 @@ class SOProperties(HaloProperty):
         # Note that because of the definition of the centre of potential, the first
         # particle *should* be at r=0. We need to manually exclude it, in case round
         # off error places it at a very small non-zero radius.
-        nskip = 1
-        while nskip < len(ordered_radius) and ordered_radius[nskip] == 0:
-            nskip += 1
+        nskip = max(1, np.argmax(ordered_radius > 0.0 * ordered_radius.units))
         ordered_radius = ordered_radius[nskip:]
         cumulative_mass = cumulative_mass[nskip:]
         nr_parts = len(ordered_radius)
@@ -632,7 +631,7 @@ class SOProperties(HaloProperty):
         if self.reference_density > 0.0 * self.reference_density:
             if nr_parts > 0:
                 try:
-                    SO_r, SO_mass = find_SO_radius_and_mass(
+                    SO_r, SO_mass, SO_volume = find_SO_radius_and_mass(
                         ordered_radius,
                         density,
                         cumulative_mass,
@@ -642,8 +641,11 @@ class SOProperties(HaloProperty):
                     SO["mass"] += SO_mass
                 except SearchRadiusTooSmallError:
                     raise SearchRadiusTooSmallError("SO radius multiple was too small!")
+            else:
+                SO_volume = 4.0 * np.pi / 3.0 * SO["r"] ** 3
         elif self.physical_radius_mpc > 0.0:
             SO["r"] += self.physical_radius_mpc * unyt.Mpc
+            SO_volume = 4.0 * np.pi / 3.0 * SO["r"] ** 3
             if nr_parts > 0:
                 # find the enclosed mass using interpolation
                 i = np.argmax(ordered_radius > SO["r"])
@@ -692,9 +694,10 @@ class SOProperties(HaloProperty):
             )
 
             # note that we cannot divide by mSO here, since that was based on an interpolation
-            SO["com"][:] = (mass[:, None] * position).sum(axis=0) / mass.sum()
+            mass_frac = mass / mass.sum()
+            SO["com"][:] = (mass_frac[:, None] * position).sum(axis=0)
             SO["com"][:] += centre
-            SO["vcom"][:] = (mass[:, None] * velocity).sum(axis=0) / mass.sum()
+            SO["vcom"][:] = (mass_frac[:, None] * velocity).sum(axis=0)
 
             SO["Mfrac_satellites"] += mass[is_bound_to_satellite].sum() / SO["mass"]
 
@@ -905,7 +908,7 @@ class SOProperties(HaloProperty):
                     data["PartType6"]["Masses"][nu_selection]
                     * data["PartType6"]["Weights"][nu_selection]
                 ).sum()
-                SO["MnuNS"] += self.nu_density * 4.0 / 3.0 * np.pi * SO["r"] ** 3
+                SO["MnuNS"] += self.nu_density * SO_volume
 
         # Return value should be a dict containing unyt_arrays and descriptions.
         # The dict keys will be used as HDF5 dataset names in the output.
