@@ -4,7 +4,7 @@ import numpy as np
 import unyt
 from scipy.optimize import brentq
 
-from halo_properties import HaloProperty, SearchRadiusTooSmallError
+from halo_properties import HaloProperty, ReadRadiusTooSmallError
 
 from dataset_names import mass_dataset
 
@@ -92,7 +92,7 @@ def find_SO_radius_and_mass(
                     raise RuntimeError(
                         "Cannot find SO radius, but search radius is already larger than 20 Mpc!"
                     )
-                raise SearchRadiusTooSmallError(
+                raise ReadRadiusTooSmallError(
                     "SO radius multiple estimate was too small!"
                 )
     else:
@@ -132,9 +132,7 @@ def find_SO_radius_and_mass(
                 raise RuntimeError(
                     "Cannot find SO radius, but search radius is already larger than 20 Mpc!"
                 )
-            raise SearchRadiusTooSmallError(
-                "SO radius multiple estimate was too small!"
-            )
+            raise ReadRadiusTooSmallError("SO radius multiple estimate was too small!")
         # take the next interval
         r1 = r2
         r2 = ordered_radius[i]
@@ -639,8 +637,8 @@ class SOProperties(HaloProperty):
                     )
                     SO["r"] += SO_r
                     SO["mass"] += SO_mass
-                except SearchRadiusTooSmallError:
-                    raise SearchRadiusTooSmallError("SO radius multiple was too small!")
+                except ReadRadiusTooSmallError:
+                    raise ReadRadiusTooSmallError("SO radius multiple was too small!")
             else:
                 SO_volume = 4.0 * np.pi / 3.0 * SO["r"] ** 3
         elif self.physical_radius_mpc > 0.0:
@@ -956,9 +954,7 @@ class RadiusMultipleSOProperties(SOProperties):
 
         # Check that we read in a large enough radius
         if self.multiple * halo_result[key][0] > search_radius:
-            raise SearchRadiusTooSmallError(
-                "SO radius multiple estimate was too small!"
-            )
+            raise ReadRadiusTooSmallError("SO radius multiple estimate was too small!")
 
         super().calculate(input_halo, search_radius, data, halo_result)
         return
@@ -990,7 +986,7 @@ def test_SO_properties():
         rho_ref = Mtot / (4.0 / 3.0 * np.pi * rmax**3)
 
         # force the SO radius to be outside the search sphere and check that
-        # we get a SearchRadiusTooSmallError
+        # we get a ReadRadiusTooSmallError
         property_calculator_2500mean.reference_density = 0.01 * rho_ref
         property_calculator_2500crit.reference_density = 0.01 * rho_ref
         property_calculator_BN98.reference_density = 0.01 * rho_ref
@@ -1003,7 +999,7 @@ def test_SO_properties():
             try:
                 halo_result = {}
                 prop_calc.calculate(input_halo, rmax, data, halo_result)
-            except SearchRadiusTooSmallError:
+            except ReadRadiusTooSmallError:
                 fail = True
             # 1 particle halos don't fail, since we always assume that the first
             # particle is at the centre of potential (which means we exclude it
@@ -1029,7 +1025,7 @@ def test_SO_properties():
             property_calculator_5x2500mean.calculate(
                 input_halo, 0.2 * rmax, data, halo_result
             )
-        except SearchRadiusTooSmallError:
+        except ReadRadiusTooSmallError:
             fail = True
         assert fail
 
