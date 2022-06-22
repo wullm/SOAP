@@ -25,6 +25,7 @@ import command_line_args
 import SO_properties
 import subhalo_properties
 import result_set
+import projected_aperture_properties
 
 
 def split_comm_world():
@@ -117,6 +118,10 @@ if __name__ == "__main__":
         SO_properties.SOProperties(cellgrid, 100., "crit"),
         SO_properties.SOProperties(cellgrid, 200., "crit"),
         SO_properties.SOProperties(cellgrid, 500., "crit"),
+        projected_aperture_properties.ProjectedApertureProperties(cellgrid, 10.),
+        projected_aperture_properties.ProjectedApertureProperties(cellgrid, 30.),
+        projected_aperture_properties.ProjectedApertureProperties(cellgrid, 50.),
+        projected_aperture_properties.ProjectedApertureProperties(cellgrid, 100.),
     ]
     
     # Determine which calculations we're doing this time
