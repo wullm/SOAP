@@ -293,8 +293,20 @@ def test_projected_aperture_properties():
             [1, 10, 100, 1000, 10000]
         )
 
+        input_data = {}
+        for ptype in property_calculator.particle_properties:
+            if ptype in data:
+                input_data[ptype] = {}
+                for dset in property_calculator.particle_properties[ptype]:
+                    input_data[ptype][dset] = data[ptype][dset]
+        input_halo_copy = input_halo.copy()
+        input_data_copy = input_data.copy()
         halo_result = {}
-        property_calculator.calculate(input_halo, 0.0 * unyt.kpc, data, halo_result)
+        property_calculator.calculate(
+            input_halo, 0.0 * unyt.kpc, input_data, halo_result
+        )
+        assert input_halo == input_halo_copy
+        assert input_data == input_data_copy
 
         for name, size, dtype, unit in [
             ("ProjectedAperture/30kpc/projx/Mtot", 1, np.float32, unyt.Msun),
