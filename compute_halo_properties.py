@@ -24,6 +24,7 @@ import lustre
 import command_line_args
 import SO_properties
 import subhalo_properties
+import exclusive_sphere_properties
 import result_set
 import projected_aperture_properties
 
@@ -106,6 +107,8 @@ if __name__ == "__main__":
         a = None
     cellgrid, parsec_cgs, solar_mass_cgs, a = comm_world.bcast((cellgrid, parsec_cgs, solar_mass_cgs, a))
 
+    recently_heated_gas_filter = exclusive_sphere_properties.RecentlyHeatedGasFilter(cellgrid, 15.*unyt.Myr, 0., 0.)
+
     # Get the full list of property calculations we can do
     halo_prop_list = [
         subhalo_properties.SubhaloMasses(cellgrid, bound_only=True),
@@ -122,8 +125,16 @@ if __name__ == "__main__":
         projected_aperture_properties.ProjectedApertureProperties(cellgrid, 30.),
         projected_aperture_properties.ProjectedApertureProperties(cellgrid, 50.),
         projected_aperture_properties.ProjectedApertureProperties(cellgrid, 100.),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 10., recently_heated_gas_filter),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 30., recently_heated_gas_filter),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 50., recently_heated_gas_filter),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 100., recently_heated_gas_filter),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 300., recently_heated_gas_filter),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 500., recently_heated_gas_filter),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 1000., recently_heated_gas_filter),
+        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 3000., recently_heated_gas_filter),
     ]
-    
+
     # Determine which calculations we're doing this time
     if args.calculations is not None:
 
