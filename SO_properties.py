@@ -115,7 +115,7 @@ def find_SO_radius_and_mass(
             / (np.pi * ordered_radius[ipos] * reference_density)
         )
         SO_mass = cumulative_mass[ipos] * SO_r / ordered_radius[ipos]
-        return SO_r, SO_mass
+        return SO_r, SO_mass, 4.0 * np.pi / 3.0 * SO_r**3
 
     # We now have the intersecting interval. Get the limits.
     r1 = ordered_radius[i - 1]
