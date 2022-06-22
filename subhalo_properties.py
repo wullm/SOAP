@@ -469,3 +469,17 @@ if __name__ == "__main__":
     print("Running test_subhalo_properties()...")
     test_subhalo_properties()
     print("Test passed.")
+
+    print("Name & Size & Unit & Type & Description \\\\")
+    for (
+        name,
+        size,
+        dtype,
+        unit,
+        description,
+    ) in SubhaloProperties.subhalo_properties:
+        unit_str = unit.__str__()
+        unit_str = unit_str.replace("1.98841586e+30 kg", "M$_\\odot{}$")
+        print(
+            f"\\verb+{name}+ & {size} & {unit_str} & {dtype.__name__} & {description} \\\\"
+        )
