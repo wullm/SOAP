@@ -296,12 +296,16 @@ class DummyHaloGenerator:
         # randomly assign bound particles to the halo
         # we make sure most particles will be bound, and use two different
         # alternative values just in case that matters
-        groupnr = unyt.unyt_array(
+        groupnr_all = unyt.unyt_array(
             np.random.choice([groupnr_halo, 2, 3], size=npart, p=[0.6, 0.2, 0.2]),
             dtype=np.int32,
             units=unyt.dimensionless,
             registry=reg,
         )
+        # randomly unbind 10% of the particles
+        index = np.random.choice(groupnr_all.shape[0], npart//10, replace=False)
+        groupnr_bound = groupnr_all.copy()
+        groupnr_bound[index] = -1
 
         Mtot = 0.0
         data = {}
@@ -323,7 +327,8 @@ class DummyHaloGenerator:
                 units="snap_mass/(a**3*snap_length**3)",
                 registry=reg,
             )
-            data["PartType0"]["GroupNr_bound"] = groupnr[gas_mask]
+            data["PartType0"]["GroupNr_all"] = groupnr_all[gas_mask]
+            data["PartType0"]["GroupNr_bound"] = groupnr_bound[gas_mask]
             # we assume a fixed "snapshot" redshift of 0.1, so we make sure
             # the random values span a range of scale factors that is lower
             data["PartType0"]["LastAGNFeedbackScaleFactors"] = unyt.unyt_array(
@@ -399,7 +404,8 @@ class DummyHaloGenerator:
         if Ndm > 0:
             data["PartType1"] = {}
             data["PartType1"]["Coordinates"] = coords[dm_mask]
-            data["PartType1"]["GroupNr_bound"] = groupnr[dm_mask]
+            data["PartType1"]["GroupNr_all"] = groupnr_all[dm_mask]
+            data["PartType1"]["GroupNr_bound"] = groupnr_bound[dm_mask]
             data["PartType1"]["Masses"] = mass[dm_mask]
             Mtot += data["PartType1"]["Masses"].sum()
             data["PartType1"]["Velocities"] = vs[dm_mask]
@@ -410,7 +416,8 @@ class DummyHaloGenerator:
         if Nstar > 0:
             data["PartType4"] = {}
             data["PartType4"]["Coordinates"] = coords[star_mask]
-            data["PartType4"]["GroupNr_bound"] = groupnr[star_mask]
+            data["PartType4"]["GroupNr_all"] = groupnr_all[star_mask]
+            data["PartType4"]["GroupNr_bound"] = groupnr_bound[star_mask]
             # initial masses are always larger than the actual mass
             data["PartType4"]["InitialMasses"] = unyt.unyt_array(
                 mass[star_mask].value * (1.0 + np.random.random(Nstar)),
@@ -448,7 +455,8 @@ class DummyHaloGenerator:
             data["PartType5"]["Coordinates"] = coords[bh_mask]
             data["PartType5"]["DynamicalMasses"] = mass[bh_mask]
             Mtot += data["PartType5"]["DynamicalMasses"].sum()
-            data["PartType5"]["GroupNr_bound"] = groupnr[bh_mask]
+            data["PartType5"]["GroupNr_all"] = groupnr_all[bh_mask]
+            data["PartType5"]["GroupNr_bound"] = groupnr_bound[bh_mask]
             data["PartType5"]["LastAGNFeedbackScaleFactors"] = unyt.unyt_array(
                 1.0 / 1.1 + 0.01 * np.random.random(Nbh),
                 dtype=np.float32,
