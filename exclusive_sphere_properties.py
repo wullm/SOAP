@@ -455,7 +455,7 @@ class ExclusiveSphereProperties(HaloProperty):
                 mass_star
                 * data["PartType4"]["MetalMassFractions"][star_mask_all][star_mask_ap]
             ).sum()
-        Mbh = mass[type == "PartType5"].sum()
+        exclusive_sphere["Mbh"] = mass[type == "PartType5"].sum()
         if exclusive_sphere["Nbh"] > 0:
             bh_mask_all = data["PartType5"]["GroupNr_bound"] == index
             exclusive_sphere["Mbh_subgrid"] += data["PartType5"]["SubgridMasses"][
@@ -705,7 +705,7 @@ if __name__ == "__main__":
         description,
     ) in ExclusiveSphereProperties.exclusive_sphere_properties:
         unit_str = unit.__str__()
-        unit_str = unit_str.replace("1.98841586e+30 kg", "M$_\odot{}$")
+        unit_str = unit_str.replace("1.98841586e+30 kg", "M$_\\odot{}$")
         print(
             f"\\verb+{name}+ & {size} & {unit_str} & {dtype.__name__} & {description} \\\\"
         )
