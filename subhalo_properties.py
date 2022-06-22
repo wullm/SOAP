@@ -216,8 +216,6 @@ class SubhaloProperties(HaloProperty):
             in_halo = grnr == index
             mass.append(data[ptype][mass_dataset(ptype)][in_halo])
             pos = data[ptype]["Coordinates"][in_halo, :] - centre[None, :]
-            pos[pos < -0.5 * self.boxsize] += self.boxsize
-            pos[pos >= 0.5 * self.boxsize] -= self.boxsize
             position.append(pos)
             r = np.sqrt(pos[:, 0] ** 2 + pos[:, 1] ** 2 + pos[:, 2] ** 2)
             radius.append(r)
@@ -441,7 +439,7 @@ def test_subhalo_properties():
                         input_data[ptype][dset] = data[ptype][dset]
             input_halo_copy = input_halo.copy()
             input_data_copy = input_data.copy()
-            prop_calc.calculate(input_halo, input_data, halo_result)
+            prop_calc.calculate(input_halo, 0.*unyt.kpc, input_data, halo_result)
             assert input_halo == input_halo_copy
             assert input_data == input_data_copy
 

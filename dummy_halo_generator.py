@@ -249,6 +249,8 @@ class DummyHaloGenerator:
         # The chosen beta parameter should ensure that ~90% of the values is
         # below 50 kpc.
         radius = np.random.exponential(1.0 / 60.0, npart)
+        # force the first particle to be at the centre
+        radius[0] = 0.
         # generate a random direction to convert the radius into an actual
         # coordinate
         phi = 2.0 * np.pi * np.random.random(npart)

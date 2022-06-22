@@ -177,7 +177,7 @@ class SOProperties(HaloProperty):
             "XrayLuminosities",
             "XrayPhotonLuminosities",
         ],
-        "PartType1": ["Coordinates", "Masses", "Velocities"],
+        "PartType1": ["Coordinates", "GroupNr_bound", "Masses", "Velocities"],
         "PartType4": [
             "Coordinates",
             "GroupNr_bound",
@@ -981,7 +981,7 @@ def test_SO_properties():
 
     for i in range(100):
         input_halo, data, rmax, Mtot, Npart = dummy_halos.get_random_halo(
-            [1, 10, 100, 1000, 10000], has_neutrinos=True
+            [2, 10, 100, 1000, 10000], has_neutrinos=True
         )
         rho_ref = Mtot / (4.0 / 3.0 * np.pi * rmax**3)
 
@@ -1049,12 +1049,18 @@ def test_SO_properties():
                     0.1 * rmax,
                     "Dummy value to force correct behaviour",
                 )
+            input_data = {}
+            for ptype in prop_calc.particle_properties:
+                if ptype in data:
+                    input_data[ptype] = {}
+                    for dset in prop_calc.particle_properties[ptype]:
+                        input_data[ptype][dset] = data[ptype][dset]
             input_halo_copy = input_halo.copy()
-            data_copy = data.copy()
-            prop_calc.calculate(input_halo, rmax, data, halo_result)
+            input_data_copy = input_data.copy()
+            prop_calc.calculate(input_halo, rmax, input_data, halo_result)
             # make sure the calculation does not change the input
             assert input_halo_copy == input_halo
-            assert data_copy == data
+            assert input_data_copy == input_data
 
             for name, size, dtype, unit_string, _ in prop_calc.SO_properties:
                 full_name = f"SO/{SO_name}/{name}"
