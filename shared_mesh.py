@@ -152,6 +152,10 @@ class SharedMesh:
         centre and radius. pos should be the coordinates used to build
         the mesh. This can be called independently on different MPI ranks
         since it only reads the shared data.
+
+        This version takes the periodic boundary into account in the sense
+        that it will return a particle's index if any periodic copy of that
+        particle is in the specified region.
         """
         
         pos_min = centre - radius
