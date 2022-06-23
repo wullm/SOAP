@@ -132,6 +132,21 @@ flag. This specifies the VELOCIraptor IDs of the required halos. E.g.
 python3 -Werror -m pdb ./compute_halo_properties.py --halo-ids 1 2 3 ...
 ```
 
+## Profiling
+
+The code can be profiled by running with the `--profile` flag, which uses the
+python cProfile module. Use `--profile=1` to profile MPI rank zero only or
+`--profile=2` to generate profiles for all ranks. This will generate files
+profile.N.txt with a text summary and profile.N.dat with data which can be
+loaded into profiling tools.
+
+The profile can be visualized with snakeviz, for example. Usage on Cosma with
+x2go or VNC:
+```
+pip install snakeviz --user
+snakeviz -b "firefox -no-remote %s" ./profile.0.dat
+```
+
 ## TODO
 
 Possible improvements:
