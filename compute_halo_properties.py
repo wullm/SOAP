@@ -59,7 +59,7 @@ def sub_snapnum(filename, snapnum):
     return filename % {"snap_nr" : snapnum}
 
 
-if __name__ == "__main__":
+def compute_halo_properties():
 
     # Read command line parameters
     args = command_line_args.get_halo_props_args(comm_world)
@@ -294,3 +294,14 @@ if __name__ == "__main__":
         print("Fraction of time spent calculating halo properties = %.2f" % task_time_fraction)
         print("Total elapsed time: %.1f seconds" % (t1-t0))
         print("Done.")
+
+
+if __name__ == "__main__":
+
+    try:
+        compute_halo_properties()
+    except Exception as e:
+        print(e)
+        sys.stdout.flush()
+        sys.stderr.flush()
+        comm.Abort()
