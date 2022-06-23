@@ -9,6 +9,7 @@ comm_world_rank = comm_world.Get_rank()
 comm_world_size = comm_world.Get_size()
 
 import sys
+import traceback
 import time
 import numpy as np
 import h5py
@@ -300,8 +301,16 @@ if __name__ == "__main__":
 
     try:
         compute_halo_properties()
+    except SystemExit as e:
+        # Handle sys.exit()
+        comm_world.Abort(e.code)
+    except KeyboardInterrupt:
+        # Handle kill signal (e.g. ctrl-c if interactive)
+        comm_world.Abort()
     except Exception as e:
-        print(e)
-        sys.stdout.flush()
+        # Uncaught exception. Print stack trace and exit.
+        sys.stderr.write("\n\n*** EXCEPTION ***\n"+str(e)+" on rank "+str(comm_world_rank)+"\n\n")
+        traceback.print_exc(file=sys.stderr)
+        sys.stderr.write("\n\n")
         sys.stderr.flush()
-        comm.Abort()
+        comm_world.Abort()
