@@ -29,7 +29,10 @@ if __name__ == "__main__":
     comm.barrier()
 
     # Find group number for each particle ID in the VR output
-    ids_bound, grnr_bound, ids_unbound, grnr_unbound = read_vr.find_group_membership(args.vr_basename)
+    (length_bound, offset_bound, ids_bound,
+     length_unbound, offset_unbound, ids_unbound) = read_vr.read_vr_lengths_and_offsets(args.vr_basename)
+    grnr_bound = read_vr.vr_group_membership_from_ids(length_bound, offset_bound, ids_bound)
+    grnr_unbound = read_vr.vr_group_membership_from_ids(length_unbound, offset_unbound, ids_unbound)
 
     # Determine SWIFT particle types which exist in the snapshot
     ptypes = []

@@ -62,9 +62,12 @@ def compute_lengths(offsets, total_nr_ids):
     return lengths
 
 
-def find_group_membership(vr_basename):
+def read_vr_lengths_and_offsets(vr_basename):
     """
-    For each particle ID in a VR output, find the halo index
+    Read the bound and unbound halo lengths, offsets and IDs from VR.
+    Offsets are modified to be relative to the start of the first file.
+
+    All output arrays are distributed over ranks in MPI_COMM_WORLD.
     """
 
     # Find number of VR output files
@@ -132,8 +135,24 @@ def find_group_membership(vr_basename):
     if comm_rank == 0:
         print("Calculated halo lengths ")
 
-    # Associate a group index to each particle ID
-    grnr_bound = virgo.mpi.util.group_index_from_length_and_offset(length_bound, offset_bound, len(ids_bound))
-    grnr_unbound = virgo.mpi.util.group_index_from_length_and_offset(length_unbound, offset_unbound, len(ids_unbound))
+    return (length_bound, offset_bound, ids_bound,
+            length_unbound, offset_unbound, ids_unbound)
 
-    return ids_bound, grnr_bound, ids_unbound, grnr_unbound
+
+def vr_group_membership_from_ids(length, offset, ids, max_nr_particles=None):
+    """
+    Return VR group membership for the supplied IDs. Only the first
+    max_nr_particles in each group are assigned group numbers if
+    max_nr_particles is not None.
+
+    Returns -1 for particles in no group.
+    """
+    
+    # Find group lengths to use
+    if max_nr_particles is None:
+        lengths_to_use = length
+    else:
+        lengths_to_use = np.clip(length, None, max_nr_particles)
+
+    # Associate a group index to each particle ID
+    return virgo.mpi.util.group_index_from_length_and_offset(lengths_to_use, offset, len(ids))
