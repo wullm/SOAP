@@ -90,3 +90,37 @@ def get_group_membership_args(comm):
 
     return args
 
+
+def get_match_vr_halos_args(comm):
+    """
+    Process command line arguments for halo matching program.
+
+    Returns a dict with the argument values, or None on failure.
+    """
+    
+    if comm.Get_rank() == 0:
+
+        os.environ['COLUMNS'] = '80' # Can't detect terminal width when running under MPI?
+
+        parser = ThrowingArgumentParser(description='Match halos between VR outputs.')
+        parser.add_argument('vr_basename1',
+                            help='Base name of the first VELOCIraptor files, excluding trailing .properties[.N] etc.')
+        parser.add_argument('vr_basename2',
+                            help='Base name of the second VELOCIraptor files, excluding trailing .properties[.N] etc.')
+        parser.add_argument('nr_particles', metavar="N", type=int, help='Number of most bound particles to use.')
+        parser.add_argument('output_file', help='Output file name')
+        try:
+            args = parser.parse_args()
+        except ArgumentParserError as e:
+            args = None
+
+    else:
+        args = None
+
+    args = comm.bcast(args)
+    if args is None:
+        MPI.Finalize()
+        sys.exit(0)
+
+    return args
+
