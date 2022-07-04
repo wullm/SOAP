@@ -153,3 +153,37 @@ Possible improvements:
 
   * Specify multi-file inputs/outputs more consistently
   * Use swiftsimio cosmo_arrays (may require a more complete wrapping of unyt_array).
+
+
+### Matching halos between VR outputs
+
+This repository also contains a program to find halos which contain the same
+particle IDs between two outputs. It can be used to find the same halos between
+different snapshots or between hydro and dark matter only simulations.
+
+For each halo in the first output we find the N most bound particle IDs and
+determine which halo in the second output contains the largest number of these
+IDs. This matching process is then repeated in the opposite direction and we
+check for cases were we have consistent matches in both directions.
+
+To run the program:
+```
+vr_basename1="./vr/catalogue_0012/vr_catalogue_0012"
+vr_basename2="./vr/catalogue_0013/vr_catalogue_0013"
+
+outfile="halo_matching_0012_to_0013.hdf5"
+nr_particles=10
+
+mpirun python3 -u -m mpi4py \
+    ./match_vr_halos.py ${vr_basename1} ${vr_basename2} ${nr_particles} ${outfile}
+```
+Here `nr_particles` is the number of most bound particles to use for matching.
+
+The output is a HDF5 file with the following datasets:
+
+  * `BoundParticleNr1` - number of bound particles in each halo in the first catalogue
+  * `MatchIndex1to2` - for each halo in the first catalogue, index of the matching halo in the second
+  * `MatchCount1to2` - how many of the most bound particles from the halo in the first catalogue are in the matched halo in the second
+  * `Consistent1to2` - whether the match from first to second catalogue is consistent with second to first (1) or not (0)
+
+There are corresponding datasets with `1` and `2` reversed with information about matching in the opposite direction.
