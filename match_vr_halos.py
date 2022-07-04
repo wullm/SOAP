@@ -174,13 +174,19 @@ if __name__ == "__main__":
     match_index_12, count_12 = find_matching_halos(length_bound1, offset_bound1, ids_bound1,
                                                    length_bound2, offset_bound2, ids_bound2,
                                                    args.nr_particles)
+    total_nr_halos = comm.allreduce(len(match_index_12))
+    total_nr_matched = comm.allreduce(np.sum(match_index_12 >= 0))
+    message(f"  Matched {total_nr_matched} of {total_nr_halos} halos")
 
     # For each halo in output 2, find the matching halo in output 1
     message("Matching from second catalogue to first")
     match_index_21, count_21 = find_matching_halos(length_bound2, offset_bound2, ids_bound2,
                                                    length_bound1, offset_bound1, ids_bound1,
                                                    args.nr_particles)
-    
+    total_nr_halos = comm.allreduce(len(match_index_21))
+    total_nr_matched = comm.allreduce(np.sum(match_index_21 >= 0))
+    message(f"  Matched {total_nr_matched} of {total_nr_halos} halos")
+
     # Check for consistent matches in both directions
     message("Checking for consistent matches")
     consistent_12 = consistent_match(match_index_12, match_index_21)
