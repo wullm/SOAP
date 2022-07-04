@@ -155,7 +155,7 @@ Possible improvements:
   * Use swiftsimio cosmo_arrays (may require a more complete wrapping of unyt_array).
 
 
-### Matching halos between VR outputs
+## Matching halos between VR outputs
 
 Note that this requires the latest version of https://github.com/jchelly/VirgoDC 
 
