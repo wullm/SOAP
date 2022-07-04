@@ -157,6 +157,8 @@ Possible improvements:
 
 ### Matching halos between VR outputs
 
+Note that this requires the latest version of https://github.com/jchelly/VirgoDC 
+
 This repository also contains a program to find halos which contain the same
 particle IDs between two outputs. It can be used to find the same halos between
 different snapshots or between hydro and dark matter only simulations.
