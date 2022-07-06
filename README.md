@@ -177,9 +177,15 @@ outfile="halo_matching_0012_to_0013.hdf5"
 nr_particles=10
 
 mpirun python3 -u -m mpi4py \
-    ./match_vr_halos.py ${vr_basename1} ${vr_basename2} ${nr_particles} ${outfile}
+    ./match_vr_halos.py ${vr_basename1} ${vr_basename2} ${nr_particles} ${outfile} --use-types 0 1 2 3 4 5
 ```
 Here `nr_particles` is the number of most bound particles to use for matching.
+
+The `--use-types` flag specifies which particle types to use for matching using
+the type numbering scheme from Swift. Only the specified types are included in
+the most bound particles used to match halos between snapshots. For example,
+`--use-types 1` will cause the code to track the `nr_particles` most bound dark
+matter particles from each halo.
 
 The output is a HDF5 file with the following datasets:
 
@@ -187,5 +193,5 @@ The output is a HDF5 file with the following datasets:
   * `MatchIndex1to2` - for each halo in the first catalogue, index of the matching halo in the second
   * `MatchCount1to2` - how many of the most bound particles from the halo in the first catalogue are in the matched halo in the second
   * `Consistent1to2` - whether the match from first to second catalogue is consistent with second to first (1) or not (0)
-
+  * `MatchHostIndex1to2` - for each halo in the first catalogue, index of host halo of the matching halo in the second
 There are corresponding datasets with `1` and `2` reversed with information about matching in the opposite direction.
