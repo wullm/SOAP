@@ -147,14 +147,6 @@ pip install snakeviz --user
 snakeviz -b "firefox -no-remote %s" ./profile.0.dat
 ```
 
-## TODO
-
-Possible improvements:
-
-  * Specify multi-file inputs/outputs more consistently
-  * Use swiftsimio cosmo_arrays (may require a more complete wrapping of unyt_array).
-
-
 ## Matching halos between VR outputs
 
 Note that this requires the latest version of https://github.com/jchelly/VirgoDC 
@@ -194,4 +186,12 @@ The output is a HDF5 file with the following datasets:
   * `MatchCount1to2` - how many of the most bound particles from the halo in the first catalogue are in the matched halo in the second
   * `Consistent1to2` - whether the match from first to second catalogue is consistent with second to first (1) or not (0)
   * `MatchHostIndex1to2` - for each halo in the first catalogue, index of host halo of the matching halo in the second
+
 There are corresponding datasets with `1` and `2` reversed with information about matching in the opposite direction.
+
+## TODO
+
+Possible improvements:
+
+  * Specify multi-file inputs/outputs more consistently
+  * Use swiftsimio cosmo_arrays (may require a more complete wrapping of unyt_array).
