@@ -15,6 +15,8 @@ comm = MPI.COMM_WORLD
 comm_rank = comm.Get_rank()
 comm_size = comm.Get_size()
 
+# Maximum number of particle types
+NTYPEMAX=7
 
 def message(s):
     if comm_rank == 0:
@@ -40,9 +42,9 @@ def exchange_array(arr, dest, comm):
     return recvbuf
 
 
-def find_matching_halos(cat1_length, cat1_offset, cat1_ids,
-                        cat2_length, cat2_offset, cat2_ids,
-                        max_nr_particles):
+def find_matching_halos(cat1_length, cat1_offset, cat1_ids, cat1_types,
+                        cat2_length, cat2_offset, cat2_ids, cat2_types,
+                        max_nr_particles, use_type):
     
     # Decide range of halos in cat1 which we'll store on each rank:
     # This is used to partition the result between MPI ranks.
@@ -54,13 +56,14 @@ def find_matching_halos(cat1_length, cat1_offset, cat1_ids,
         nr_cat1_local = nr_cat1_tot - (comm_size-1)*nr_cat1_per_rank
 
     # Find group membership for particles in the first catalogue:
-    # Only the first max_nr_particles bound particles in each halo are counted as in a halo.
-    cat1_grnr_in_cat1 = read_vr.vr_group_membership_from_ids(cat1_length, cat1_offset, cat1_ids,
-                                                             max_nr_particles=max_nr_particles)
+    cat1_grnr_in_cat1 = read_vr.vr_group_membership_from_ids(cat1_length, cat1_offset, cat1_ids)
 
-    # Find group membership for particles in the second catalogue:
-    # In this case all bound particles are considered to be in the halo.
+    # Find group membership for particles in the second catalogue
     cat2_grnr_in_cat2 = read_vr.vr_group_membership_from_ids(cat2_length, cat2_offset, cat2_ids)
+
+    # Clear group membership for particles of types we're not using in the first catalogue
+    discard = (use_type[cat1_types]==False) | (cat1_grnr_in_cat1 < 0)
+    cat1_grnr_in_cat1[discard] = -1
 
     # Discard particles which are in no halo from each catalogue
     in_group = (cat1_grnr_in_cat1 >= 0)
@@ -69,6 +72,42 @@ def find_matching_halos(cat1_length, cat1_offset, cat1_ids,
     in_group = (cat2_grnr_in_cat2 >= 0)
     cat2_ids = cat2_ids[in_group]
     cat2_grnr_in_cat2 = cat2_grnr_in_cat2[in_group]
+
+    # Now we need to identify the first max_nr_particles remaining particles for each
+    # halo in catalogue 1. First, find the ranking of each particle within the part of
+    # its group which is stored on this MPI rank. First particle in a group has rank 0.
+    unique_grnr, unique_index, unique_count = np.unique(cat1_grnr_in_cat1, return_index=True, return_counts=True)
+    cat1_rank_in_group = -np.ones_like(cat1_grnr_in_cat1)
+    for ui, uc in zip(unique_index, unique_count):
+        cat1_rank_in_group[ui:ui+uc] = np.arange(uc, dtype=int)
+    assert np.all(cat1_rank_in_group >= 0)
+
+    # Then for the first group on each rank we'll need to add the total number of particles in
+    # the same group on all lower numbered ranks. Since the particles are sorted by group this
+    # can only ever be the last group on each lower numbered rank.
+    if len(unique_grnr) > 0:
+        # This rank has at least one particle in a group. Store indexes of first and last groups
+        # and the number of particles from the last group which are stored on this rank.
+        assert unique_index[0] == 0
+        first_grnr = unique_grnr[0]
+        last_grnr = unique_grnr[-1]
+        last_grnr_count = unique_count[-1]
+    else:
+        # This rank has no particles in groups
+        first_grnr = -1
+        last_grnr = -1
+        last_grnr_count = 0
+    all_last_grnr = comm.allgather(last_grnr)
+    all_last_grnr_count = comm.allgather(last_grnr_count)
+    # Loop over lower numbered ranks
+    for rank_nr in range(comm_rank):
+        if first_grnr >= 0 and last_grnr[rank_nr] == first_grnr:
+            cat1_rank_in_group[:unique_count[0]] += all_last_grnr_count[rank_nr]
+
+    # Only keep the first max_nr_particles remaining particles in each group in catalogue 1
+    keep = cat1_rank_in_group < max_nr_particles
+    cat1_ids = cat1_ids[keep]
+    cat1_grnr_in_cat1 = cat1_grnr_in_cat1[keep]
 
     # For each particle ID in catalogue 1, try to find the same particle ID in catalogue 2
     ptr = psort.parallel_match(cat1_ids, cat2_ids, comm=comm)
@@ -169,20 +208,32 @@ if __name__ == "__main__":
     (length_bound2, offset_bound2, ids_bound2,
      length_unbound2, offset_unbound2, ids_unbound2) = read_vr.read_vr_lengths_and_offsets(args.vr_basename2)
 
+    # Read in particle types for the two outputs
+    type_bound1 = read_vr.read_vr_datasets(args.vr_basename1, "catalogue_parttypes", ("Particle_types",)).values()[0]
+    type_bound2 = read_vr.read_vr_datasets(args.vr_basename2, "catalogue_parttypes", ("Particle_types",)).values()[0]
+
+    # Decide which particle types we want to keep
+    if args.use_types is not None:
+        use_type = np.zeros(NTYPEMAX, dtype=bool)
+        for ut in args.use_types:
+            use_type[ut] = True
+    else:
+        use_type = np.ones(NTYPEMAX, dtype=bool)
+
     # For each halo in output 1, find the matching halo in output 2
     message("Matching from first catalogue to second")
-    match_index_12, count_12 = find_matching_halos(length_bound1, offset_bound1, ids_bound1,
-                                                   length_bound2, offset_bound2, ids_bound2,
-                                                   args.nr_particles)
+    match_index_12, count_12 = find_matching_halos(length_bound1, offset_bound1, ids_bound1, type_bound1,
+                                                   length_bound2, offset_bound2, ids_bound2, type_bound2,
+                                                   args.nr_particles, use_type)
     total_nr_halos = comm.allreduce(len(match_index_12))
     total_nr_matched = comm.allreduce(np.sum(match_index_12 >= 0))
     message(f"  Matched {total_nr_matched} of {total_nr_halos} halos")
 
     # For each halo in output 2, find the matching halo in output 1
     message("Matching from second catalogue to first")
-    match_index_21, count_21 = find_matching_halos(length_bound2, offset_bound2, ids_bound2,
-                                                   length_bound1, offset_bound1, ids_bound1,
-                                                   args.nr_particles)
+    match_index_21, count_21 = find_matching_halos(length_bound2, offset_bound2, ids_bound2, type_bound2,
+                                                   length_bound1, offset_bound1, ids_bound1, type_bound1,
+                                                   args.nr_particles, use_type)
     total_nr_halos = comm.allreduce(len(match_index_21))
     total_nr_matched = comm.allreduce(np.sum(match_index_21 >= 0))
     message(f"  Matched {total_nr_matched} of {total_nr_halos} halos")

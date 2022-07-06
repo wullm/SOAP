@@ -109,6 +109,7 @@ def get_match_vr_halos_args(comm):
                             help='Base name of the second VELOCIraptor files, excluding trailing .properties[.N] etc.')
         parser.add_argument('nr_particles', metavar="N", type=int, help='Number of most bound particles to use.')
         parser.add_argument('output_file', help='Output file name')
+        parser.add_argument("--use-types", nargs="*", type=int, help="Only use the specified particle types (integer, 0-6)")
         try:
             args = parser.parse_args()
         except ArgumentParserError as e:
