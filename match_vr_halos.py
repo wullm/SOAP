@@ -101,7 +101,7 @@ def find_matching_halos(cat1_length, cat1_offset, cat1_ids, cat1_types,
     all_last_grnr_count = comm.allgather(last_grnr_count)
     # Loop over lower numbered ranks
     for rank_nr in range(comm_rank):
-        if first_grnr >= 0 and last_grnr[rank_nr] == first_grnr:
+        if first_grnr >= 0 and all_last_grnr[rank_nr] == first_grnr:
             cat1_rank_in_group[:unique_count[0]] += all_last_grnr_count[rank_nr]
 
     # Only keep the first max_nr_particles remaining particles in each group in catalogue 1
@@ -209,15 +209,17 @@ if __name__ == "__main__":
      length_unbound2, offset_unbound2, ids_unbound2) = read_vr.read_vr_lengths_and_offsets(args.vr_basename2)
 
     # Read in particle types for the two outputs
-    type_bound1 = read_vr.read_vr_datasets(args.vr_basename1, "catalogue_parttypes", ("Particle_types",)).values()[0]
-    type_bound2 = read_vr.read_vr_datasets(args.vr_basename2, "catalogue_parttypes", ("Particle_types",)).values()[0]
+    type_bound1 = read_vr.read_vr_datasets(args.vr_basename1, "catalog_parttypes", ("Particle_types",))["Particle_types"]
+    type_bound2 = read_vr.read_vr_datasets(args.vr_basename2, "catalog_parttypes", ("Particle_types",))["Particle_types"]
 
     # Decide which particle types we want to keep
     if args.use_types is not None:
         use_type = np.zeros(NTYPEMAX, dtype=bool)
         for ut in args.use_types:
             use_type[ut] = True
+            message(f"Using particle type {ut}")
     else:
+        message("Using all particle types")
         use_type = np.ones(NTYPEMAX, dtype=bool)
 
     # For each halo in output 1, find the matching halo in output 2
@@ -252,7 +254,8 @@ if __name__ == "__main__":
         # Write input parameters
         params = outfile.create_group("Parameters")
         for name, value in vars(args).items():
-            params.attrs[name] = value
+            if value is not None:
+                params.attrs[name] = value
         # Matching from first catalogue to second
         write_output_field("BoundParticleNr1", length_bound1,
                            "Number of bound particles in each halo in the first catalogue")
