@@ -192,6 +192,18 @@ def consistent_match(match_index_12, match_index_21):
     return np.where(match_back==local_halo_index, 1, 0)
 
 
+def find_matched_host(match_index_12, host_id2):
+    # For each match, find the host halo index.
+    # Note that here we assume that ID=(array index)+1 in the VR output.
+    # Centrals have host halo ID=-1.
+    matched = match_index_12 >= 0
+    matched_host_12 = -np.ones_like(match_index_12)
+    matched_host_12[matched] = psort.fetch_elements(host_id2, match_index_12[matched], comm=comm)-1
+    no_host = matched_host_12 < 0
+    matched_host_12[no_host] = match_index_12[no_host]
+    return matched_host_12
+
+
 if __name__ == "__main__":
 
     # Read command line parameters
@@ -211,6 +223,10 @@ if __name__ == "__main__":
     # Read in particle types for the two outputs
     type_bound1 = read_vr.read_vr_datasets(args.vr_basename1, "catalog_parttypes", ("Particle_types",))["Particle_types"]
     type_bound2 = read_vr.read_vr_datasets(args.vr_basename2, "catalog_parttypes", ("Particle_types",))["Particle_types"]
+
+    # Read host halo IDs
+    host_id1 = read_vr.read_vr_datasets(args.vr_basename1, "properties", ("hostHaloID",))["hostHaloID"]
+    host_id2 = read_vr.read_vr_datasets(args.vr_basename2, "properties", ("hostHaloID",))["hostHaloID"]
 
     # Decide which particle types we want to keep
     if args.use_types is not None:
@@ -245,6 +261,11 @@ if __name__ == "__main__":
     consistent_12 = consistent_match(match_index_12, match_index_21)
     consistent_21 = consistent_match(match_index_21, match_index_12)
 
+    # Look up the host halo in cases where the match is a satellite
+    message("Looking up matched host halos")
+    matched_host_12 = find_matched_host(match_index_12, host_id2)
+    matched_host_21 = find_matched_host(match_index_21, host_id1)
+
     # Write the output
     def write_output_field(name, data, description):
         phdf5.collective_write(outfile, name, data, comm)
@@ -265,6 +286,8 @@ if __name__ == "__main__":
                            f"How many of the {args.nr_particles} most bound particles from the halo in the first catalogue are in the matched halo in the second")
         write_output_field("Consistent1to2", consistent_12,
                            "Whether the match from first to second catalogue is consistent with second to first (1) or not (0)")
+        write_output_field("MatchHostIndex1to2", matched_host_12,
+                           "For each halo in the first catalogue, index of host halo of the matching halo in the second")
         # Matching from second catalogue to first
         write_output_field("BoundParticleNr2", length_bound2,
                            "Number of bound particles in each halo in the second catalogue")
@@ -274,5 +297,7 @@ if __name__ == "__main__":
                            f"How many of the {args.nr_particles} most bound particles from the halo in the second catalogue are in the matched halo in the first")
         write_output_field("Consistent2to1", consistent_21,
                            "Whether the match from second to first catalogue is consistent with first to second (1) or not (0)")
+        write_output_field("MatchHostIndex2to1", matched_host_21,
+                           "For each halo in the second catalogue, index of host halo of the matching halo in the first")
     comm.barrier()
     message("Done.")
