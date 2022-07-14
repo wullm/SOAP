@@ -42,9 +42,25 @@ def exchange_array(arr, dest, comm):
     return recvbuf
 
 
-def find_matching_halos(cat1_length, cat1_offset, cat1_ids, cat1_types,
-                        cat2_length, cat2_offset, cat2_ids, cat2_types,
-                        max_nr_particles, use_type):
+def read_host_index(basename):
+    """
+    Find the host halo's global array index for each halo in a VR output.
+    Returns -1 for field halos.
+    """
+    
+    # Read the ID and hostHaloID
+    cat = read_vr.read_vr_datasets(basename, "properties", ("ID", "hostHaloID",))
+    vr_id = cat["ID"]
+    vr_host_id = cat["hostHaloID"]
+
+    # For each halo, find the index of the host halo by matching hostHaloID to
+    # ID. Field halos have hostHaloID=-1, which will not match to any halo ID.
+    return psort.parallel_match(vr_host_id, vr_id, comm=comm)
+
+
+def find_matching_halos(cat1_length, cat1_offset, cat1_ids, cat1_types, host_index1,
+                        cat2_length, cat2_offset, cat2_ids, cat2_types, host_index2,
+                        max_nr_particles, use_type, field_only):
     
     # Decide range of halos in cat1 which we'll store on each rank:
     # This is used to partition the result between MPI ranks.
@@ -65,6 +81,19 @@ def find_matching_halos(cat1_length, cat1_offset, cat1_ids, cat1_types,
     discard = (use_type[cat1_types]==False) | (cat1_grnr_in_cat1 < 0)
     cat1_grnr_in_cat1[discard] = -1
 
+    # If we're only matching to field halos, then any particles in the second catalogue which
+    # belong to a halo with hostHaloID != -1 need to have their group membership reset to their
+    # host halo.
+    if field_only:
+        # Find particles in halos in cat2
+        in_halo = (cat2_grnr_in_cat2 >= 0)
+        # Fetch host halo array index for each particle in cat2, or -1 if not in a halo
+        particle_host_index = -np.ones_like(cat2_grnr_in_cat2)
+        particle_host_index[in_halo] = psort.fetch_elements(host_index2, cat2_grnr_in_cat2[in_halo], comm=comm)
+        # Where a particle's halo has a host halo, set its group membership to be the host halo
+        have_host = particle_host_index >= 0
+        cat2_grnr_in_cat2[have_host] = particle_host_index[have_host]
+    
     # Discard particles which are in no halo from each catalogue
     in_group = (cat1_grnr_in_cat1 >= 0)
     cat1_ids = cat1_ids[in_group]
@@ -192,18 +221,6 @@ def consistent_match(match_index_12, match_index_21):
     return np.where(match_back==local_halo_index, 1, 0)
 
 
-def find_matched_host(match_index_12, host_id2):
-    # For each match, find the host halo index.
-    # Note that here we assume that ID=(array index)+1 in the VR output.
-    # Centrals have host halo ID=-1.
-    matched = match_index_12 >= 0
-    matched_host_12 = -np.ones_like(match_index_12)
-    matched_host_12[matched] = psort.fetch_elements(host_id2, match_index_12[matched], comm=comm)-1
-    no_host = matched_host_12 < 0
-    matched_host_12[no_host] = match_index_12[no_host]
-    return matched_host_12
-
-
 if __name__ == "__main__":
 
     # Read command line parameters
@@ -224,9 +241,9 @@ if __name__ == "__main__":
     type_bound1 = read_vr.read_vr_datasets(args.vr_basename1, "catalog_parttypes", ("Particle_types",))["Particle_types"]
     type_bound2 = read_vr.read_vr_datasets(args.vr_basename2, "catalog_parttypes", ("Particle_types",))["Particle_types"]
 
-    # Read host halo IDs
-    host_id1 = read_vr.read_vr_datasets(args.vr_basename1, "properties", ("hostHaloID",))["hostHaloID"]
-    host_id2 = read_vr.read_vr_datasets(args.vr_basename2, "properties", ("hostHaloID",))["hostHaloID"]
+    # Read host halo indexes
+    host_index1 = read_host_index(args.vr_basename1)
+    host_index2 = read_host_index(args.vr_basename2)
 
     # Decide which particle types we want to keep
     if args.use_types is not None:
@@ -240,18 +257,18 @@ if __name__ == "__main__":
 
     # For each halo in output 1, find the matching halo in output 2
     message("Matching from first catalogue to second")
-    match_index_12, count_12 = find_matching_halos(length_bound1, offset_bound1, ids_bound1, type_bound1,
-                                                   length_bound2, offset_bound2, ids_bound2, type_bound2,
-                                                   args.nr_particles, use_type)
+    match_index_12, count_12 = find_matching_halos(length_bound1, offset_bound1, ids_bound1, type_bound1, host_index1,
+                                                   length_bound2, offset_bound2, ids_bound2, type_bound2, host_index2,
+                                                   args.nr_particles, use_type, args.to_field_halos_only)
     total_nr_halos = comm.allreduce(len(match_index_12))
     total_nr_matched = comm.allreduce(np.sum(match_index_12 >= 0))
     message(f"  Matched {total_nr_matched} of {total_nr_halos} halos")
 
     # For each halo in output 2, find the matching halo in output 1
     message("Matching from second catalogue to first")
-    match_index_21, count_21 = find_matching_halos(length_bound2, offset_bound2, ids_bound2, type_bound2,
-                                                   length_bound1, offset_bound1, ids_bound1, type_bound1,
-                                                   args.nr_particles, use_type)
+    match_index_21, count_21 = find_matching_halos(length_bound2, offset_bound2, ids_bound2, type_bound2, host_index2,
+                                                   length_bound1, offset_bound1, ids_bound1, type_bound1, host_index1,
+                                                   args.nr_particles, use_type, args.to_field_halos_only)
     total_nr_halos = comm.allreduce(len(match_index_21))
     total_nr_matched = comm.allreduce(np.sum(match_index_21 >= 0))
     message(f"  Matched {total_nr_matched} of {total_nr_halos} halos")
@@ -260,11 +277,6 @@ if __name__ == "__main__":
     message("Checking for consistent matches")
     consistent_12 = consistent_match(match_index_12, match_index_21)
     consistent_21 = consistent_match(match_index_21, match_index_12)
-
-    # Look up the host halo in cases where the match is a satellite
-    message("Looking up matched host halos")
-    matched_host_12 = find_matched_host(match_index_12, host_id2)
-    matched_host_21 = find_matched_host(match_index_21, host_id1)
 
     # Write the output
     def write_output_field(name, data, description):
@@ -286,8 +298,6 @@ if __name__ == "__main__":
                            f"How many of the {args.nr_particles} most bound particles from the halo in the first catalogue are in the matched halo in the second")
         write_output_field("Consistent1to2", consistent_12,
                            "Whether the match from first to second catalogue is consistent with second to first (1) or not (0)")
-        write_output_field("MatchHostIndex1to2", matched_host_12,
-                           "For each halo in the first catalogue, index of host halo of the matching halo in the second")
         # Matching from second catalogue to first
         write_output_field("BoundParticleNr2", length_bound2,
                            "Number of bound particles in each halo in the second catalogue")
@@ -297,7 +307,5 @@ if __name__ == "__main__":
                            f"How many of the {args.nr_particles} most bound particles from the halo in the second catalogue are in the matched halo in the first")
         write_output_field("Consistent2to1", consistent_21,
                            "Whether the match from second to first catalogue is consistent with first to second (1) or not (0)")
-        write_output_field("MatchHostIndex2to1", matched_host_21,
-                           "For each halo in the second catalogue, index of host halo of the matching halo in the first")
     comm.barrier()
     message("Done.")

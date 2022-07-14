@@ -110,6 +110,7 @@ def get_match_vr_halos_args(comm):
         parser.add_argument('nr_particles', metavar="N", type=int, help='Number of most bound particles to use.')
         parser.add_argument('output_file', help='Output file name')
         parser.add_argument("--use-types", nargs="*", type=int, help="Only use the specified particle types (integer, 0-6)")
+        parser.add_argument("--to-field-halos-only", action="store_true", help="Only match to field halos (with hostHaloID=-1 in VR catalogue)")
         try:
             args = parser.parse_args()
         except ArgumentParserError as e:

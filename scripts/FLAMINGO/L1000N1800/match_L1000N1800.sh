@@ -29,7 +29,7 @@ vr_basename2="${basedir}/L1000N1800/${sim2}/VR/catalogue_${snapnum}/vr_catalogue
 nr_particles=10
 
 # Where to put the output
-outfile="/cosma8/data/dp004/jch/FLAMINGO/ScienceRuns/L1000N1800/${sim1}/match_L1000N1800_${sim1}_${sim2}_${snapnum}.hdf5"
+outfile="/cosma8/data/dp004/jch/FLAMINGO/ScienceRuns/L1000N1800/${sim1}/match_L1000N1800_${sim1}_${sim2}_${snapnum}.field_only.hdf5"
 
 mpirun python3 -u -m mpi4py \
-    ./match_vr_halos.py ${vr_basename1} ${vr_basename2} ${nr_particles} ${outfile} --use-types 1
+    ./match_vr_halos.py ${vr_basename1} ${vr_basename2} ${nr_particles} ${outfile} --use-types 1 --to-field-halos-only
