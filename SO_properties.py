@@ -388,6 +388,14 @@ class SOProperties(HaloProperty):
             "dimensionless",
             "Total stellar luminosity within a sphere {label}",
         ),
+        # Baryonic (gas + star) properties
+        (
+            "Jbaryons",
+            3,
+            np.float32,
+            "Msun*km*kpc/s",
+            "Total angular momentum of baryons (gas and stars) within a sphere {label}",
+        ),
         # BH properties
         (
             "MBHdyn",
@@ -702,29 +710,53 @@ class SOProperties(HaloProperty):
             gas_masses = mass[types == "PartType0"]
             gas_pos = position[types == "PartType0"]
             gas_vel = velocity[types == "PartType0"]
-            gas_relvel = gas_vel[:, :] - SO["vcom"][None, :]
             SO["mass_gas"] += gas_masses.sum()
-            SO["Jgas"][:] = (
-                gas_masses[:, None] * unyt.array.ucross(gas_pos, gas_relvel)
-            ).sum(axis=0)
+            if SO["mass_gas"] > 0.0 * SO["mass_gas"].units:
+                gas_vcom = ((gas_masses / SO["mass_gas"])[:, None] * gas_vel).sum(
+                    axis=0
+                )
+                gas_relvel = gas_vel - gas_vcom[None, :]
+                SO["Jgas"][:] = (
+                    gas_masses[:, None] * unyt.array.ucross(gas_pos, gas_relvel)
+                ).sum(axis=0)
 
             dm_masses = mass[types == "PartType1"]
             dm_pos = position[types == "PartType1"]
             dm_vel = velocity[types == "PartType1"]
-            dm_relvel = dm_vel[:, :] - SO["vcom"][None, :]
             SO["mass_dm"] += dm_masses.sum()
-            SO["JDM"][:] = (
-                dm_masses[:, None] * unyt.array.ucross(dm_pos, dm_relvel)
-            ).sum(axis=0)
+            if SO["mass_dm"] > 0.0 * SO["mass_dm"].units:
+                dm_vcom = ((dm_masses / SO["mass_dm"])[:, None] * dm_vel).sum(axis=0)
+                dm_relvel = dm_vel - dm_vcom[None, :]
+                SO["JDM"][:] = (
+                    dm_masses[:, None] * unyt.array.ucross(dm_pos, dm_relvel)
+                ).sum(axis=0)
 
             star_masses = mass[types == "PartType4"]
             star_pos = position[types == "PartType4"]
             star_vel = velocity[types == "PartType4"]
-            star_relvel = star_vel[:, :] - SO["vcom"][None, :]
             SO["mass_star"] += star_masses.sum()
-            SO["Jstar"][:] = (
-                star_masses[:, None] * unyt.array.ucross(star_pos, star_relvel)
-            ).sum(axis=0)
+            if SO["mass_star"] > 0.0 * SO["mass_star"].units:
+                star_vcom = ((star_masses / SO["mass_star"])[:, None] * star_vel).sum(
+                    axis=0
+                )
+                star_relvel = star_vel - star_vcom[None, :]
+                SO["Jstar"][:] = (
+                    star_masses[:, None] * unyt.array.ucross(star_pos, star_relvel)
+                ).sum(axis=0)
+
+            baryon_masses = mass[(types == "PartType0") | (types == "PartType4")]
+            baryon_pos = position[(types == "PartType0") | (types == "PartType4")]
+            baryon_vel = velocity[(types == "PartType0") | (types == "PartType4")]
+            Mbaryons = baryon_masses.sum()
+            if Mbaryons > 0.0 * Mbaryons.units:
+                baryon_vcom = ((baryon_masses / Mbaryons)[:, None] * baryon_vel).sum(
+                    axis=0
+                )
+                baryon_relvel = baryon_vel - baryon_vcom[None, :]
+                SO["Jbaryons"][:] = (
+                    baryon_masses[:, None]
+                    * unyt.array.ucross(baryon_pos, baryon_relvel)
+                ).sum(axis=0)
 
             SO["MBHdyn"] += mass[types == "PartType5"].sum()
 

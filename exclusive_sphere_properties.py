@@ -229,6 +229,20 @@ class ExclusiveSphereProperties(HaloProperty):
             "Kappa corot for stars.",
         ),
         (
+            "Lbaryons",
+            3,
+            np.float32,
+            unyt.Msun * unyt.km * unyt.kpc / unyt.s,
+            "Total angular momentum of baryons (gas and stars), relative w.r.t. the centre of potential and baryonic bulk velocity.",
+        ),
+        (
+            "kappa_corot_baryons",
+            1,
+            np.float32,
+            unyt.dimensionless,
+            "Kappa corot for baryons (gas and stars).",
+        ),
+        (
             "veldisp_gas",
             6,
             np.float32,
@@ -409,6 +423,7 @@ class ExclusiveSphereProperties(HaloProperty):
         dm_mask_ap = mask[types == "PartType1"]
         star_mask_ap = mask[types == "PartType4"]
         bh_mask_ap = mask[types == "PartType5"]
+        baryons_mask_ap = mask[(types == "PartType0") | (types == "PartType4")]
 
         exclusive_sphere["Ngas"] = (
             gas_mask_ap.sum(dtype=exclusive_sphere["Ngas"].dtype)
@@ -430,14 +445,17 @@ class ExclusiveSphereProperties(HaloProperty):
         mass_gas = mass[type == "PartType0"]
         mass_dm = mass[type == "PartType1"]
         mass_star = mass[type == "PartType4"]
+        mass_baryons = mass[(type == "PartType0") | (type == "PartType4")]
 
         pos_gas = position[type == "PartType0"]
         pos_dm = position[type == "PartType1"]
         pos_star = position[type == "PartType4"]
+        pos_baryons = position[(type == "PartType0") | (type == "PartType4")]
 
         vel_gas = velocity[type == "PartType0"]
         vel_dm = velocity[type == "PartType1"]
         vel_star = velocity[type == "PartType4"]
+        vel_baryons = velocity[(type == "PartType0") | (type == "PartType4")]
 
         exclusive_sphere["Mtot"] += mass.sum()
         exclusive_sphere["Mgas"] += mass_gas.sum()
@@ -533,6 +551,20 @@ class ExclusiveSphereProperties(HaloProperty):
             exclusive_sphere["veldisp_star"][:] = get_velocity_dispersion_matrix(
                 frac_mstar, vel_star, exclusive_sphere["vcom"]
             )
+
+        if (
+            exclusive_sphere["Mgas"] + exclusive_sphere["Mstar"]
+            > 0.0 * exclusive_sphere["Mgas"].units
+        ):
+            frac_mbar = mass_baryons / (
+                exclusive_sphere["Mgas"] + exclusive_sphere["Mstar"]
+            )
+            vcom_bar = (frac_mbar[:, None] * vel_baryons).sum(axis=0)
+            Lbar, kappa = get_angular_momentum_and_kappa_corot(
+                mass_baryons, pos_baryons, vel_baryons, ref_velocity=vcom_bar
+            )
+            exclusive_sphere["Lbaryons"][:] = Lbar
+            exclusive_sphere["kappa_corot_baryons"] += kappa
 
         if exclusive_sphere["Ngas"] > 0:
             gas_mask_all = data["PartType0"]["GroupNr_bound"] == index

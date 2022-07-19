@@ -110,6 +110,20 @@ class SubhaloProperties(HaloProperty):
             unyt.dimensionless,
             "Kappa corot for stars.",
         ),
+        (
+            "Lbaryons",
+            3,
+            np.float32,
+            unyt.Msun * unyt.km * unyt.kpc / unyt.s,
+            "Total angular momentum of baryons (gas and stars), relative w.r.t. the centre of potential and baryonic bulk velocity.",
+        ),
+        (
+            "kappa_corot_baryons",
+            1,
+            np.float32,
+            unyt.dimensionless,
+            "Kappa corot for baryons (gas and stars).",
+        ),
         ("Mgasmetal", 1, np.float32, unyt.Msun, "Total gas mass in metals."),
         ("Tgas", 1, np.float32, unyt.K, "Mass-weighted gas temperature."),
         (
@@ -249,6 +263,7 @@ class SubhaloProperties(HaloProperty):
         dm_mask_sh = types == "PartType1"
         star_mask_sh = types == "PartType4"
         bh_mask_sh = types == "PartType5"
+        baryons_mask_sh = (types == "PartType0") | (types == "PartType4")
 
         subhalo["Ngas"] = (
             gas_mask_sh.sum(dtype=subhalo["Ngas"].dtype) * subhalo["Ngas"].units
@@ -266,14 +281,17 @@ class SubhaloProperties(HaloProperty):
         mass_gas = mass[gas_mask_sh]
         mass_dm = mass[dm_mask_sh]
         mass_star = mass[star_mask_sh]
+        mass_baryons = mass[baryons_mask_sh]
 
         pos_gas = position[gas_mask_sh]
         pos_dm = position[dm_mask_sh]
         pos_star = position[star_mask_sh]
+        pos_baryons = position[baryons_mask_sh]
 
         vel_gas = velocity[gas_mask_sh]
         vel_dm = velocity[dm_mask_sh]
         vel_star = velocity[star_mask_sh]
+        vel_baryons = velocity[baryons_mask_sh]
 
         subhalo["Mtot"] += mass.sum()
         subhalo["Mgas"] += mass_gas.sum()
@@ -355,6 +373,15 @@ class SubhaloProperties(HaloProperty):
             )
             subhalo["Lstar"][:] = Lstar
             subhalo["kappa_corot_star"] += kappa
+
+        if subhalo["Mgas"] + subhalo["Mstar"] > 0.0 * subhalo["Mgas"].units:
+            frac_mbar = mass_baryons / (subhalo["Mgas"] + subhalo["Mstar"])
+            vcom_bar = (frac_mbar[:, None] * vel_baryons).sum(axis=0)
+            Lbar, kappa = get_angular_momentum_and_kappa_corot(
+                mass_baryons, pos_baryons, vel_baryons, ref_velocity=vcom_bar
+            )
+            subhalo["Lbaryons"][:] = Lbar
+            subhalo["kappa_corot_baryons"] += kappa
 
         if subhalo["Ngas"] > 0:
             gas_mask_all = data["PartType0"][self.grnr] == index
