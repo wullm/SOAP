@@ -10,6 +10,7 @@ from kinematic_properties import (
     get_velocity_dispersion_matrix,
     get_angular_momentum,
     get_angular_momentum_and_kappa_corot,
+    get_vmax,
 )
 
 from astropy.cosmology import w0waCDM, z_at_value
@@ -331,6 +332,13 @@ class ExclusiveSphereProperties(HaloProperty):
             unyt.kpc,
             "Total stellar half mass radius",
         ),
+        (
+            "spin_parameter",
+            1,
+            np.float32,
+            unyt.dimensionless,
+            "Bullock et al. (2001) spin parameter.",
+        ),
     ]
 
     def __init__(self, cellgrid, physical_radius_kpc, recently_heated_gas_filter):
@@ -514,6 +522,19 @@ class ExclusiveSphereProperties(HaloProperty):
             exclusive_sphere["com"][:] = (mfrac[:, None] * position).sum(axis=0)
             exclusive_sphere["com"][:] += centre
             exclusive_sphere["vcom"][:] = (mfrac[:, None] * velocity).sum(axis=0)
+            _, vmax = get_vmax(mass, radius)
+            if vmax > 0.0 * vmax.units:
+                vrel = velocity - exclusive_sphere["vcom"][None, :]
+                Ltot = unyt.array.unorm(
+                    (mass[:, None] * unyt.array.ucross(position, vrel)).sum(axis=0)
+                )
+                exclusive_sphere["spin_parameter"] += Ltot / (
+                    np.sqrt(2.0)
+                    * exclusive_sphere["Mtot"]
+                    * self.physical_radius_mpc
+                    * unyt.Mpc
+                    * vmax
+                )
 
         if exclusive_sphere["Mgas"] > 0.0 * exclusive_sphere["Mgas"].units:
             frac_mgas = mass_gas / exclusive_sphere["Mgas"]

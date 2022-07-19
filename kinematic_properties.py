@@ -95,3 +95,17 @@ def get_angular_momentum_and_kappa_corot(
             kappa_corot += Kcorot / K
 
     return Ltot, kappa_corot
+
+def get_vmax(mass, radius):
+    G = unyt.Unit("newton_G", registry=mass.units.registry)
+    isort = np.argsort(radius)
+    ordered_radius = radius[isort]
+    cumulative_mass = mass[isort].cumsum()
+    nskip = max(1, np.argmax(ordered_radius > 0.0 * ordered_radius.units))
+    ordered_radius = ordered_radius[nskip:]
+    if len(ordered_radius) == 0:
+        return 0.0 * radius.units, np.sqrt(0.0 * G * mass.units / radius.units)
+    cumulative_mass = cumulative_mass[nskip:]
+    v_over_G = cumulative_mass / ordered_radius
+    imax = np.argmax(v_over_G)
+    return ordered_radius[imax], np.sqrt(v_over_G[imax] * G)

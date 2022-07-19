@@ -8,23 +8,9 @@ from dataset_names import mass_dataset
 from kinematic_properties import (
     get_angular_momentum,
     get_angular_momentum_and_kappa_corot,
+    get_vmax,
 )
 from exclusive_sphere_properties import RecentlyHeatedGasFilter
-
-
-def get_subhalo_vmax(mass, radius):
-    G = unyt.Unit("newton_G", registry=mass.units.registry)
-    isort = np.argsort(radius)
-    ordered_radius = radius[isort]
-    cumulative_mass = mass[isort].cumsum()
-    nskip = max(1, np.argmax(ordered_radius > 0.0 * ordered_radius.units))
-    ordered_radius = ordered_radius[nskip:]
-    if len(ordered_radius) == 0:
-        return 0.0 * radius.units, np.sqrt(0.0 * G * mass.units / radius.units)
-    cumulative_mass = cumulative_mass[nskip:]
-    v_over_G = cumulative_mass / ordered_radius
-    imax = np.argmax(v_over_G)
-    return ordered_radius[imax], np.sqrt(v_over_G[imax] * G)
 
 
 class SubhaloProperties(HaloProperty):
@@ -138,6 +124,13 @@ class SubhaloProperties(HaloProperty):
         ("Mstarmetal", 1, np.float32, unyt.Msun, "Total stellar mass in metals."),
         ("Vmax", 1, np.float32, unyt.km / unyt.s, "Maximum velocity."),
         ("R_vmax", 1, np.float32, unyt.kpc, "Radius at which Vmax is reached."),
+        (
+            "spin_parameter",
+            1,
+            np.float32,
+            unyt.dimensionless,
+            "Bullock et al. (2001) spin parameter.",
+        ),
     ]
 
     def __init__(self, cellgrid, recently_heated_gas_filter, bound_only=True):
@@ -345,9 +338,17 @@ class SubhaloProperties(HaloProperty):
             subhalo["com"][:] = (mfrac[:, None] * position).sum(axis=0)
             subhalo["com"][:] += centre
             subhalo["vcom"][:] = (mfrac[:, None] * velocity).sum(axis=0)
-            r_vmax, vmax = get_subhalo_vmax(mass, radius)
+            r_vmax, vmax = get_vmax(mass, radius)
             subhalo["R_vmax"] += r_vmax
             subhalo["Vmax"] += vmax
+            if r_vmax > 0.0 * r_vmax.units and vmax > 0.0 * vmax.units:
+                vrel = velocity - subhalo["vcom"][None, :]
+                Ltot = unyt.array.unorm(
+                    (mass[:, None] * unyt.array.ucross(position, vrel)).sum(axis=0)
+                )
+                subhalo["spin_parameter"] += Ltot / (
+                    np.sqrt(2.0) * subhalo["Mtot"] * vmax * r_vmax
+                )
 
         if subhalo["Mgas"] > 0.0 * subhalo["Mgas"].units:
             frac_mgas = mass_gas / subhalo["Mgas"]
