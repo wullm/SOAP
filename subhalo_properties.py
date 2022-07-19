@@ -86,21 +86,21 @@ class SubhaloProperties(HaloProperty):
             3,
             np.float32,
             unyt.Msun * unyt.kpc * unyt.km / unyt.s,
-            "Total angular momentum of the gas, relative w.r.t. the gas centre of mass.",
+            "Total angular momentum of the gas, relative w.r.t. the centre of potential and gas bulk velocity.",
         ),
         (
             "Ldm",
             3,
             np.float32,
             unyt.Msun * unyt.kpc * unyt.km / unyt.s,
-            "Total angular momentum of the dark matter, relative w.r.t. the dark matter centre of mass.",
+            "Total angular momentum of the dark matter, relative w.r.t. the centre of potential and DM bulk velocity.",
         ),
         (
             "Lstar",
             3,
             np.float32,
             unyt.Msun * unyt.kpc * unyt.km / unyt.s,
-            "Total angular momentum of the stars, relative w.r.t. the stellar centre of mass.",
+            "Total angular momentum of the stars, relative w.r.t. the centre of potential and stellar bulk velocity.",
         ),
         ("kappa_corot_gas", 1, np.float32, unyt.dimensionless, "Kappa corot for gas."),
         (
@@ -333,28 +333,25 @@ class SubhaloProperties(HaloProperty):
 
         if subhalo["Mgas"] > 0.0 * subhalo["Mgas"].units:
             frac_mgas = mass_gas / subhalo["Mgas"]
-            com_gas = (frac_mgas[:, None] * pos_gas).sum(axis=0)
             vcom_gas = (frac_mgas[:, None] * vel_gas).sum(axis=0)
             Lgas, kappa = get_angular_momentum_and_kappa_corot(
-                mass_gas, pos_gas, vel_gas, com_gas, vcom_gas
+                mass_gas, pos_gas, vel_gas, ref_velocity=vcom_gas
             )
             subhalo["Lgas"][:] = Lgas
             subhalo["kappa_corot_gas"] += kappa
 
         if subhalo["Mdm"] > 0.0 * subhalo["Mdm"].units:
             frac_mdm = mass_dm / subhalo["Mdm"]
-            com_dm = (frac_mdm[:, None] * pos_dm).sum(axis=0)
             vcom_dm = (frac_mdm[:, None] * vel_dm).sum(axis=0)
             subhalo["Ldm"][:] = get_angular_momentum(
-                mass_dm, pos_dm, vel_dm, com_dm, vcom_dm
+                mass_dm, pos_dm, vel_dm, ref_velocity=vcom_dm
             )
 
         if subhalo["Mstar"] > 0.0 * subhalo["Mstar"].units:
             frac_mstar = mass_star / subhalo["Mstar"]
-            com_star = (frac_mstar[:, None] * pos_star).sum(axis=0)
             vcom_star = (frac_mstar[:, None] * vel_star).sum(axis=0)
             Lstar, kappa = get_angular_momentum_and_kappa_corot(
-                mass_star, pos_star, vel_star, com_star, vcom_star
+                mass_star, pos_star, vel_star, ref_velocity=vcom_star
             )
             subhalo["Lstar"][:] = Lstar
             subhalo["kappa_corot_star"] += kappa
@@ -439,7 +436,7 @@ def test_subhalo_properties():
                         input_data[ptype][dset] = data[ptype][dset]
             input_halo_copy = input_halo.copy()
             input_data_copy = input_data.copy()
-            prop_calc.calculate(input_halo, 0.*unyt.kpc, input_data, halo_result)
+            prop_calc.calculate(input_halo, 0.0 * unyt.kpc, input_data, halo_result)
             assert input_halo == input_halo_copy
             assert input_data == input_data_copy
 

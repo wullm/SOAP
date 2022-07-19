@@ -27,20 +27,28 @@ def get_velocity_dispersion_matrix(mass_fraction, velocity, ref_velocity):
     return result
 
 
-def get_angular_momentum(mass, position, velocity, ref_position, ref_velocity):
+def get_angular_momentum(
+    mass, position, velocity, ref_position=None, ref_velocity=None
+):
     """
     Compute the total angular momentum vector for the particles with the given
     masses, positions and velocities, and using the given reference position
     and velocity as the centre of mass (velocity).
     """
 
-    prel = position - ref_position[None, :]
-    vrel = velocity - ref_velocity[None, :]
+    if ref_position is None:
+        prel = position
+    else:
+        prel = position - ref_position[None, :]
+    if ref_velocity is None:
+        vrel = velocity
+    else:
+        vrel = velocity - ref_velocity[None, :]
     return (mass[:, None] * unyt.array.ucross(prel, vrel)).sum(axis=0)
 
 
 def get_angular_momentum_and_kappa_corot(
-    mass, position, velocity, ref_position, ref_velocity
+    mass, position, velocity, ref_position=None, ref_velocity=None
 ):
     """
     Get the total angular momentum vector (as in get_angular_momentum()) and
@@ -57,8 +65,15 @@ def get_angular_momentum_and_kappa_corot(
         0.0, dtype=np.float32, units="dimensionless", registry=mass.units.registry
     )
 
-    prel = position - ref_position[None, :]
-    vrel = velocity - ref_velocity[None, :]
+    if ref_position is None:
+        prel = position
+    else:
+        prel = position - ref_position[None, :]
+    if ref_velocity is None:
+        vrel = velocity
+    else:
+        vrel = velocity - ref_velocity[None, :]
+
     Lpart = mass[:, None] * unyt.array.ucross(prel, vrel)
     Ltot = Lpart.sum(axis=0)
     Lnrm = unyt.array.unorm(Ltot)
@@ -71,8 +86,12 @@ def get_angular_momentum_and_kappa_corot(
             r2 = prel[:, 0] ** 2 + prel[:, 1] ** 2 + prel[:, 2] ** 2
             rdotL = (prel * Ldir[None, :]).sum(axis=1)
             Ri2 = r2 - rdotL**2
+            # deal with division by zero (the first particle is guaranteed to
+            # be in the centre)
+            mask = Ri2 == 0.0
+            Ri2[mask] = 1.0 * Ri2.units
             Krot = 0.5 * (Li**2 / (mass * Ri2))
-            Kcorot = Krot[Li > 0.0 * Li.units].sum()
+            Kcorot = Krot[(~mask) & (Li > 0.0 * Li.units)].sum()
             kappa_corot += Kcorot / K
 
     return Ltot, kappa_corot

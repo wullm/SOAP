@@ -204,21 +204,21 @@ class ExclusiveSphereProperties(HaloProperty):
             3,
             np.float32,
             unyt.Msun * unyt.kpc * unyt.km / unyt.s,
-            "Total angular momentum of the gas, relative w.r.t. the gas centre of mass.",
+            "Total angular momentum of the gas, relative w.r.t. the centre of potential and gas bulk velocity.",
         ),
         (
             "Ldm",
             3,
             np.float32,
             unyt.Msun * unyt.kpc * unyt.km / unyt.s,
-            "Total angular momentum of the dark matter, relative w.r.t. the dark matter centre of mass.",
+            "Total angular momentum of the dark matter, relative w.r.t. the centre of potential and DM bulk velocity.",
         ),
         (
             "Lstar",
             3,
             np.float32,
             unyt.Msun * unyt.kpc * unyt.km / unyt.s,
-            "Total angular momentum of the stars, relative w.r.t. the stellar centre of mass.",
+            "Total angular momentum of the stars, relative w.r.t. the centre of potential and stellar bulk velocity.",
         ),
         ("kappa_corot_gas", 1, np.float32, unyt.dimensionless, "Kappa corot for gas."),
         (
@@ -499,10 +499,9 @@ class ExclusiveSphereProperties(HaloProperty):
 
         if exclusive_sphere["Mgas"] > 0.0 * exclusive_sphere["Mgas"].units:
             frac_mgas = mass_gas / exclusive_sphere["Mgas"]
-            com_gas = (frac_mgas[:, None] * pos_gas).sum(axis=0)
             vcom_gas = (frac_mgas[:, None] * vel_gas).sum(axis=0)
             Lgas, kappa = get_angular_momentum_and_kappa_corot(
-                mass_gas, pos_gas, vel_gas, com_gas, vcom_gas
+                mass_gas, pos_gas, vel_gas, ref_velocity=vcom_gas
             )
             exclusive_sphere["Lgas"][:] = Lgas
             exclusive_sphere["kappa_corot_gas"] += kappa
@@ -513,10 +512,9 @@ class ExclusiveSphereProperties(HaloProperty):
 
         if exclusive_sphere["Mdm"] > 0.0 * exclusive_sphere["Mdm"].units:
             frac_mdm = mass_dm / exclusive_sphere["Mdm"]
-            com_dm = (frac_mdm[:, None] * pos_dm).sum(axis=0)
             vcom_dm = (frac_mdm[:, None] * vel_dm).sum(axis=0)
             exclusive_sphere["Ldm"][:] = get_angular_momentum(
-                mass_dm, pos_dm, vel_dm, com_dm, vcom_dm
+                mass_dm, pos_dm, vel_dm, ref_velocity=vcom_dm
             )
 
             exclusive_sphere["veldisp_dm"][:] = get_velocity_dispersion_matrix(
@@ -525,10 +523,9 @@ class ExclusiveSphereProperties(HaloProperty):
 
         if exclusive_sphere["Mstar"] > 0.0 * exclusive_sphere["Mstar"].units:
             frac_mstar = mass_star / exclusive_sphere["Mstar"]
-            com_star = (frac_mstar[:, None] * pos_star).sum(axis=0)
             vcom_star = (frac_mstar[:, None] * vel_star).sum(axis=0)
             Lstar, kappa = get_angular_momentum_and_kappa_corot(
-                mass_star, pos_star, vel_star, com_star, vcom_star
+                mass_star, pos_star, vel_star, ref_velocity=vcom_star
             )
             exclusive_sphere["Lstar"][:] = Lstar
             exclusive_sphere["kappa_corot_star"] += kappa

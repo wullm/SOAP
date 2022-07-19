@@ -241,7 +241,7 @@ class SOProperties(HaloProperty):
             "Jgas",
             3,
             np.float32,
-            "Msun*kpc*km/s",
+            "Msun*km*kpc/s",
             "Total angular momentum of gas within a sphere {label}",
         ),
         (
@@ -321,7 +321,7 @@ class SOProperties(HaloProperty):
             "JDM",
             3,
             np.float32,
-            "Msun*kpc*km/s",
+            "Msun*km*kpc/s",
             "Total angular momentum of DM within a sphere {label}",
         ),
         (
@@ -364,7 +364,7 @@ class SOProperties(HaloProperty):
             "Jstar",
             3,
             np.float32,
-            "Msun*kpc*km/s",
+            "Msun*km*kpc/s",
             "Total angular momentum of stars within a sphere {label}",
         ),
         (
@@ -701,31 +701,29 @@ class SOProperties(HaloProperty):
 
             gas_masses = mass[types == "PartType0"]
             gas_pos = position[types == "PartType0"]
-            gas_relpos = gas_pos[:, :] - SO["com"][None, :]
             gas_vel = velocity[types == "PartType0"]
             gas_relvel = gas_vel[:, :] - SO["vcom"][None, :]
             SO["mass_gas"] += gas_masses.sum()
             SO["Jgas"][:] = (
-                gas_masses[:, None] * unyt.array.ucross(gas_relpos, gas_relvel)
+                gas_masses[:, None] * unyt.array.ucross(gas_pos, gas_relvel)
             ).sum(axis=0)
 
             dm_masses = mass[types == "PartType1"]
-            dm_relpos = position[types == "PartType1"][:, :] - SO["com"][None, :]
+            dm_pos = position[types == "PartType1"]
             dm_vel = velocity[types == "PartType1"]
             dm_relvel = dm_vel[:, :] - SO["vcom"][None, :]
             SO["mass_dm"] += dm_masses.sum()
             SO["JDM"][:] = (
-                dm_masses[:, None] * unyt.array.ucross(dm_relpos, dm_relvel)
+                dm_masses[:, None] * unyt.array.ucross(dm_pos, dm_relvel)
             ).sum(axis=0)
 
             star_masses = mass[types == "PartType4"]
             star_pos = position[types == "PartType4"]
-            star_relpos = star_pos[:, :] - SO["com"][None, :]
             star_vel = velocity[types == "PartType4"]
             star_relvel = star_vel[:, :] - SO["vcom"][None, :]
             SO["mass_star"] += star_masses.sum()
             SO["Jstar"][:] = (
-                star_masses[:, None] * unyt.array.ucross(star_relpos, star_relvel)
+                star_masses[:, None] * unyt.array.ucross(star_pos, star_relvel)
             ).sum(axis=0)
 
             SO["MBHdyn"] += mass[types == "PartType5"].sum()
