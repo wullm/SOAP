@@ -106,13 +106,24 @@ if __name__ == "__main__":
         attrs["GroupNr_bound"].update(unit_attrs)
         attrs["GroupNr_all"].update(unit_attrs)
 
-        # Write these particles out with the same layout as the snapshot
+        # Write these particles out with the same layout as the input snapshot
         if comm_rank == 0:
             print("  Writing out VR group membership of SWIFT particles")
         elements_per_file = snap_file.get_elements_per_file("ParticleIDs", group=ptype)
         output = {"GroupNr_bound"   : swift_grnr_bound,
                   "GroupNr_all"     : swift_grnr_all}
         snap_file.write(output, elements_per_file, filenames=args.output_file, mode=mode, group=ptype, attrs=attrs)
+
+        # Optionally, also write the particle group membership to the specified single file snapshot.
+        # (e.g. a copy of the virtual file written by SWIFT)
+        if args.update_virtual_file is not None:
+            prefix = args.output_prefix if args.output_prefix is not None else ""
+            if comm_rank == 0:
+                print("  Writing out VR group membership to virtual file")
+            vfile = h5py.File(args.update_virtual_file, "r+", driver="mpio", comm=comm)
+            virgo.mpi.parallel_hdf5.collective_write(vfile[ptype], prefix+"GroupNr_bound", swift_grnr_bound, comm)
+            virgo.mpi.parallel_hdf5.collective_write(vfile[ptype], prefix+"GroupNr_all", swift_grnr_all, comm)
+            vfile.close()
 
     comm.barrier()
     if comm_rank == 0:

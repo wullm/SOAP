@@ -56,6 +56,15 @@ mpirun python3 -u -m mpi4py \
 See scripts/FLAMINGO/L1000N1800/group_membership_L1000N1800.sh for an example
 batch script.
 
+The code can optionally also write group membership to a single file
+virtual snapshot specified with the `--update-virtual-file` flag. This
+can be used to create a single file snapshot with group membership
+included that can be read with swiftsimio or gadgetviewer.
+
+The `--output-prefix` flag can be used to specify a prefix used to name the
+datasets written to the virtual file. This may be useful if writing group
+membership from several different VR runs to a single file.
+
 ### Calculating halo properties
 
 To calculate halo properties:
