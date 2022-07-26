@@ -5,6 +5,7 @@ import unyt
 
 from halo_properties import HaloProperty
 from dataset_names import mass_dataset
+from half_mass_radius import get_half_mass_radius
 from kinematic_properties import (
     get_angular_momentum,
     get_angular_momentum_and_kappa_corot,
@@ -27,8 +28,8 @@ class SubhaloProperties(HaloProperty):
         ("Mgas", 1, np.float32, unyt.Msun, "Total gas mass"),
         ("Mdm", 1, np.float32, unyt.Msun, "Total DM mass"),
         ("Mstar", 1, np.float32, unyt.Msun, "Total stellar mass"),
-        ("Mstar_init", 1, np.float32, unyt.Msun, "Total initial stellar mass"),
-        ("Mbh", 1, np.float32, unyt.Msun, "Total BH dynamical mass"),
+        ("Mstar_init", 1, np.float32, unyt.Msun, "Total stellar initial mass"),
+        ("Mbh_dynamical", 1, np.float32, unyt.Msun, "Total BH dynamical mass"),
         ("Mbh_subgrid", 1, np.float32, unyt.Msun, "Total BH subgrid mass"),
         ("Ngas", 1, np.uint32, unyt.dimensionless, "Number of gas particles."),
         ("Ndm", 1, np.uint32, unyt.dimensionless, "Number of dark matter particles."),
@@ -88,13 +89,13 @@ class SubhaloProperties(HaloProperty):
             unyt.Msun * unyt.kpc * unyt.km / unyt.s,
             "Total angular momentum of the stars, relative w.r.t. the centre of potential and stellar bulk velocity.",
         ),
-        ("kappa_corot_gas", 1, np.float32, unyt.dimensionless, "Kappa corot for gas."),
+        ("kappa_corot_gas", 1, np.float32, unyt.dimensionless, "Kappa corot for gas, relative w.r.t. the centre of potential and the bulk velocity of the gas."),
         (
             "kappa_corot_star",
             1,
             np.float32,
             unyt.dimensionless,
-            "Kappa corot for stars.",
+            "Kappa corot for stars, relative w.r.t. the centre of potential and the bulk velocity of the stars.",
         ),
         (
             "Lbaryons",
@@ -108,21 +109,29 @@ class SubhaloProperties(HaloProperty):
             1,
             np.float32,
             unyt.dimensionless,
-            "Kappa corot for baryons (gas and stars).",
+            "Kappa corot for baryons (gas and stars), relative w.r.t. the centre of potential and the bulk velocity of the baryons.",
         ),
         ("Mgasmetal", 1, np.float32, unyt.Msun, "Total gas mass in metals."),
         ("Tgas", 1, np.float32, unyt.K, "Mass-weighted gas temperature."),
+        ("Tgas_no_cool", 1, np.float32, unyt.K, "Mass-weighted gas temperature, excluding cool (T<1e5 K) gas."),
         (
             "Tgas_no_agn",
             1,
             np.float32,
             unyt.K,
-            "Mass-weighted gas temperature, excluding gas that was recently heated by AGN.",
+            "Mass-weighted gas temperature, excluding gas that was heated by AGN less than 15 Myr ago.",
         ),
-        ("SFR", 1, np.float32, unyt.Msun / unyt.yr, "Total SFR"),
-        ("Luminosity", 9, np.float32, unyt.dimensionless, "Total luminosity"),
+        (
+            "Tgas_no_cool_no_agn",
+            1,
+            np.float32,
+            unyt.K,
+            "Mass-weighted gas temperature, excluding cool (T<1e5 K) gas and gas that was heated by AGN less than 15 Myr ago.",
+        ),
+        ("SFR", 1, np.float32, unyt.Msun / unyt.yr, "Total SFR."),
+        ("Luminosity", 9, np.float32, unyt.dimensionless, "Total stellar luminosity in the 9 GAMA bands."),
         ("Mstarmetal", 1, np.float32, unyt.Msun, "Total stellar mass in metals."),
-        ("Vmax", 1, np.float32, unyt.km / unyt.s, "Maximum velocity."),
+        ("Vmax", 1, np.float32, unyt.km / unyt.s, "Maximum circular velocity."),
         ("R_vmax", 1, np.float32, unyt.kpc, "Radius at which Vmax is reached."),
         (
             "spin_parameter",
@@ -130,6 +139,16 @@ class SubhaloProperties(HaloProperty):
             np.float32,
             unyt.dimensionless,
             "Bullock et al. (2001) spin parameter.",
+        ),
+        ("HalfMassRadiusTot", 1, np.float32, unyt.kpc, "Total half mass radius."),
+        ("HalfMassRadiusGas", 1, np.float32, unyt.kpc, "Total gas half mass radius."),
+        ("HalfMassRadiusDM", 1, np.float32, unyt.kpc, "Total DM half mass radius."),
+        (
+            "HalfMassRadiusStar",
+            1,
+            np.float32,
+            unyt.kpc,
+            "Total stellar half mass radius.",
         ),
     ]
 
@@ -290,7 +309,7 @@ class SubhaloProperties(HaloProperty):
         subhalo["Mgas"] += mass_gas.sum()
         subhalo["Mdm"] = mass_dm.sum()
         subhalo["Mstar"] += mass_star.sum()
-        subhalo["Mbh"] += mass[bh_mask_sh].sum()
+        subhalo["Mbh_dynamical"] += mass[bh_mask_sh].sum()
 
         if subhalo["Nstar"] > 0:
             star_mask_all = data["PartType4"][self.grnr] == index
@@ -397,20 +416,57 @@ class SubhaloProperties(HaloProperty):
                 gas_mask_all
             ]
             no_agn = ~self.filter.is_recently_heated(last_agn_gas, gas_temp)
+            no_cool = gas_temp >= 1.e5*unyt.K
             subhalo["Tgas"] += ((mass_gas / subhalo["Mgas"]) * gas_temp).sum()
+            if np.any(no_cool):
+                mass_gas_no_cool = mass_gas[no_cool]
+                Mgas_no_cool = mass_gas_no_cool.sum()
+                if Mgas_no_cool > 0. * Mgas_no_cool.units:
+                    subhalo["Tgas_no_cool"] += ((mass_gas_no_cool / Mgas_no_cool) * gas_temp[no_cool]).sum()
             if np.any(no_agn):
                 mass_gas_no_agn = mass_gas[no_agn]
                 Mgas_no_agn = mass_gas_no_agn.sum()
-                if Mgas_no_agn > 0.0:
+                if Mgas_no_agn > 0.0 * Mgas_no_agn.units:
                     subhalo["Tgas_no_agn"] += (
                         (mass_gas_no_agn / Mgas_no_agn) * gas_temp[no_agn]
                     ).sum()
+            no_cool_no_agn = no_agn & no_cool
+            if np.any(no_cool_no_agn):
+                mass_gas_no_cool_no_agn = mass_gas[no_cool_no_agn]
+                Mgas_no_cool_no_agn = mass_gas_no_cool_no_agn.sum()
+                if Mgas_no_cool_no_agn > 0.0 * Mgas_no_cool_no_agn.units:
+                    subhalo["Tgas_no_cool_no_agn"] += (
+                        (mass_gas_no_cool_no_agn / Mgas_no_cool_no_agn) * gas_temp[no_cool_no_agn]
+                    ).sum()
+
+        for name, r, m, M in zip(
+            [
+                "HalfMassRadiusTot",
+                "HalfMassRadiusGas",
+                "HalfMassRadiusDM",
+                "HalfMassRadiusStar",
+            ],
+            [
+                radius,
+                radius[gas_mask_sh],
+                radius[dm_mask_sh],
+                radius[star_mask_sh],
+            ],
+            [mass, mass_gas, mass_dm, mass_star],
+            [
+                subhalo["Mtot"],
+                subhalo["Mgas"],
+                subhalo["Mdm"],
+                subhalo["Mstar"],
+            ],
+        ):
+            subhalo[name] += get_half_mass_radius(r, m, M)
 
         # Add these properties to the output
         if self.bound_only:
-            prefix = "BoundSubhaloParticles"
+            prefix = "BoundSubhaloProperties"
         else:
-            prefix = "AllSubhaloParticles"
+            prefix = "FOFSubhaloProperties"
         for name, _, _, _, description in self.subhalo_properties:
             halo_result.update(
                 {
@@ -453,8 +509,8 @@ def test_subhalo_properties():
 
         halo_result = {}
         for subhalo_name, prop_calc in [
-            ("BoundSubhaloParticles", property_calculator_bound),
-            ("AllSubhaloParticles", property_calculator_both),
+            ("BoundSubhaloProperties", property_calculator_bound),
+            ("FOFSubhaloProperties", property_calculator_both),
         ]:
             input_data = {}
             for ptype in prop_calc.particle_properties:
