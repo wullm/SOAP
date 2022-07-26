@@ -11,7 +11,7 @@ from kinematic_properties import (
     get_angular_momentum_and_kappa_corot,
     get_vmax,
 )
-from exclusive_sphere_properties import RecentlyHeatedGasFilter
+from recently_heated_gas_filter import RecentlyHeatedGasFilter
 
 
 class SubhaloProperties(HaloProperty):

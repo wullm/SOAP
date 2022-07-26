@@ -9,6 +9,7 @@ from kinematic_properties import (
     get_velocity_dispersion_matrix,
     get_angular_momentum,
 )
+from recently_heated_gas_filter import RecentlyHeatedGasFilter
 
 from dataset_names import mass_dataset
 
@@ -482,12 +483,14 @@ class SOProperties(HaloProperty):
         ),
     ]
 
-    def __init__(self, cellgrid, SOval, type="mean"):
+    def __init__(self, cellgrid, recently_heated_gas_filter, SOval, type="mean"):
         super().__init__(cellgrid)
 
         if not type in ["mean", "crit", "physical", "BN98"]:
             raise AttributeError(f"Unknown SO type: {type}!")
         self.type = type
+
+        self.filter = recently_heated_gas_filter
 
         # in the neutrino model, the mean neutrino density is implicitly
         # assumed to be based on Omega_nu_0 and critical_density_0
@@ -911,14 +914,16 @@ class SOProperties(HaloProperty):
 
 
 class RadiusMultipleSOProperties(SOProperties):
-    def __init__(self, cellgrid, SOval, multiple, type="mean"):
+    def __init__(
+        self, cellgrid, recently_heated_gas_filter, SOval, multiple, type="mean"
+    ):
         if not type in ["mean", "crit"]:
             raise AttributeError(
                 "SOs with a radius that is a multiple of another SO radius are only allowed for type mean or crit!"
             )
 
         # initialise the SOProperties object using a conservative physical radius estimate
-        super().__init__(cellgrid, 3000.0, "physical")
+        super().__init__(cellgrid, recently_heated_gas_filter, 3000.0, "physical")
 
         # overwrite the name, SO_name and label
         self.SO_name = f"{multiple:.0f}xR_{SOval:.0f}_{type}"
@@ -952,18 +957,22 @@ def test_SO_properties():
     from dummy_halo_generator import DummyHaloGenerator
 
     dummy_halos = DummyHaloGenerator(4251)
+    filter = RecentlyHeatedGasFilter(dummy_halos.get_cell_grid())
+
     property_calculator_50kpc = SOProperties(
-        dummy_halos.get_cell_grid(), 50.0, "physical"
+        dummy_halos.get_cell_grid(), filter, 50.0, "physical"
     )
     property_calculator_2500mean = SOProperties(
-        dummy_halos.get_cell_grid(), 2500.0, "mean"
+        dummy_halos.get_cell_grid(), filter, 2500.0, "mean"
     )
     property_calculator_2500crit = SOProperties(
-        dummy_halos.get_cell_grid(), 2500.0, "crit"
+        dummy_halos.get_cell_grid(), filter, 2500.0, "crit"
     )
-    property_calculator_BN98 = SOProperties(dummy_halos.get_cell_grid(), 0.0, "BN98")
+    property_calculator_BN98 = SOProperties(
+        dummy_halos.get_cell_grid(), filter, 0.0, "BN98"
+    )
     property_calculator_5x2500mean = RadiusMultipleSOProperties(
-        dummy_halos.get_cell_grid(), 2500.0, 5.0, "mean"
+        dummy_halos.get_cell_grid(), filter, 2500.0, 5.0, "mean"
     )
 
     for i in range(100):
