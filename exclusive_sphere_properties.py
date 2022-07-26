@@ -160,8 +160,8 @@ class ExclusiveSphereProperties(HaloProperty):
         ("Mgas", 1, np.float32, unyt.Msun, "Total gas mass"),
         ("Mdm", 1, np.float32, unyt.Msun, "Total DM mass"),
         ("Mstar", 1, np.float32, unyt.Msun, "Total stellar mass"),
-        ("Mstar_init", 1, np.float32, unyt.Msun, "Total initial stellar mass"),
-        ("Mbh", 1, np.float32, unyt.Msun, "Total BH dynamical mass"),
+        ("Mstar_init", 1, np.float32, unyt.Msun, "Total stellar initial mass"),
+        ("Mbh_dynamical", 1, np.float32, unyt.Msun, "Total BH dynamical mass"),
         ("Mbh_subgrid", 1, np.float32, unyt.Msun, "Total BH subgrid mass"),
         ("Ngas", 1, np.uint32, unyt.dimensionless, "Number of gas particles."),
         ("Ndm", 1, np.uint32, unyt.dimensionless, "Number of dark matter particles."),
@@ -204,21 +204,21 @@ class ExclusiveSphereProperties(HaloProperty):
             "Lgas",
             3,
             np.float32,
-            unyt.Msun * unyt.kpc * unyt.km / unyt.s,
+            unyt.Msun * unyt.km * unyt.kpc / unyt.s,
             "Total angular momentum of the gas, relative w.r.t. the centre of potential and gas bulk velocity.",
         ),
         (
             "Ldm",
             3,
             np.float32,
-            unyt.Msun * unyt.kpc * unyt.km / unyt.s,
+            unyt.Msun * unyt.km * unyt.kpc / unyt.s,
             "Total angular momentum of the dark matter, relative w.r.t. the centre of potential and DM bulk velocity.",
         ),
         (
             "Lstar",
             3,
             np.float32,
-            unyt.Msun * unyt.kpc * unyt.km / unyt.s,
+            unyt.Msun * unyt.km * unyt.kpc / unyt.s,
             "Total angular momentum of the stars, relative w.r.t. the centre of potential and stellar bulk velocity.",
         ),
         ("kappa_corot_gas", 1, np.float32, unyt.dimensionless, "Kappa corot for gas."),
@@ -248,21 +248,35 @@ class ExclusiveSphereProperties(HaloProperty):
             6,
             np.float32,
             unyt.km**2 / unyt.s**2,
-            "Velocity dispersion of the gas. Measured relative to the centre of mass velocity of all particles. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
+            "Mass-weighted velocity dispersion of the gas. Measured relative w.r.t. the gas bulk velocity. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
         ),
         (
             "veldisp_dm",
             6,
             np.float32,
             unyt.km**2 / unyt.s**2,
-            "Velocity dispersion of the dark matter. Measured relative to the centre of mass velocity of all particles. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
+            "Mass-weighted velocity dispersion of the dark matter. Measured relative w.r.t. the DM bulk velocity. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
         ),
         (
             "veldisp_star",
             6,
             np.float32,
             unyt.km**2 / unyt.s**2,
-            "Velocity dispersion of the stars. Measured relative to the centre of mass velocity of all particles. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
+            "Mass-weighted velocity dispersion of the stars. Measured relative w.r.t. the stellar bulk velocity. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
+        ),
+        (
+            "Ekin_gas",
+            1,
+            np.float64,
+            unyt.erg,
+            "Total kinetic energy of the gas, relative w.r.t. the gas bulk velocity.",
+        ),
+        (
+            "Ekin_star",
+            1,
+            np.float64,
+            unyt.erg,
+            "Total kinetic energy of the stars, relative w.r.t. the stellar bulk velocity.",
         ),
         ("Mgas_SF", 1, np.float32, unyt.Msun, "Total mass of star-forming gas."),
         ("Mgas_noSF", 1, np.float32, unyt.Msun, "Total mass of non star-forming gas."),
@@ -481,7 +495,7 @@ class ExclusiveSphereProperties(HaloProperty):
                 mass_star
                 * data["PartType4"]["MetalMassFractions"][star_mask_all][star_mask_ap]
             ).sum()
-        exclusive_sphere["Mbh"] = mass[type == "PartType5"].sum()
+        exclusive_sphere["Mbh_dynamical"] = mass[type == "PartType5"].sum()
         if exclusive_sphere["Nbh"] > 0:
             bh_mask_all = data["PartType5"]["GroupNr_bound"] == index
             exclusive_sphere["Mbh_subgrid"] += data["PartType5"]["SubgridMasses"][
@@ -546,8 +560,16 @@ class ExclusiveSphereProperties(HaloProperty):
             exclusive_sphere["kappa_corot_gas"] += kappa
 
             exclusive_sphere["veldisp_gas"][:] = get_velocity_dispersion_matrix(
-                frac_mgas, vel_gas, exclusive_sphere["vcom"]
+                frac_mgas, vel_gas, vcom_gas
             )
+
+            # below we need to force conversion to np.float64 before summing
+            # up particles to avoid overflow
+            ekin_gas = mass_gas * ((vel_gas - vcom_gas) ** 2).sum(axis=1)
+            ekin_gas = unyt.unyt_array(
+                ekin_gas.value, dtype=np.float64, units=ekin_gas.units
+            )
+            exclusive_sphere["Ekin_gas"] += 0.5 * ekin_gas.sum()
 
         if exclusive_sphere["Mdm"] > 0.0 * exclusive_sphere["Mdm"].units:
             frac_mdm = mass_dm / exclusive_sphere["Mdm"]
@@ -557,7 +579,7 @@ class ExclusiveSphereProperties(HaloProperty):
             )
 
             exclusive_sphere["veldisp_dm"][:] = get_velocity_dispersion_matrix(
-                frac_mdm, vel_dm, exclusive_sphere["vcom"]
+                frac_mdm, vel_dm, vcom_dm
             )
 
         if exclusive_sphere["Mstar"] > 0.0 * exclusive_sphere["Mstar"].units:
@@ -570,8 +592,16 @@ class ExclusiveSphereProperties(HaloProperty):
             exclusive_sphere["kappa_corot_star"] += kappa
 
             exclusive_sphere["veldisp_star"][:] = get_velocity_dispersion_matrix(
-                frac_mstar, vel_star, exclusive_sphere["vcom"]
+                frac_mstar, vel_star, vcom_star
             )
+
+            # below we need to force conversion to np.float64 before summing
+            # up particles to avoid overflow
+            ekin_star = mass_star * ((vel_star - vcom_star) ** 2).sum(axis=1)
+            ekin_star = unyt.unyt_array(
+                ekin_star.value, dtype=np.float64, units=ekin_star.units
+            )
+            exclusive_sphere["Ekin_star"] += 0.5 * ekin_star.sum()
 
         if (
             exclusive_sphere["Mgas"] + exclusive_sphere["Mstar"]
