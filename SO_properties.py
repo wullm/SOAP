@@ -220,11 +220,39 @@ class SOProperties(HaloProperty):
         ("r", 1, np.float32, "Mpc", "Radius of a sphere {label}"),
         ("mass", 1, np.float32, "Msun", "Mass within a sphere {label}"),
         (
-            "N",
+            "Ngas",
             1,
             np.uint32,
             "dimensionless",
-            "Number of particles within a sphere {label}",
+            "Number of gas particles within a sphere {label}",
+        ),
+        (
+            "Ndm",
+            1,
+            np.uint32,
+            "dimensionless",
+            "Number of dark matter particles within a sphere {label}",
+        ),
+        (
+            "Nstar",
+            1,
+            np.uint32,
+            "dimensionless",
+            "Number of star particles within a sphere {label}",
+        ),
+        (
+            "Nbh",
+            1,
+            np.uint32,
+            "dimensionless",
+            "Number of BH particles within a sphere {label}",
+        ),
+        (
+            "Nnu",
+            1,
+            np.uint32,
+            "dimensionless",
+            "Number of neutrino particles within a sphere {label}",
         ),
         ("com", 3, np.float32, "Mpc", "Centre of mass within a sphere {label}"),
         (
@@ -733,14 +761,6 @@ class SOProperties(HaloProperty):
             types = types[all_selection]
             is_bound_to_satellite = is_bound_to_satellite[all_selection]
 
-            # we have to set the value like this to avoid conversion to dtype=np.float32...
-            SO["N"] = unyt.unyt_array(
-                all_selection.sum(),
-                dtype=np.uint32,
-                units="dimensionless",
-                registry=reg,
-            )
-
             # note that we cannot divide by mSO here, since that was based on an interpolation
             mass_frac = mass / mass.sum()
             SO["com"][:] = (mass_frac[:, None] * position).sum(axis=0)
@@ -817,6 +837,10 @@ class SOProperties(HaloProperty):
             # gas specific properties. We (can) only do these if we have gas.
             # (remember that "PartType0" might not be part of 'data' at all)
             if np.any(gas_selection):
+                SO["Ngas"] = (
+                    gas_selection.sum(dtype=SO["Ngas"].dtype) * SO["Ngas"].units
+                )
+
                 SO["Mgasmetal"] += (
                     gas_masses * data["PartType0"]["MetalMassFractions"][gas_selection]
                 ).sum()
@@ -872,8 +896,15 @@ class SOProperties(HaloProperty):
                 )
                 SO["Etherm_gas"] += etherm_gas.sum()
 
+            if np.any(dm_selection):
+                SO["Ndm"] = dm_selection.sum(dtype=SO["Ndm"].dtype) * SO["Ndm"].units
+
             # star specific properties
             if np.any(star_selection):
+                SO["Nstar"] = (
+                    star_selection.sum(dtype=SO["Nstar"].dtype) * SO["Nstar"].units
+                )
+
                 SO["Mstarinit"] += data["PartType4"]["InitialMasses"][
                     star_selection
                 ].sum()
@@ -895,6 +926,8 @@ class SOProperties(HaloProperty):
 
             # BH specific properties
             if np.any(bh_selection):
+                SO["Nbh"] = bh_selection.sum(dtype=SO["Nbh"].dtype) * SO["Nbh"].units
+
                 SO["MBHsub"] += data["PartType5"]["SubgridMasses"][bh_selection].sum()
                 agn_eventa = data["PartType5"]["LastAGNFeedbackScaleFactors"][
                     bh_selection

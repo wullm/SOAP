@@ -1,4 +1,4 @@
-#!/bin/env python
+##!/bin/env python
 
 import numpy as np
 import unyt
@@ -33,6 +33,10 @@ class ProjectedApertureProperties(HaloProperty):
         ("Mstar_init", 1, np.float32, unyt.Msun, "Total stellar initial mass."),
         ("Mbh_dynamical", 1, np.float32, unyt.Msun, "Total BH dynamical mass."),
         ("Mbh_subgrid", 1, np.float32, unyt.Msun, "Total BH subgrid mass."),
+        ("Ngas", 1, np.uint32, unyt.dimensionless, "Number of gas particles."),
+        ("Ndm", 1, np.uint32, unyt.dimensionless, "Number of dark matter particles."),
+        ("Nstar", 1, np.uint32, unyt.dimensionless, "Number of star particles."),
+        ("Nbh", 1, np.uint32, unyt.dimensionless, "Number of black hole particles."),
         ("com", 3, np.float32, unyt.kpc, "Centre of mass."),
         ("vcom", 3, np.float32, unyt.km / unyt.s, "Centre of mass velocity."),
         ("SFR", 1, np.float32, unyt.Msun / unyt.yr, "Total SFR."),
@@ -214,6 +218,25 @@ class ProjectedApertureProperties(HaloProperty):
             gas_mask_ap = projmask[types == "PartType0"]
             star_mask_ap = projmask[types == "PartType4"]
             bh_mask_ap = projmask[types == "PartType5"]
+
+            projected_aperture["Ngas"] = (
+                gas_mask_ap.sum(dtype=projected_aperture["Ngas"].dtype)
+                * projected_aperture["Ngas"].units
+            )
+            projected_aperture["Ndm"] = (
+                projmask[types == "PartType1"].sum(
+                    dtype=projected_aperture["Ndm"].dtype
+                )
+                * projected_aperture["Ndm"].units
+            )
+            projected_aperture["Nstar"] = (
+                star_mask_ap.sum(dtype=projected_aperture["Nstar"].dtype)
+                * projected_aperture["Nstar"].units
+            )
+            projected_aperture["Nbh"] = (
+                bh_mask_ap.sum(dtype=projected_aperture["Nbh"].dtype)
+                * projected_aperture["Nbh"].units
+            )
 
             proj_mass_gas = proj_mass[proj_type == "PartType0"]
             proj_mass_dm = proj_mass[proj_type == "PartType1"]
