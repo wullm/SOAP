@@ -383,9 +383,12 @@ class SubhaloProperties(HaloProperty):
                 Ltot = unyt.array.unorm(
                     (mass[:, None] * unyt.array.ucross(position, vrel)).sum(axis=0)
                 )
-                subhalo["spin_parameter"] += Ltot / (
-                    np.sqrt(2.0) * subhalo["Mtot"] * vmax * r_vmax
-                )
+                mask_r_vmax = radius <= r_vmax
+                M_r_vmax = mass[mask_r_vmax].sum()
+                if M_r_vmax > 0.0 * M_r_vmax.units:
+                    subhalo["spin_parameter"] += Ltot / (
+                        np.sqrt(2.0) * M_r_vmax * vmax * r_vmax
+                    )
 
         if subhalo["Mgas"] > 0.0 * subhalo["Mgas"].units:
             frac_mgas = mass_gas / subhalo["Mgas"]
