@@ -174,6 +174,7 @@ class SOProperties(HaloProperty):
             "Coordinates",
             "Densities",
             "GroupNr_bound",
+            "LastAGNFeedbackScaleFactors",
             "Masses",
             "MetalMassFractions",
             "Pressures",
@@ -285,7 +286,7 @@ class SOProperties(HaloProperty):
             "Total mass of gas with T > 1e5 K within a sphere {label}",
         ),
         (
-            "Tgas",
+            "Thotgas",
             1,
             np.float32,
             "K",
@@ -296,16 +297,43 @@ class SOProperties(HaloProperty):
             3,
             np.float64,
             "erg/s",
-            "Total Xray luminosity within a sphere {label}",
+            "Total rest-frame Xray luminosity in three bands within a sphere {label}",
         ),
         (
             "Xrayphlum",
             3,
             np.float64,
             "1/s",
-            "Total Xray photon luminosity within a sphere {label}",
+            "Total rest-frame Xray photon luminosity in three bands within a sphere {label}",
         ),
-        ("compY", 1, np.float64, "cm**2", "Total Compton y within a sphere {label}"),
+        (
+            "compY",
+            1,
+            np.float64,
+            "cm**2",
+            "Total Compton y parameter within a sphere {label}",
+        ),
+        (
+            "Xraylum_no_agn",
+            3,
+            np.float64,
+            "erg/s",
+            "Total rest-frame Xray luminosity in three bands within a sphere {label} Excludes gas that was heated by AGN less than 15 Myr ago.",
+        ),
+        (
+            "Xrayphlum_no_agn",
+            3,
+            np.float64,
+            "1/s",
+            "Total rest-frame Xray photon luminosity in three bands within a sphere {label} Exclude gas that was heated by AGN less than 15 Myr ago.",
+        ),
+        (
+            "compY_no_agn",
+            1,
+            np.float64,
+            "cm**2",
+            "Total Compton y parameter within a sphere {label} Excludes gas that was heated by AGN less than 15 Myr ago.",
+        ),
         (
             "Ekin_gas",
             1,
@@ -798,25 +826,31 @@ class SOProperties(HaloProperty):
                 SO["Mhotgas"] += gas_masses[Tgas_selection].sum()
 
                 if np.any(Tgas_selection):
-                    SO["Tgas"] += (
+                    SO["Thotgas"] += (
                         gas_temperatures[Tgas_selection] * gas_masses[Tgas_selection]
                     ).sum() / SO["Mhotgas"]
 
-                SO["Xraylum"] += data["PartType0"]["XrayLuminosities"][
-                    gas_selection
-                ].sum()
-                SO["Xrayphlum"] += data["PartType0"]["XrayPhotonLuminosities"][
-                    gas_selection
-                ].sum()
+                xraylum = data["PartType0"]["XrayLuminosities"][gas_selection]
+                xrayphlum = data["PartType0"]["XrayPhotonLuminosities"][gas_selection]
+                SO["Xraylum"] += xraylum.sum()
+                SO["Xrayphlum"] += xrayphlum.sum()
 
-                # convert to 64-bit before calculating the sum to avoid overflow
-                compY = data["PartType0"]["ComptonYParameters"][gas_selection].sum()
+                compY = data["PartType0"]["ComptonYParameters"][gas_selection]
                 # unyt has some internal issue that causes an overflow when
                 # converting from compY.units to SO["compY"].units.
                 # we avoid this issue by manually converting the unit
                 unit = 1.0 * compY.units
                 new_unit = unit.to(SO["compY"].units)
-                SO["compY"] += compY.value * new_unit
+                SO["compY"] += compY.sum().value * new_unit
+
+                last_agn_gas = data["PartType0"]["LastAGNFeedbackScaleFactors"][
+                    gas_selection
+                ]
+                no_agn = ~self.filter.is_recently_heated(last_agn_gas, gas_temperatures)
+                if np.any(no_agn):
+                    SO["Xraylum_no_agn"] += xraylum[no_agn].sum()
+                    SO["Xrayphlum_no_agn"] += xrayphlum[no_agn].sum()
+                    SO["compY_no_agn"] += compY[no_agn].sum().value * new_unit
 
                 # below we need to force conversion to np.float64 before summing up particles
                 # to avoid overflow
