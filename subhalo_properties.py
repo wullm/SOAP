@@ -89,7 +89,13 @@ class SubhaloProperties(HaloProperty):
             unyt.Msun * unyt.kpc * unyt.km / unyt.s,
             "Total angular momentum of the stars, relative w.r.t. the centre of potential and stellar bulk velocity.",
         ),
-        ("kappa_corot_gas", 1, np.float32, unyt.dimensionless, "Kappa corot for gas, relative w.r.t. the centre of potential and the bulk velocity of the gas."),
+        (
+            "kappa_corot_gas",
+            1,
+            np.float32,
+            unyt.dimensionless,
+            "Kappa corot for gas, relative w.r.t. the centre of potential and the bulk velocity of the gas.",
+        ),
         (
             "kappa_corot_star",
             1,
@@ -113,7 +119,13 @@ class SubhaloProperties(HaloProperty):
         ),
         ("Mgasmetal", 1, np.float32, unyt.Msun, "Total gas mass in metals."),
         ("Tgas", 1, np.float32, unyt.K, "Mass-weighted gas temperature."),
-        ("Tgas_no_cool", 1, np.float32, unyt.K, "Mass-weighted gas temperature, excluding cool (T<1e5 K) gas."),
+        (
+            "Tgas_no_cool",
+            1,
+            np.float32,
+            unyt.K,
+            "Mass-weighted gas temperature, excluding cool (T<1e5 K) gas.",
+        ),
         (
             "Tgas_no_agn",
             1,
@@ -129,7 +141,13 @@ class SubhaloProperties(HaloProperty):
             "Mass-weighted gas temperature, excluding cool (T<1e5 K) gas and gas that was heated by AGN less than 15 Myr ago.",
         ),
         ("SFR", 1, np.float32, unyt.Msun / unyt.yr, "Total SFR."),
-        ("Luminosity", 9, np.float32, unyt.dimensionless, "Total stellar luminosity in the 9 GAMA bands."),
+        (
+            "Luminosity",
+            9,
+            np.float32,
+            unyt.dimensionless,
+            "Total stellar luminosity in the 9 GAMA bands.",
+        ),
         ("Mstarmetal", 1, np.float32, unyt.Msun, "Total stellar mass in metals."),
         ("Vmax", 1, np.float32, unyt.km / unyt.s, "Maximum circular velocity."),
         ("R_vmax", 1, np.float32, unyt.kpc, "Radius at which Vmax is reached."),
@@ -416,13 +434,15 @@ class SubhaloProperties(HaloProperty):
                 gas_mask_all
             ]
             no_agn = ~self.filter.is_recently_heated(last_agn_gas, gas_temp)
-            no_cool = gas_temp >= 1.e5*unyt.K
+            no_cool = gas_temp >= 1.0e5 * unyt.K
             subhalo["Tgas"] += ((mass_gas / subhalo["Mgas"]) * gas_temp).sum()
             if np.any(no_cool):
                 mass_gas_no_cool = mass_gas[no_cool]
                 Mgas_no_cool = mass_gas_no_cool.sum()
-                if Mgas_no_cool > 0. * Mgas_no_cool.units:
-                    subhalo["Tgas_no_cool"] += ((mass_gas_no_cool / Mgas_no_cool) * gas_temp[no_cool]).sum()
+                if Mgas_no_cool > 0.0 * Mgas_no_cool.units:
+                    subhalo["Tgas_no_cool"] += (
+                        (mass_gas_no_cool / Mgas_no_cool) * gas_temp[no_cool]
+                    ).sum()
             if np.any(no_agn):
                 mass_gas_no_agn = mass_gas[no_agn]
                 Mgas_no_agn = mass_gas_no_agn.sum()
@@ -436,7 +456,8 @@ class SubhaloProperties(HaloProperty):
                 Mgas_no_cool_no_agn = mass_gas_no_cool_no_agn.sum()
                 if Mgas_no_cool_no_agn > 0.0 * Mgas_no_cool_no_agn.units:
                     subhalo["Tgas_no_cool_no_agn"] += (
-                        (mass_gas_no_cool_no_agn / Mgas_no_cool_no_agn) * gas_temp[no_cool_no_agn]
+                        (mass_gas_no_cool_no_agn / Mgas_no_cool_no_agn)
+                        * gas_temp[no_cool_no_agn]
                     ).sum()
 
         for name, r, m, M in zip(
