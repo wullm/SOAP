@@ -964,6 +964,10 @@ class SOProperties(HaloProperty):
                     * data["PartType6"]["Weights"][nu_selection]
                 ).sum()
                 SO["MnuNS"] += self.nu_density * SO_volume
+                if np.any(nu_selection):
+                    SO["Nnu"] = (
+                        nu_selection.sum(dtype=SO["Nnu"].dtype) * SO["Nnu"].units
+                    )
 
         # Return value should be a dict containing unyt_arrays and descriptions.
         # The dict keys will be used as HDF5 dataset names in the output.
