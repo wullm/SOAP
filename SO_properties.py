@@ -5,6 +5,10 @@ import unyt
 from scipy.optimize import brentq
 
 from halo_properties import HaloProperty, ReadRadiusTooSmallError
+from kinematic_properties import (
+    get_velocity_dispersion_matrix,
+    get_angular_momentum,
+)
 
 from dataset_names import mass_dataset
 
@@ -263,7 +267,7 @@ class SOProperties(HaloProperty):
             6,
             np.float32,
             "km**2/s**2",
-            "Velocity dispersion of gas within a sphere {label}. Measured relative to the centre of mass velocity of all particles. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
+            "Velocity dispersion of gas within a sphere {label} Measured relative to the centre of mass velocity of all particles. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
         ),
         (
             "Mgasmetal",
@@ -306,7 +310,7 @@ class SOProperties(HaloProperty):
             1,
             np.float64,
             "erg",
-            "Total kinetic energy of the gas within a sphere {label}. Measured relative to the centre of mass velocity of all particles.",
+            "Total kinetic energy of the gas within a sphere {label} Measured relative w.r.t. the bulk velocity of the gas.",
         ),
         (
             "Etherm_gas",
@@ -329,7 +333,7 @@ class SOProperties(HaloProperty):
             6,
             np.float32,
             "km**2/s**2",
-            "Velocity dispersion of DM within a sphere {label}. Measured relative to the centre of mass velocity of all particles. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
+            "Velocity dispersion of DM within a sphere {label} Measured relative to the centre of mass velocity of all particles. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
         ),
         # stellar properties
         (
@@ -358,7 +362,7 @@ class SOProperties(HaloProperty):
             6,
             np.float32,
             "km**2/s**2",
-            "Velocity dispersion of stars within a sphere {label}. Measured relative to the centre of mass velocity of all particles. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
+            "Velocity dispersion of stars within a sphere {label} Measured relative to the centre of mass velocity of all particles. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
         ),
         (
             "Jstar",
@@ -372,7 +376,7 @@ class SOProperties(HaloProperty):
             1,
             np.float32,
             "Msun",
-            "Total initial stellar mass with a sphere {label}",
+            "Total stellar initial mass with a sphere {label}",
         ),
         (
             "Mstarmetal",
@@ -386,7 +390,14 @@ class SOProperties(HaloProperty):
             9,
             np.float32,
             "dimensionless",
-            "Total stellar luminosity within a sphere {label}",
+            "Total stellar luminosity in the 9 GAMA bands within a sphere {label}",
+        ),
+        (
+            "Ekin_star",
+            1,
+            np.float64,
+            "erg",
+            "Total kinetic energy of the stars within a sphere {label} Measured relative w.r.t. the bulk velocity of the stars.",
         ),
         # Baryonic (gas + star) properties
         (
@@ -712,37 +723,49 @@ class SOProperties(HaloProperty):
             gas_vel = velocity[types == "PartType0"]
             SO["mass_gas"] += gas_masses.sum()
             if SO["mass_gas"] > 0.0 * SO["mass_gas"].units:
-                gas_vcom = ((gas_masses / SO["mass_gas"])[:, None] * gas_vel).sum(
-                    axis=0
+                frac_mgas = gas_masses / SO["mass_gas"]
+                SO["com_gas"][:] = (frac_mgas[:, None] * gas_pos).sum(axis=0)
+                SO["com_gas"][:] += centre
+                SO["vcom_gas"][:] = (frac_mgas[:, None] * gas_vel).sum(axis=0)
+
+                SO["Jgas"][:] = get_angular_momentum(
+                    gas_masses, gas_pos, gas_vel, ref_velocity=SO["vcom_gas"]
                 )
-                gas_relvel = gas_vel - gas_vcom[None, :]
-                SO["Jgas"][:] = (
-                    gas_masses[:, None] * unyt.array.ucross(gas_pos, gas_relvel)
-                ).sum(axis=0)
+                SO["veldisp_gas"][:] = get_velocity_dispersion_matrix(
+                    frac_mgas, gas_vel, SO["vcom_gas"]
+                )
 
             dm_masses = mass[types == "PartType1"]
             dm_pos = position[types == "PartType1"]
             dm_vel = velocity[types == "PartType1"]
             SO["mass_dm"] += dm_masses.sum()
             if SO["mass_dm"] > 0.0 * SO["mass_dm"].units:
-                dm_vcom = ((dm_masses / SO["mass_dm"])[:, None] * dm_vel).sum(axis=0)
-                dm_relvel = dm_vel - dm_vcom[None, :]
-                SO["JDM"][:] = (
-                    dm_masses[:, None] * unyt.array.ucross(dm_pos, dm_relvel)
-                ).sum(axis=0)
+                frac_mdm = dm_masses / SO["mass_dm"]
+                vcom_dm = (frac_mdm[:, None] * dm_vel).sum(axis=0)
+
+                SO["JDM"][:] = get_angular_momentum(
+                    dm_masses, dm_pos, dm_vel, ref_velocity=vcom_dm
+                )
+                SO["veldisp_dm"][:] = get_velocity_dispersion_matrix(
+                    frac_mdm, dm_vel, vcom_dm
+                )
 
             star_masses = mass[types == "PartType4"]
             star_pos = position[types == "PartType4"]
             star_vel = velocity[types == "PartType4"]
             SO["mass_star"] += star_masses.sum()
             if SO["mass_star"] > 0.0 * SO["mass_star"].units:
-                star_vcom = ((star_masses / SO["mass_star"])[:, None] * star_vel).sum(
-                    axis=0
+                frac_mstar = star_masses / SO["mass_star"]
+                SO["com_star"][:] = (frac_mstar[:, None] * star_pos).sum(axis=0)
+                SO["com_star"][:] += centre
+                SO["vcom_star"][:] = (frac_mstar[:, None] * star_vel).sum(axis=0)
+
+                SO["Jstar"][:] = get_angular_momentum(
+                    star_masses, star_pos, star_vel, ref_velocity=SO["vcom_star"]
                 )
-                star_relvel = star_vel - star_vcom[None, :]
-                SO["Jstar"][:] = (
-                    star_masses[:, None] * unyt.array.ucross(star_pos, star_relvel)
-                ).sum(axis=0)
+                SO["veldisp_star"][:] = get_velocity_dispersion_matrix(
+                    frac_mstar, star_vel, SO["vcom_star"]
+                )
 
             baryon_masses = mass[(types == "PartType0") | (types == "PartType4")]
             baryon_pos = position[(types == "PartType0") | (types == "PartType4")]
@@ -763,33 +786,6 @@ class SOProperties(HaloProperty):
             # gas specific properties. We (can) only do these if we have gas.
             # (remember that "PartType0" might not be part of 'data' at all)
             if np.any(gas_selection):
-                SO["com_gas"][:] = (gas_masses[:, None] * gas_pos).sum(
-                    axis=0
-                ) / gas_masses.sum()
-                SO["com_gas"][:] += centre
-                SO["vcom_gas"][:] = (gas_masses[:, None] * gas_vel).sum(
-                    axis=0
-                ) / gas_masses.sum()
-                vrel = gas_vel - SO["vcom"][None, :]
-                SO["veldisp_gas"][0] += (
-                    gas_masses * vrel[:, 0] * vrel[:, 0]
-                ).sum() / gas_masses.sum()
-                SO["veldisp_gas"][1] += (
-                    gas_masses * vrel[:, 1] * vrel[:, 1]
-                ).sum() / gas_masses.sum()
-                SO["veldisp_gas"][2] += (
-                    gas_masses * vrel[:, 2] * vrel[:, 2]
-                ).sum() / gas_masses.sum()
-                SO["veldisp_gas"][3] += (
-                    gas_masses * vrel[:, 0] * vrel[:, 1]
-                ).sum() / gas_masses.sum()
-                SO["veldisp_gas"][4] += (
-                    gas_masses * vrel[:, 0] * vrel[:, 2]
-                ).sum() / gas_masses.sum()
-                SO["veldisp_gas"][5] += (
-                    gas_masses * vrel[:, 1] * vrel[:, 2]
-                ).sum() / gas_masses.sum()
-
                 SO["Mgasmetal"] += (
                     gas_masses * data["PartType0"]["MetalMassFractions"][gas_selection]
                 ).sum()
@@ -822,7 +818,7 @@ class SOProperties(HaloProperty):
                 # below we need to force conversion to np.float64 before summing up particles
                 # to avoid overflow
                 ekin_gas = gas_masses * (
-                    (velocity[types == "PartType0"] - SO["vcom"][None, :]) ** 2
+                    (velocity[types == "PartType0"] - SO["vcom_gas"][None, :]) ** 2
                 ).sum(axis=1)
                 ekin_gas = unyt.unyt_array(
                     ekin_gas.value, dtype=np.float64, units=ekin_gas.units
@@ -839,57 +835,8 @@ class SOProperties(HaloProperty):
                 )
                 SO["Etherm_gas"] += etherm_gas.sum()
 
-            # DM specific properties
-            if np.any(dm_selection):
-                vrel = dm_vel - SO["vcom"][None, :]
-                SO["veldisp_dm"][0] += (
-                    dm_masses * vrel[:, 0] * vrel[:, 0]
-                ).sum() / dm_masses.sum()
-                SO["veldisp_dm"][1] += (
-                    dm_masses * vrel[:, 1] * vrel[:, 1]
-                ).sum() / dm_masses.sum()
-                SO["veldisp_dm"][2] += (
-                    dm_masses * vrel[:, 2] * vrel[:, 2]
-                ).sum() / dm_masses.sum()
-                SO["veldisp_dm"][3] += (
-                    dm_masses * vrel[:, 0] * vrel[:, 1]
-                ).sum() / dm_masses.sum()
-                SO["veldisp_dm"][4] += (
-                    dm_masses * vrel[:, 0] * vrel[:, 2]
-                ).sum() / dm_masses.sum()
-                SO["veldisp_dm"][5] += (
-                    dm_masses * vrel[:, 1] * vrel[:, 2]
-                ).sum() / dm_masses.sum()
-
             # star specific properties
             if np.any(star_selection):
-                SO["com_star"][:] = (star_masses[:, None] * star_pos).sum(
-                    axis=0
-                ) / star_masses.sum()
-                SO["com_star"][:] += centre
-                SO["vcom_star"][:] = (star_masses[:, None] * star_vel).sum(
-                    axis=0
-                ) / star_masses.sum()
-                vrel = star_vel - SO["vcom"][None, :]
-                SO["veldisp_star"][0] += (
-                    star_masses * vrel[:, 0] * vrel[:, 0]
-                ).sum() / star_masses.sum()
-                SO["veldisp_star"][1] += (
-                    star_masses * vrel[:, 1] * vrel[:, 1]
-                ).sum() / star_masses.sum()
-                SO["veldisp_star"][2] += (
-                    star_masses * vrel[:, 2] * vrel[:, 2]
-                ).sum() / star_masses.sum()
-                SO["veldisp_star"][3] += (
-                    star_masses * vrel[:, 0] * vrel[:, 1]
-                ).sum() / star_masses.sum()
-                SO["veldisp_star"][4] += (
-                    star_masses * vrel[:, 0] * vrel[:, 2]
-                ).sum() / star_masses.sum()
-                SO["veldisp_star"][5] += (
-                    star_masses * vrel[:, 1] * vrel[:, 2]
-                ).sum() / star_masses.sum()
-
                 SO["Mstarinit"] += data["PartType4"]["InitialMasses"][
                     star_selection
                 ].sum()
@@ -898,6 +845,16 @@ class SOProperties(HaloProperty):
                     * data["PartType4"]["MetalMassFractions"][star_selection]
                 ).sum()
                 SO["Lstar"][:] = data["PartType4"]["Luminosities"][star_selection].sum()
+
+                # below we need to force conversion to np.float64 before summing up particles
+                # to avoid overflow
+                ekin_star = star_masses * (
+                    (velocity[types == "PartType4"] - SO["vcom_star"][None, :]) ** 2
+                ).sum(axis=1)
+                ekin_star = unyt.unyt_array(
+                    ekin_star.value, dtype=np.float64, units=ekin_star.units
+                )
+                SO["Ekin_star"] += 0.5 * ekin_star.sum()
 
             # BH specific properties
             if np.any(bh_selection):
