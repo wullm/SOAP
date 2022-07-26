@@ -18,6 +18,76 @@ class ProjectedApertureProperties(HaloProperty):
     the halo along the projection axis.
     """
 
+    # List of properties that get computed
+    # For each property, we have the following columns:
+    #  - name: Name of the property within calculate() and in the output file
+    #  - shape: Shape of this property for a single halo (1: scalar, 3: vector...)
+    #  - dtype: Data type that will be used. Should have enough precision to avoid over/underflow
+    #  - unit: Units that will be used internally and for the output.
+    #  - description: Description string that will be used to describe the property in the output.
+    projected_aperture_properties = [
+        ("Mtot", 1, np.float32, unyt.Msun, "Total mass."),
+        ("Mgas", 1, np.float32, unyt.Msun, "Total gas mass."),
+        ("Mdm", 1, np.float32, unyt.Msun, "Total DM mass."),
+        ("Mstar", 1, np.float32, unyt.Msun, "Total stellar mass."),
+        ("Mstar_init", 1, np.float32, unyt.Msun, "Total stellar initial mass."),
+        ("Mbh_dynamical", 1, np.float32, unyt.Msun, "Total BH dynamical mass."),
+        ("Mbh_subgrid", 1, np.float32, unyt.Msun, "Total BH subgrid mass."),
+        ("com", 3, np.float32, unyt.kpc, "Centre of mass."),
+        ("vcom", 3, np.float32, unyt.km / unyt.s, "Centre of mass velocity."),
+        ("SFR", 1, np.float32, unyt.Msun / unyt.yr, "Total SFR."),
+        (
+            "Luminosity",
+            9,
+            np.float32,
+            unyt.dimensionless,
+            "Total stellar luminosity in the 9 GAMA bands.",
+        ),
+        (
+            "HalfMassRadiusTot",
+            1,
+            np.float32,
+            unyt.kpc,
+            "Total half mass radius.",
+        ),
+        (
+            "HalfMassRadiusGas",
+            1,
+            np.float32,
+            unyt.kpc,
+            "Total gas half mass radius.",
+        ),
+        ("HalfMassRadiusDM", 1, np.float32, unyt.kpc, "Total DM half mass radius."),
+        (
+            "HalfMassRadiusStar",
+            1,
+            np.float32,
+            unyt.kpc,
+            "Total stellar half mass radius.",
+        ),
+        (
+            "veldisp_gas",
+            1,
+            np.float32,
+            unyt.km / unyt.s,
+            "Mass-weighted velocity dispersion of the gas along the projection axis, relative w.r.t. the gas bulk velocity.",
+        ),
+        (
+            "veldisp_dm",
+            1,
+            np.float32,
+            unyt.km / unyt.s,
+            "Mass-weighted velocity dispersion of the DM along the projection axis, relative w.r.t. the DM bulk velocity.",
+        ),
+        (
+            "veldisp_star",
+            1,
+            np.float32,
+            unyt.km / unyt.s,
+            "Mass-weighted velocity dispersion of the stars along the projection axis, relative w.r.t. the stellar bulk velocity.",
+        ),
+    ]
+
     # Particle properties that are used
     particle_properties = {
         "PartType0": [
@@ -112,11 +182,29 @@ class ProjectedApertureProperties(HaloProperty):
         mask_projy = radius_projy <= self.physical_radius_mpc * unyt.Mpc
         mask_projz = radius_projz <= self.physical_radius_mpc * unyt.Mpc
 
-        for projname, projmask, projr in zip(
-            ["projx", "projy", "projz"],
-            [mask_projx, mask_projy, mask_projz],
-            [radius_projx, radius_projy, radius_projz],
+        for iproj, (projname, projmask, projr) in enumerate(
+            zip(
+                ["projx", "projy", "projz"],
+                [mask_projx, mask_projy, mask_projz],
+                [radius_projx, radius_projy, radius_projz],
+            )
         ):
+
+            projected_aperture = {}
+            # declare all the variables we will compute
+            # we set them to 0 in case a particular variable cannot be computed
+            # all variables are defined with physical units and an appropriate dtype
+            # we need to use the custom unit registry so that everything can be converted
+            # back to snapshot units in the end
+            for name, shape, dtype, unit, _ in self.projected_aperture_properties:
+                if shape > 1:
+                    val = [0] * shape
+                else:
+                    val = 0
+                projected_aperture[name] = unyt.unyt_array(
+                    val, dtype=dtype, units=unit, registry=mass.units.registry
+                )
+
             proj_mass = mass[projmask]
             proj_position = position[projmask]
             proj_velocity = velocity[projmask]
@@ -131,71 +219,77 @@ class ProjectedApertureProperties(HaloProperty):
             proj_mass_dm = proj_mass[proj_type == "PartType1"]
             proj_mass_star = proj_mass[proj_type == "PartType4"]
 
-            proj_Mtot = proj_mass.sum()
-            proj_Mgas = proj_mass_gas.sum()
-            proj_Mdm = proj_mass_dm.sum()
-            proj_Mstar = proj_mass_star.sum()
+            projected_aperture["Mtot"] += proj_mass.sum()
+            projected_aperture["Mgas"] += proj_mass_gas.sum()
+            projected_aperture["Mdm"] += proj_mass_dm.sum()
+            projected_aperture["Mstar"] += proj_mass_star.sum()
             if np.any(star_mask_ap):
                 star_mask_all = data["PartType4"]["GroupNr_bound"] == index
-                proj_Mstar_init = data["PartType4"]["InitialMasses"][star_mask_all][
-                    star_mask_ap
-                ].sum()
-                proj_lum = data["PartType4"]["Luminosities"][star_mask_all][
-                    star_mask_ap
-                ].sum(axis=0)
-            else:
-                proj_Mstar_init = unyt.unyt_array(proj_Mstar)
-                proj_lum = unyt.unyt_array(
-                    [0.0] * 9,
-                    dtype=np.float32,
-                    units="dimensionless",
-                    registry=mass.units.registry,
-                )
-            proj_Mbh = proj_mass[proj_type == "PartType5"].sum()
+                projected_aperture["Mstar_init"] += data["PartType4"]["InitialMasses"][
+                    star_mask_all
+                ][star_mask_ap].sum()
+                projected_aperture["Luminosity"][:] = data["PartType4"]["Luminosities"][
+                    star_mask_all
+                ][star_mask_ap].sum(axis=0)
+
+            projected_aperture["Mbh_dynamical"] += proj_mass[
+                proj_type == "PartType5"
+            ].sum()
             if np.any(bh_mask_ap):
                 bh_mask_all = data["PartType5"]["GroupNr_bound"] == index
-                proj_Mbh_subgrid = data["PartType5"]["SubgridMasses"][bh_mask_all][
-                    bh_mask_ap
-                ].sum()
-            else:
-                proj_Mbh_subgrid = unyt.unyt_array(proj_Mbh)
+                projected_aperture["Mbh_subgrid"] += data["PartType5"]["SubgridMasses"][
+                    bh_mask_all
+                ][bh_mask_ap].sum()
 
-            proj_com = unyt.unyt_array(
-                [0.0] * 3, dtype=np.float32, units="Mpc", registry=mass.units.registry
-            )
-            proj_vcom = unyt.unyt_array(
-                [0.0] * 3, dtype=np.float32, units="km/s", registry=mass.units.registry
-            )
-            if proj_Mtot > 0.0 * proj_Mtot.units:
-                proj_com[:] = (proj_mass[:, None] * proj_position).sum(
-                    axis=0
-                ) / proj_Mtot
-                proj_com[:] += centre
-                # perform the mass division before the multiplication to avoid
-                # numerical overflow
-                proj_vcom[:] = ((proj_mass[:, None] / proj_Mtot) * proj_velocity).sum(
+            if projected_aperture["Mtot"] > 0.0 * projected_aperture["Mtot"].units:
+                mass_frac = proj_mass / projected_aperture["Mtot"]
+                projected_aperture["com"][:] = (mass_frac[:, None] * proj_position).sum(
                     axis=0
                 )
+                projected_aperture["com"][:] += centre
+                # perform the mass division before the multiplication to avoid
+                # numerical overflow
+                projected_aperture["vcom"][:] = (
+                    mass_frac[:, None] * proj_velocity
+                ).sum(axis=0)
 
-            proj_SFR = 0.0
             if np.any(gas_mask_ap):
                 gas_mask_all = data["PartType0"]["GroupNr_bound"] == index
                 proj_SFR = data["PartType0"]["StarFormationRates"][gas_mask_all][
                     gas_mask_ap
                 ]
                 # Negative SFR are not SFR at all!
-                proj_SFR = proj_SFR[proj_SFR > 0.0].sum()
-            proj_SFR = unyt.unyt_array(
-                proj_SFR,
-                dtype=np.float32,
-                units="Msun/yr",
-                registry=mass.units.registry,
-            )
+                projected_aperture["SFR"] += proj_SFR[proj_SFR > 0.0].sum()
 
-            # sort according to radius
-            halfmass = {}
+            if projected_aperture["Mgas"] > 0.0 * projected_aperture["Mgas"].units:
+                frac_mgas = proj_mass_gas / projected_aperture["Mgas"]
+                proj_vgas = proj_velocity[proj_type == "PartType0", iproj]
+                vcom_gas = (frac_mgas * proj_vgas).sum()
+                projected_aperture["veldisp_gas"] += np.sqrt(
+                    ((proj_vgas - vcom_gas) ** 2).sum()
+                )
+            if projected_aperture["Mdm"] > 0.0 * projected_aperture["Mdm"].units:
+                frac_mdm = proj_mass_dm / projected_aperture["Mdm"]
+                proj_vdm = proj_velocity[proj_type == "PartType1", iproj]
+                vcom_dm = (frac_mdm * proj_vdm).sum()
+                projected_aperture["veldisp_dm"] += np.sqrt(
+                    ((proj_vdm - vcom_dm) ** 2).sum()
+                )
+            if projected_aperture["Mstar"] > 0.0 * projected_aperture["Mstar"].units:
+                frac_mstar = proj_mass_star / projected_aperture["Mstar"]
+                proj_vstar = proj_velocity[proj_type == "PartType4", iproj]
+                vcom_star = (frac_mstar * proj_vstar).sum()
+                projected_aperture["veldisp_star"] += np.sqrt(
+                    ((proj_vstar - vcom_star) ** 2).sum()
+                )
+
             for name, r, m, M in zip(
-                ["tot", "gas", "dm", "star"],
+                [
+                    "HalfMassRadiusTot",
+                    "HalfMassRadiusGas",
+                    "HalfMassRadiusDM",
+                    "HalfMassRadiusStar",
+                ],
                 [
                     proj_radius,
                     proj_radius[proj_type == "PartType0"],
@@ -203,62 +297,29 @@ class ProjectedApertureProperties(HaloProperty):
                     proj_radius[proj_type == "PartType4"],
                 ],
                 [proj_mass, proj_mass_gas, proj_mass_dm, proj_mass_star],
-                [proj_Mtot, proj_Mgas, proj_Mdm, proj_Mstar],
+                [
+                    projected_aperture["Mtot"],
+                    projected_aperture["Mgas"],
+                    projected_aperture["Mdm"],
+                    projected_aperture["Mstar"],
+                ],
             ):
-                half_mass_radius = get_half_mass_radius(r, m, M)
-                if half_mass_radius >= self.physical_radius_mpc * unyt.Mpc:
+                projected_aperture[name] += get_half_mass_radius(r, m, M)
+                if projected_aperture[name] >= self.physical_radius_mpc * unyt.Mpc:
                     raise RuntimeError(
                         "Half mass radius larger than aperture"
                         f" ({half_mass_radius} >="
                         f" {self.physical_radius_mpc * unyt.Mpc}!"
                         " This should not happen."
                     )
-                halfmass[name] = unyt.unyt_array(
-                    half_mass_radius.value,
-                    dtype=np.float32,
-                    units=half_mass_radius.units,
-                )
 
             prefix = (
                 f"ProjectedAperture/{self.physical_radius_mpc*1000.:.0f}kpc/{projname}"
             )
-            halo_result.update(
-                {
-                    f"{prefix}/Mtot": (proj_Mtot, "Total mass"),
-                    f"{prefix}/Mgas": (proj_Mgas, "Total gas mass"),
-                    f"{prefix}/Mdm": (proj_Mdm, "Total DM mass"),
-                    f"{prefix}/Mstar": (proj_Mstar, "Total stellar mass"),
-                    f"{prefix}/Mstar_init": (
-                        proj_Mstar_init,
-                        "Total initial stellar mass",
-                    ),
-                    f"{prefix}/Mbh": (proj_Mbh, "Total BH dynamical mass"),
-                    f"{prefix}/Mbh_subgrid": (
-                        proj_Mbh_subgrid,
-                        "Total BH subgrid mass",
-                    ),
-                    f"{prefix}/com": (proj_com, "Centre of mass"),
-                    f"{prefix}/vcom": (proj_vcom, "Centre of mass velocity"),
-                    f"{prefix}/SFR": (proj_SFR, "Total SFR"),
-                    f"{prefix}/Luminosity": (proj_lum, "Total luminosity"),
-                    f"{prefix}/HalfMassRadiusTot": (
-                        halfmass["tot"],
-                        "Total half mass radius",
-                    ),
-                    f"{prefix}/HalfMassRadiusGas": (
-                        halfmass["gas"],
-                        "Total gas half mass radius",
-                    ),
-                    f"{prefix}/HalfMassRadiusDM": (
-                        halfmass["dm"],
-                        "Total DM half mass radius",
-                    ),
-                    f"{prefix}/HalfMassRadiusStar": (
-                        halfmass["star"],
-                        "Total stellar half mass radius",
-                    ),
-                }
-            )
+            for name, _, _, _, description in self.projected_aperture_properties:
+                halo_result.update(
+                    {f"{prefix}/{name}": (projected_aperture[name], description)}
+                )
 
         return
 
@@ -308,48 +369,20 @@ def test_projected_aperture_properties():
         assert input_halo == input_halo_copy
         assert input_data == input_data_copy
 
-        for name, size, dtype, unit in [
-            ("ProjectedAperture/30kpc/projx/Mtot", 1, np.float32, unyt.Msun),
-            ("ProjectedAperture/30kpc/projx/Mgas", 1, np.float32, unyt.Msun),
-            ("ProjectedAperture/30kpc/projx/Mdm", 1, np.float32, unyt.Msun),
-            ("ProjectedAperture/30kpc/projx/Mstar", 1, np.float32, unyt.Msun),
-            ("ProjectedAperture/30kpc/projx/Mstar_init", 1, np.float32, unyt.Msun),
-            ("ProjectedAperture/30kpc/projx/Mbh", 1, np.float32, unyt.Msun),
-            ("ProjectedAperture/30kpc/projx/Mbh_subgrid", 1, np.float32, unyt.Msun),
-            ("ProjectedAperture/30kpc/projx/com", 3, np.float32, unyt.kpc),
-            ("ProjectedAperture/30kpc/projx/vcom", 3, np.float32, unyt.km / unyt.s),
-            ("ProjectedAperture/30kpc/projx/SFR", 1, np.float32, unyt.Msun / unyt.yr),
-            (
-                "ProjectedAperture/30kpc/projx/Luminosity",
-                9,
-                np.float32,
-                unyt.dimensionless,
-            ),
-            (
-                "ProjectedAperture/30kpc/projx/HalfMassRadiusTot",
-                1,
-                np.float32,
-                unyt.kpc,
-            ),
-            (
-                "ProjectedAperture/30kpc/projx/HalfMassRadiusGas",
-                1,
-                np.float32,
-                unyt.kpc,
-            ),
-            ("ProjectedAperture/30kpc/projx/HalfMassRadiusDM", 1, np.float32, unyt.kpc),
-            (
-                "ProjectedAperture/30kpc/projx/HalfMassRadiusStar",
-                1,
-                np.float32,
-                unyt.kpc,
-            ),
-        ]:
-            assert name in halo_result
-            result = halo_result[name][0]
-            assert (len(result.shape) == 0 and size == 1) or result.shape[0] == size
-            assert result.dtype == dtype
-            assert result.units.same_dimensions_as(unit.units)
+        for proj in ["projx", "projy", "projz"]:
+            for (
+                name,
+                size,
+                dtype,
+                unit,
+                _,
+            ) in property_calculator.projected_aperture_properties:
+                full_name = f"ProjectedAperture/30kpc/{proj}/{name}"
+                assert full_name in halo_result
+                result = halo_result[full_name][0]
+                assert (len(result.shape) == 0 and size == 1) or result.shape[0] == size
+                assert result.dtype == dtype
+                assert result.units.same_dimensions_as(unit.units)
 
 
 if __name__ == "__main__":
@@ -363,3 +396,17 @@ if __name__ == "__main__":
     print("Calling test_projected_aperture_properties()...")
     test_projected_aperture_properties()
     print("Test passed.")
+
+    print("Name & Size & Unit & Type & Description \\\\")
+    for (
+        name,
+        size,
+        dtype,
+        unit,
+        description,
+    ) in ProjectedApertureProperties.projected_aperture_properties:
+        unit_str = unit.__str__()
+        unit_str = unit_str.replace("1.98841586e+30 kg", "M$_\\odot{}$")
+        print(
+            f"\\verb+{name}+ & {size} & {unit_str} & {dtype.__name__} & {description} \\\\"
+        )
