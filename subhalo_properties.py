@@ -379,11 +379,14 @@ class SubhaloProperties(HaloProperty):
             subhalo["R_vmax"] += r_vmax
             subhalo["Vmax"] += vmax
             if r_vmax > 0.0 * r_vmax.units and vmax > 0.0 * vmax.units:
-                vrel = velocity - subhalo["vcom"][None, :]
-                Ltot = unyt.array.unorm(
-                    (mass[:, None] * unyt.array.ucross(position, vrel)).sum(axis=0)
-                )
                 mask_r_vmax = radius <= r_vmax
+                vrel = velocity[mask_r_vmax, :] - subhalo["vcom"][None, :]
+                Ltot = unyt.array.unorm(
+                    (
+                        mass[mask_r_vmax, None]
+                        * unyt.array.ucross(position[mask_r_vmax, :], vrel)
+                    ).sum(axis=0)
+                )
                 M_r_vmax = mass[mask_r_vmax].sum()
                 if M_r_vmax > 0.0 * M_r_vmax.units:
                     subhalo["spin_parameter"] += Ltot / (
