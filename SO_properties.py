@@ -724,16 +724,21 @@ class SOProperties(HaloProperty):
             SO_volume = 4.0 * np.pi / 3.0 * SO["r"] ** 3
             if nr_parts > 0:
                 # find the enclosed mass using interpolation
-                i = np.argmax(ordered_radius > SO["r"])
-                if i == 0:
-                    # we only have particles in the centre, so we cannot interpolate
-                    SO["mass"] += cumulative_mass[i]
+                outside_radius = ordered_radius > SO["r"]
+                if not np.any(outside_radius):
+                    # all particles are within the radius, we cannot interpolate
+                    SO["mass"] += cumulative_mass[-1]
                 else:
-                    r1 = ordered_radius[i - 1]
-                    r2 = ordered_radius[i]
-                    M1 = cumulative_mass[i - 1]
-                    M2 = cumulative_mass[i]
-                    SO["mass"] += M1 + (SO["r"] - r1) / (r2 - r1) * (M2 - M1)
+                    i = np.argmax(outside_radius)
+                    if i == 0:
+                        # we only have particles in the centre, so we cannot interpolate
+                        SO["mass"] += cumulative_mass[i]
+                    else:
+                        r1 = ordered_radius[i - 1]
+                        r2 = ordered_radius[i]
+                        M1 = cumulative_mass[i - 1]
+                        M2 = cumulative_mass[i]
+                        SO["mass"] += M1 + (SO["r"] - r1) / (r2 - r1) * (M2 - M1)
 
         else:
             # if we get here, we must be in the case where physical_radius_mpc is supposed to be 0
