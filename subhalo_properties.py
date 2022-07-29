@@ -359,12 +359,8 @@ class SubhaloProperties(HaloProperty):
                 )
                 * subhalo["BHmaxID"].units
             )
-            subhalo["BHmaxpos"][:] = data["PartType5"]["Coordinates"][bh_mask_all][
-                iBHmax
-            ]
-            subhalo["BHmaxvel"][:] = data["PartType5"]["Velocities"][bh_mask_all][
-                iBHmax
-            ]
+            subhalo["BHmaxpos"] += data["PartType5"]["Coordinates"][bh_mask_all][iBHmax]
+            subhalo["BHmaxvel"] += data["PartType5"]["Velocities"][bh_mask_all][iBHmax]
             subhalo["BHmaxAR"] += data["PartType5"]["AccretionRates"][bh_mask_all][
                 iBHmax
             ]
@@ -372,9 +368,9 @@ class SubhaloProperties(HaloProperty):
 
         if subhalo["Mtot"] > 0.0 * subhalo["Mtot"].units:
             mfrac = mass / subhalo["Mtot"]
-            subhalo["com"][:] = (mfrac[:, None] * position).sum(axis=0)
-            subhalo["com"][:] += centre
-            subhalo["vcom"][:] = (mfrac[:, None] * velocity).sum(axis=0)
+            subhalo["com"] += (mfrac[:, None] * position).sum(axis=0)
+            subhalo["com"] += centre
+            subhalo["vcom"] += (mfrac[:, None] * velocity).sum(axis=0)
             r_vmax, vmax = get_vmax(mass, radius)
             subhalo["R_vmax"] += r_vmax
             subhalo["Vmax"] += vmax
@@ -399,13 +395,13 @@ class SubhaloProperties(HaloProperty):
             Lgas, kappa = get_angular_momentum_and_kappa_corot(
                 mass_gas, pos_gas, vel_gas, ref_velocity=vcom_gas
             )
-            subhalo["Lgas"][:] = Lgas
+            subhalo["Lgas"] += Lgas
             subhalo["kappa_corot_gas"] += kappa
 
         if subhalo["Mdm"] > 0.0 * subhalo["Mdm"].units:
             frac_mdm = mass_dm / subhalo["Mdm"]
             vcom_dm = (frac_mdm[:, None] * vel_dm).sum(axis=0)
-            subhalo["Ldm"][:] = get_angular_momentum(
+            subhalo["Ldm"] += get_angular_momentum(
                 mass_dm, pos_dm, vel_dm, ref_velocity=vcom_dm
             )
 
@@ -415,7 +411,7 @@ class SubhaloProperties(HaloProperty):
             Lstar, kappa = get_angular_momentum_and_kappa_corot(
                 mass_star, pos_star, vel_star, ref_velocity=vcom_star
             )
-            subhalo["Lstar"][:] = Lstar
+            subhalo["Lstar"] += Lstar
             subhalo["kappa_corot_star"] += kappa
 
         if subhalo["Mgas"] + subhalo["Mstar"] > 0.0 * subhalo["Mgas"].units:
@@ -424,7 +420,7 @@ class SubhaloProperties(HaloProperty):
             Lbar, kappa = get_angular_momentum_and_kappa_corot(
                 mass_baryons, pos_baryons, vel_baryons, ref_velocity=vcom_bar
             )
-            subhalo["Lbaryons"][:] = Lbar
+            subhalo["Lbaryons"] += Lbar
             subhalo["kappa_corot_baryons"] += kappa
 
         if subhalo["Ngas"] > 0:

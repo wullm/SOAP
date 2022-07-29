@@ -251,7 +251,7 @@ class ProjectedApertureProperties(HaloProperty):
                 projected_aperture["Mstar_init"] += data["PartType4"]["InitialMasses"][
                     star_mask_all
                 ][star_mask_ap].sum()
-                projected_aperture["Luminosity"][:] = data["PartType4"]["Luminosities"][
+                projected_aperture["Luminosity"] += data["PartType4"]["Luminosities"][
                     star_mask_all
                 ][star_mask_ap].sum(axis=0)
 
@@ -266,15 +266,15 @@ class ProjectedApertureProperties(HaloProperty):
 
             if projected_aperture["Mtot"] > 0.0 * projected_aperture["Mtot"].units:
                 mass_frac = proj_mass / projected_aperture["Mtot"]
-                projected_aperture["com"][:] = (mass_frac[:, None] * proj_position).sum(
+                projected_aperture["com"] += (mass_frac[:, None] * proj_position).sum(
                     axis=0
                 )
-                projected_aperture["com"][:] += centre
+                projected_aperture["com"] += centre
                 # perform the mass division before the multiplication to avoid
                 # numerical overflow
-                projected_aperture["vcom"][:] = (
-                    mass_frac[:, None] * proj_velocity
-                ).sum(axis=0)
+                projected_aperture["vcom"] += (mass_frac[:, None] * proj_velocity).sum(
+                    axis=0
+                )
 
             if np.any(gas_mask_ap):
                 gas_mask_all = data["PartType0"]["GroupNr_bound"] == index

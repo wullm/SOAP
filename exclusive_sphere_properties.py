@@ -434,10 +434,10 @@ class ExclusiveSphereProperties(HaloProperty):
                 ].astype(exclusive_sphere["BHmaxID"].dtype)
                 * exclusive_sphere["BHmaxID"].units
             )
-            exclusive_sphere["BHmaxpos"][:] = data["PartType5"]["Coordinates"][
+            exclusive_sphere["BHmaxpos"] += data["PartType5"]["Coordinates"][
                 bh_mask_all
             ][bh_mask_ap][iBHmax]
-            exclusive_sphere["BHmaxvel"][:] = data["PartType5"]["Velocities"][
+            exclusive_sphere["BHmaxvel"] += data["PartType5"]["Velocities"][
                 bh_mask_all
             ][bh_mask_ap][iBHmax]
             exclusive_sphere["BHmaxAR"] += data["PartType5"]["AccretionRates"][
@@ -447,9 +447,9 @@ class ExclusiveSphereProperties(HaloProperty):
 
         if exclusive_sphere["Mtot"] > 0.0 * exclusive_sphere["Mtot"].units:
             mfrac = mass / exclusive_sphere["Mtot"]
-            exclusive_sphere["com"][:] = (mfrac[:, None] * position).sum(axis=0)
-            exclusive_sphere["com"][:] += centre
-            exclusive_sphere["vcom"][:] = (mfrac[:, None] * velocity).sum(axis=0)
+            exclusive_sphere["com"] += (mfrac[:, None] * position).sum(axis=0)
+            exclusive_sphere["com"] += centre
+            exclusive_sphere["vcom"] += (mfrac[:, None] * velocity).sum(axis=0)
             _, vmax = get_vmax(mass, radius)
             if vmax > 0.0 * vmax.units:
                 vrel = velocity - exclusive_sphere["vcom"][None, :]
@@ -470,10 +470,10 @@ class ExclusiveSphereProperties(HaloProperty):
             Lgas, kappa = get_angular_momentum_and_kappa_corot(
                 mass_gas, pos_gas, vel_gas, ref_velocity=vcom_gas
             )
-            exclusive_sphere["Lgas"][:] = Lgas
+            exclusive_sphere["Lgas"] += Lgas
             exclusive_sphere["kappa_corot_gas"] += kappa
 
-            exclusive_sphere["veldisp_gas"][:] = get_velocity_dispersion_matrix(
+            exclusive_sphere["veldisp_gas"] += get_velocity_dispersion_matrix(
                 frac_mgas, vel_gas, vcom_gas
             )
 
@@ -488,11 +488,11 @@ class ExclusiveSphereProperties(HaloProperty):
         if exclusive_sphere["Mdm"] > 0.0 * exclusive_sphere["Mdm"].units:
             frac_mdm = mass_dm / exclusive_sphere["Mdm"]
             vcom_dm = (frac_mdm[:, None] * vel_dm).sum(axis=0)
-            exclusive_sphere["Ldm"][:] = get_angular_momentum(
+            exclusive_sphere["Ldm"] += get_angular_momentum(
                 mass_dm, pos_dm, vel_dm, ref_velocity=vcom_dm
             )
 
-            exclusive_sphere["veldisp_dm"][:] = get_velocity_dispersion_matrix(
+            exclusive_sphere["veldisp_dm"] += get_velocity_dispersion_matrix(
                 frac_mdm, vel_dm, vcom_dm
             )
 
@@ -502,10 +502,10 @@ class ExclusiveSphereProperties(HaloProperty):
             Lstar, kappa = get_angular_momentum_and_kappa_corot(
                 mass_star, pos_star, vel_star, ref_velocity=vcom_star
             )
-            exclusive_sphere["Lstar"][:] = Lstar
+            exclusive_sphere["Lstar"] += Lstar
             exclusive_sphere["kappa_corot_star"] += kappa
 
-            exclusive_sphere["veldisp_star"][:] = get_velocity_dispersion_matrix(
+            exclusive_sphere["veldisp_star"] += get_velocity_dispersion_matrix(
                 frac_mstar, vel_star, vcom_star
             )
 
@@ -528,7 +528,7 @@ class ExclusiveSphereProperties(HaloProperty):
             Lbar, kappa = get_angular_momentum_and_kappa_corot(
                 mass_baryons, pos_baryons, vel_baryons, ref_velocity=vcom_bar
             )
-            exclusive_sphere["Lbaryons"][:] = Lbar
+            exclusive_sphere["Lbaryons"] += Lbar
             exclusive_sphere["kappa_corot_baryons"] += kappa
 
         if exclusive_sphere["Ngas"] > 0:

@@ -768,9 +768,9 @@ class SOProperties(HaloProperty):
 
             # note that we cannot divide by mSO here, since that was based on an interpolation
             mass_frac = mass / mass.sum()
-            SO["com"][:] = (mass_frac[:, None] * position).sum(axis=0)
-            SO["com"][:] += centre
-            SO["vcom"][:] = (mass_frac[:, None] * velocity).sum(axis=0)
+            SO["com"] += (mass_frac[:, None] * position).sum(axis=0)
+            SO["com"] += centre
+            SO["vcom"] += (mass_frac[:, None] * velocity).sum(axis=0)
 
             SO["Mfrac_satellites"] += mass[is_bound_to_satellite].sum() / SO["mass"]
 
@@ -780,14 +780,14 @@ class SOProperties(HaloProperty):
             SO["mass_gas"] += gas_masses.sum()
             if SO["mass_gas"] > 0.0 * SO["mass_gas"].units:
                 frac_mgas = gas_masses / SO["mass_gas"]
-                SO["com_gas"][:] = (frac_mgas[:, None] * gas_pos).sum(axis=0)
-                SO["com_gas"][:] += centre
-                SO["vcom_gas"][:] = (frac_mgas[:, None] * gas_vel).sum(axis=0)
+                SO["com_gas"] += (frac_mgas[:, None] * gas_pos).sum(axis=0)
+                SO["com_gas"] += centre
+                SO["vcom_gas"] += (frac_mgas[:, None] * gas_vel).sum(axis=0)
 
-                SO["Jgas"][:] = get_angular_momentum(
+                SO["Jgas"] += get_angular_momentum(
                     gas_masses, gas_pos, gas_vel, ref_velocity=SO["vcom_gas"]
                 )
-                SO["veldisp_gas"][:] = get_velocity_dispersion_matrix(
+                SO["veldisp_gas"] += get_velocity_dispersion_matrix(
                     frac_mgas, gas_vel, SO["vcom_gas"]
                 )
 
@@ -799,10 +799,10 @@ class SOProperties(HaloProperty):
                 frac_mdm = dm_masses / SO["mass_dm"]
                 vcom_dm = (frac_mdm[:, None] * dm_vel).sum(axis=0)
 
-                SO["JDM"][:] = get_angular_momentum(
+                SO["JDM"] += get_angular_momentum(
                     dm_masses, dm_pos, dm_vel, ref_velocity=vcom_dm
                 )
-                SO["veldisp_dm"][:] = get_velocity_dispersion_matrix(
+                SO["veldisp_dm"] += get_velocity_dispersion_matrix(
                     frac_mdm, dm_vel, vcom_dm
                 )
 
@@ -812,14 +812,14 @@ class SOProperties(HaloProperty):
             SO["mass_star"] += star_masses.sum()
             if SO["mass_star"] > 0.0 * SO["mass_star"].units:
                 frac_mstar = star_masses / SO["mass_star"]
-                SO["com_star"][:] = (frac_mstar[:, None] * star_pos).sum(axis=0)
-                SO["com_star"][:] += centre
-                SO["vcom_star"][:] = (frac_mstar[:, None] * star_vel).sum(axis=0)
+                SO["com_star"] += (frac_mstar[:, None] * star_pos).sum(axis=0)
+                SO["com_star"] += centre
+                SO["vcom_star"] += (frac_mstar[:, None] * star_vel).sum(axis=0)
 
-                SO["Jstar"][:] = get_angular_momentum(
+                SO["Jstar"] += get_angular_momentum(
                     star_masses, star_pos, star_vel, ref_velocity=SO["vcom_star"]
                 )
-                SO["veldisp_star"][:] = get_velocity_dispersion_matrix(
+                SO["veldisp_star"] += get_velocity_dispersion_matrix(
                     frac_mstar, star_vel, SO["vcom_star"]
                 )
 
@@ -832,7 +832,7 @@ class SOProperties(HaloProperty):
                     axis=0
                 )
                 baryon_relvel = baryon_vel - baryon_vcom[None, :]
-                SO["Jbaryons"][:] = (
+                SO["Jbaryons"] += (
                     baryon_masses[:, None]
                     * unyt.array.ucross(baryon_pos, baryon_relvel)
                 ).sum(axis=0)
@@ -917,7 +917,7 @@ class SOProperties(HaloProperty):
                     star_masses
                     * data["PartType4"]["MetalMassFractions"][star_selection]
                 ).sum()
-                SO["Lstar"][:] = data["PartType4"]["Luminosities"][star_selection].sum()
+                SO["Lstar"] += data["PartType4"]["Luminosities"][star_selection].sum()
 
                 # below we need to force conversion to np.float64 before summing up particles
                 # to avoid overflow
