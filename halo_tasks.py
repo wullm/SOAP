@@ -135,6 +135,7 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
             current_radius = max(current_radius, required_radius)
 
     # Add the halo index to the result set
+    halo_result["VR/position"]      = (input_halo["cofp"], "Centre of potential of the halo in the input catalogue")
     halo_result["VR/index"]         = (input_halo["index"],         "Index of this halo in the input catalogue")
     halo_result["VR/ID"]            = (input_halo["ID"],            "VELOCIraptor halo ID")
     halo_result["VR/Structuretype"] = (input_halo["Structuretype"], "VELOCIraptor Structuretype parameter")
