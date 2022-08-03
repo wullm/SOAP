@@ -626,6 +626,34 @@ class SOProperties(HaloProperty):
         # Find the halo centre of potential
         centre = input_halo["cofp"]
 
+        reg = centre.units.registry
+
+        SO = {}
+        # declare all the variables we will compute
+        # we set them to 0 in case a particular variable cannot be computed
+        # all variables are defined with physical units and an appropriate dtype
+        # we need to use the custom unit registry so that everything can be converted
+        # back to snapshot units in the end
+        for name, shape, dtype, unit, _ in self.SO_properties:
+            if shape > 1:
+                val = [0] * shape
+            else:
+                val = 0
+            SO[name] = unyt.unyt_array(val, dtype=dtype, units=unit, registry=reg)
+
+        # SOs only exist for central galaxies
+        if input_halo["Structuretype"] != 10:
+            for name, _, _, _, description in self.SO_properties:
+                halo_result.update(
+                    {
+                        f"SO/{self.SO_name}/{name}": (
+                            SO[name],
+                            description.format(label=self.label),
+                        )
+                    }
+                )
+            return
+
         # Make an array of particle masses, radii and positions
         mass = []
         radius = []
@@ -687,21 +715,6 @@ class SOProperties(HaloProperty):
         cumulative_mass = cumulative_mass[nskip:]
         nr_parts = len(ordered_radius)
         density = cumulative_mass / (4.0 / 3.0 * np.pi * ordered_radius**3)
-
-        reg = mass.units.registry
-
-        SO = {}
-        # declare all the variables we will compute
-        # we set them to 0 in case a particular variable cannot be computed
-        # all variables are defined with physical units and an appropriate dtype
-        # we need to use the custom unit registry so that everything can be converted
-        # back to snapshot units in the end
-        for name, shape, dtype, unit, _ in self.SO_properties:
-            if shape > 1:
-                val = [0] * shape
-            else:
-                val = 0
-            SO[name] = unyt.unyt_array(val, dtype=dtype, units=unit, registry=reg)
 
         # Check if we ever reach the density threshold
         if self.reference_density > 0.0 * self.reference_density:
@@ -1076,7 +1089,9 @@ def test_SO_properties():
             # 1 particle halos don't fail, since we always assume that the first
             # particle is at the centre of potential (which means we exclude it
             # in the SO calculation)
-            assert (Npart == 1) or fail
+            # non-centrals don't fail, since we do not calculate any SO
+            # properties and simply return zeros in this case
+            assert (Npart == 1) or input_halo["Structuretype"] != 10 or fail
 
         # force the radius multiple to trip over not having computed the
         # required radius

@@ -244,13 +244,15 @@ class DummyHaloGenerator:
         )
         # the random halo always gets GroupNr 1
         groupnr_halo = 1
+        # structure type: mostly centrals, but some satellites
+        structuretype = np.random.choice([10, 20], p=[0.99, 0.01])
 
         # Generate a random radius from an exponential distribution.
         # The chosen beta parameter should ensure that ~90% of the values is
         # below 50 kpc.
         radius = np.random.exponential(1.0 / 60.0, npart)
         # force the first particle to be at the centre
-        radius[0] = 0.
+        radius[0] = 0.0
         # generate a random direction to convert the radius into an actual
         # coordinate
         phi = 2.0 * np.pi * np.random.random(npart)
@@ -305,7 +307,7 @@ class DummyHaloGenerator:
             registry=reg,
         )
         # randomly unbind 10% of the particles
-        index = np.random.choice(groupnr_all.shape[0], npart//10, replace=False)
+        index = np.random.choice(groupnr_all.shape[0], npart // 10, replace=False)
         groupnr_bound = groupnr_all.copy()
         groupnr_bound[index] = -1
 
@@ -503,6 +505,7 @@ class DummyHaloGenerator:
         input_halo = {}
         input_halo["cofp"] = centre
         input_halo["index"] = groupnr_halo
+        input_halo["Structuretype"] = structuretype
 
         nu_density = (
             self.dummy_cellgrid.cosmology["Omega_nu_0"]
