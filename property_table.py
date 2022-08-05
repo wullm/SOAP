@@ -573,7 +573,7 @@ class PropertyTable:
         footnotes = []
         for i, names in enumerate(self.explanation):
             if name in names:
-                footnotes.append(i)
+                footnotes.append(i + 1)
         if len(footnotes) > 0:
             return f'$^{{{",".join([f"{i}" for i in footnotes])}}}$'
         else:
