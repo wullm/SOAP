@@ -23,14 +23,14 @@ class SubhaloProperties(HaloProperty):
     #  - dtype: Data type that will be used. Should have enough precision to avoid over/underflow
     #  - unit: Units that will be used internally and for the output.
     #  - description: Description string that will be used to describe the property in the output.
-    subhalo_properties = [
-        ("Mtot", 1, np.float32, unyt.Msun, "Total mass"),
-        ("Mgas", 1, np.float32, unyt.Msun, "Total gas mass"),
-        ("Mdm", 1, np.float32, unyt.Msun, "Total DM mass"),
-        ("Mstar", 1, np.float32, unyt.Msun, "Total stellar mass"),
-        ("Mstar_init", 1, np.float32, unyt.Msun, "Total stellar initial mass"),
-        ("Mbh_dynamical", 1, np.float32, unyt.Msun, "Total BH dynamical mass"),
-        ("Mbh_subgrid", 1, np.float32, unyt.Msun, "Total BH subgrid mass"),
+    property_list = [
+        ("Mtot", 1, np.float32, "Msun", "Total mass."),
+        ("Mgas", 1, np.float32, "Msun", "Total gas mass."),
+        ("Mdm", 1, np.float32, "Msun", "Total DM mass."),
+        ("Mstar", 1, np.float32, "Msun", "Total stellar mass."),
+        ("Mstar_init", 1, np.float32, "Msun", "Total stellar initial mass."),
+        ("Mbh_dynamical", 1, np.float32, "Msun", "Total BH dynamical mass."),
+        ("Mbh_subgrid", 1, np.float32, "Msun", "Total BH subgrid mass."),
         ("Ngas", 1, np.uint32, unyt.dimensionless, "Number of gas particles."),
         ("Ndm", 1, np.uint32, unyt.dimensionless, "Number of dark matter particles."),
         ("Nstar", 1, np.uint32, unyt.dimensionless, "Number of star particles."),
@@ -42,7 +42,7 @@ class SubhaloProperties(HaloProperty):
             unyt.dimensionless,
             "Scale-factor of last AGN event.",
         ),
-        ("BHmaxM", 1, np.float32, unyt.Msun, "Mass of most massive black hole."),
+        ("BHmaxM", 1, np.float32, "Msun", "Mass of most massive black hole."),
         ("BHmaxID", 1, np.uint64, unyt.dimensionless, "ID of most massive black hole."),
         ("BHmaxpos", 3, np.float64, unyt.kpc, "Position of most massive black hole."),
         (
@@ -56,7 +56,7 @@ class SubhaloProperties(HaloProperty):
             "BHmaxAR",
             1,
             np.float32,
-            unyt.Msun / unyt.yr,
+            "Msun/yr",
             "Accretion rate of most massive black hole.",
         ),
         (
@@ -66,27 +66,27 @@ class SubhaloProperties(HaloProperty):
             unyt.dimensionless,
             "Scale-factor of last AGN event for most massive black hole.",
         ),
-        ("com", 3, np.float32, unyt.kpc, "Centre of mass"),
-        ("vcom", 3, np.float32, unyt.km / unyt.s, "Centre of mass velocity"),
+        ("com", 3, np.float32, unyt.kpc, "Centre of mass."),
+        ("vcom", 3, np.float32, unyt.km / unyt.s, "Centre of mass velocity."),
         (
             "Lgas",
             3,
             np.float32,
-            unyt.Msun * unyt.kpc * unyt.km / unyt.s,
+            "Msun*km*kpc/s",
             "Total angular momentum of the gas, relative w.r.t. the centre of potential and gas bulk velocity.",
         ),
         (
             "Ldm",
             3,
             np.float32,
-            unyt.Msun * unyt.kpc * unyt.km / unyt.s,
+            "Msun*km*kpc/s",
             "Total angular momentum of the dark matter, relative w.r.t. the centre of potential and DM bulk velocity.",
         ),
         (
             "Lstar",
             3,
             np.float32,
-            unyt.Msun * unyt.kpc * unyt.km / unyt.s,
+            "Msun*km*kpc/s",
             "Total angular momentum of the stars, relative w.r.t. the centre of potential and stellar bulk velocity.",
         ),
         (
@@ -107,7 +107,7 @@ class SubhaloProperties(HaloProperty):
             "Lbaryons",
             3,
             np.float32,
-            unyt.Msun * unyt.km * unyt.kpc / unyt.s,
+            "Msun*km*kpc/s",
             "Total angular momentum of baryons (gas and stars), relative w.r.t. the centre of potential and baryonic bulk velocity.",
         ),
         (
@@ -117,7 +117,7 @@ class SubhaloProperties(HaloProperty):
             unyt.dimensionless,
             "Kappa corot for baryons (gas and stars), relative w.r.t. the centre of potential and the bulk velocity of the baryons.",
         ),
-        ("Mgasmetal", 1, np.float32, unyt.Msun, "Total gas mass in metals."),
+        ("Mgasmetal", 1, np.float32, "Msun", "Total gas mass in metals."),
         ("Tgas", 1, np.float32, unyt.K, "Mass-weighted gas temperature."),
         (
             "Tgas_no_cool",
@@ -131,7 +131,7 @@ class SubhaloProperties(HaloProperty):
             1,
             np.float32,
             unyt.K,
-            "Mass-weighted gas temperature, excluding gas that was heated by AGN less than 15 Myr ago.",
+            "Mass-weighted gas temperature, excluding gas that was recently heated by AGN.",
         ),
         (
             "Tgas_no_cool_no_agn",
@@ -142,13 +142,13 @@ class SubhaloProperties(HaloProperty):
         ),
         ("SFR", 1, np.float32, unyt.Msun / unyt.yr, "Total SFR."),
         (
-            "Luminosity",
+            "StellarLuminosity",
             9,
             np.float32,
             unyt.dimensionless,
             "Total stellar luminosity in the 9 GAMA bands.",
         ),
-        ("Mstarmetal", 1, np.float32, unyt.Msun, "Total stellar mass in metals."),
+        ("Mstarmetal", 1, np.float32, "Msun", "Total stellar mass in metals."),
         ("Vmax", 1, np.float32, unyt.km / unyt.s, "Maximum circular velocity."),
         ("R_vmax", 1, np.float32, unyt.kpc, "Radius at which Vmax is reached."),
         (
@@ -280,7 +280,7 @@ class SubhaloProperties(HaloProperty):
         # all variables are defined with physical units and an appropriate dtype
         # we need to use the custom unit registry so that everything can be converted
         # back to snapshot units in the end
-        for name, shape, dtype, unit, _ in self.subhalo_properties:
+        for name, shape, dtype, unit, _ in self.property_list:
             if shape > 1:
                 val = [0] * shape
             else:
@@ -334,7 +334,7 @@ class SubhaloProperties(HaloProperty):
             subhalo["Mstar_init"] += data["PartType4"]["InitialMasses"][
                 star_mask_all
             ].sum()
-            subhalo["Luminosity"] += data["PartType4"]["Luminosities"][
+            subhalo["StellarLuminosity"] += data["PartType4"]["Luminosities"][
                 star_mask_all
             ].sum(axis=0)
             subhalo["Mstarmetal"] += (
@@ -490,7 +490,7 @@ class SubhaloProperties(HaloProperty):
             prefix = "BoundSubhaloProperties"
         else:
             prefix = "FOFSubhaloProperties"
-        for name, _, _, _, description in self.subhalo_properties:
+        for name, _, _, _, description in self.property_list:
             halo_result.update(
                 {
                     f"{prefix}/{name}": (
@@ -552,14 +552,15 @@ def test_subhalo_properties():
                 name,
                 size,
                 dtype,
-                unit,
+                unit_string,
                 _,
-            ) in prop_calc.subhalo_properties:
+            ) in prop_calc.property_list:
                 full_name = f"{subhalo_name}/{name}"
                 assert full_name in halo_result
                 result = halo_result[full_name][0]
                 assert (len(result.shape) == 0 and size == 1) or result.shape[0] == size
                 assert result.dtype == dtype
+                unit = unyt.Unit(unit_string)
                 assert result.units.same_dimensions_as(unit.units)
 
 
@@ -580,7 +581,7 @@ if __name__ == "__main__":
         dtype,
         unit,
         description,
-    ) in SubhaloProperties.subhalo_properties:
+    ) in SubhaloProperties.property_list:
         unit_str = unit.__str__()
         unit_str = unit_str.replace("1.98841586e+30 kg", "M$_\\odot{}$")
         print(

@@ -69,14 +69,14 @@ class ExclusiveSphereProperties(HaloProperty):
     #  - dtype: Data type that will be used. Should have enough precision to avoid over/underflow
     #  - unit: Units that will be used internally and for the output.
     #  - description: Description string that will be used to describe the property in the output.
-    exclusive_sphere_properties = [
-        ("Mtot", 1, np.float32, unyt.Msun, "Total mass"),
-        ("Mgas", 1, np.float32, unyt.Msun, "Total gas mass"),
-        ("Mdm", 1, np.float32, unyt.Msun, "Total DM mass"),
-        ("Mstar", 1, np.float32, unyt.Msun, "Total stellar mass"),
-        ("Mstar_init", 1, np.float32, unyt.Msun, "Total stellar initial mass"),
-        ("Mbh_dynamical", 1, np.float32, unyt.Msun, "Total BH dynamical mass"),
-        ("Mbh_subgrid", 1, np.float32, unyt.Msun, "Total BH subgrid mass"),
+    property_list = [
+        ("Mtot", 1, np.float32, "Msun", "Total mass."),
+        ("Mgas", 1, np.float32, "Msun", "Total gas mass."),
+        ("Mdm", 1, np.float32, "Msun", "Total DM mass."),
+        ("Mstar", 1, np.float32, "Msun", "Total stellar mass."),
+        ("Mstar_init", 1, np.float32, "Msun", "Total stellar initial mass."),
+        ("Mbh_dynamical", 1, np.float32, "Msun", "Total BH dynamical mass."),
+        ("Mbh_subgrid", 1, np.float32, "Msun", "Total BH subgrid mass."),
         ("Ngas", 1, np.uint32, unyt.dimensionless, "Number of gas particles."),
         ("Ndm", 1, np.uint32, unyt.dimensionless, "Number of dark matter particles."),
         ("Nstar", 1, np.uint32, unyt.dimensionless, "Number of star particles."),
@@ -88,7 +88,7 @@ class ExclusiveSphereProperties(HaloProperty):
             unyt.dimensionless,
             "Scale-factor of last AGN event.",
         ),
-        ("BHmaxM", 1, np.float32, unyt.Msun, "Mass of most massive black hole."),
+        ("BHmaxM", 1, np.float32, "Msun", "Mass of most massive black hole."),
         ("BHmaxID", 1, np.uint64, unyt.dimensionless, "ID of most massive black hole."),
         ("BHmaxpos", 3, np.float64, unyt.kpc, "Position of most massive black hole."),
         (
@@ -102,7 +102,7 @@ class ExclusiveSphereProperties(HaloProperty):
             "BHmaxAR",
             1,
             np.float32,
-            unyt.Msun / unyt.yr,
+            "Msun/yr",
             "Accretion rate of most massive black hole.",
         ),
         (
@@ -112,42 +112,48 @@ class ExclusiveSphereProperties(HaloProperty):
             unyt.dimensionless,
             "Scale-factor of last AGN event for most massive black hole.",
         ),
-        ("com", 3, np.float32, unyt.kpc, "Centre of mass"),
-        ("vcom", 3, np.float32, unyt.km / unyt.s, "Centre of mass velocity"),
+        ("com", 3, np.float32, unyt.kpc, "Centre of mass."),
+        ("vcom", 3, np.float32, unyt.km / unyt.s, "Centre of mass velocity."),
         (
             "Lgas",
             3,
             np.float32,
-            unyt.Msun * unyt.km * unyt.kpc / unyt.s,
+            "Msun*km*kpc/s",
             "Total angular momentum of the gas, relative w.r.t. the centre of potential and gas bulk velocity.",
         ),
         (
             "Ldm",
             3,
             np.float32,
-            unyt.Msun * unyt.km * unyt.kpc / unyt.s,
+            "Msun*km*kpc/s",
             "Total angular momentum of the dark matter, relative w.r.t. the centre of potential and DM bulk velocity.",
         ),
         (
             "Lstar",
             3,
             np.float32,
-            unyt.Msun * unyt.km * unyt.kpc / unyt.s,
+            "Msun*km*kpc/s",
             "Total angular momentum of the stars, relative w.r.t. the centre of potential and stellar bulk velocity.",
         ),
-        ("kappa_corot_gas", 1, np.float32, unyt.dimensionless, "Kappa corot for gas."),
+        (
+            "kappa_corot_gas",
+            1,
+            np.float32,
+            unyt.dimensionless,
+            "Kappa corot for gas, relative w.r.t. the centre of potential and the bulk velocity of the gas.",
+        ),
         (
             "kappa_corot_star",
             1,
             np.float32,
             unyt.dimensionless,
-            "Kappa corot for stars.",
+            "Kappa corot for stars, relative w.r.t. the centre of potential and the bulk velocity of the stars.",
         ),
         (
             "Lbaryons",
             3,
             np.float32,
-            unyt.Msun * unyt.km * unyt.kpc / unyt.s,
+            "Msun*km*kpc/s",
             "Total angular momentum of baryons (gas and stars), relative w.r.t. the centre of potential and baryonic bulk velocity.",
         ),
         (
@@ -155,24 +161,24 @@ class ExclusiveSphereProperties(HaloProperty):
             1,
             np.float32,
             unyt.dimensionless,
-            "Kappa corot for baryons (gas and stars).",
+            "Kappa corot for baryons (gas and stars), relative w.r.t. the centre of potential and the bulk velocity of the baryons.",
         ),
         (
-            "veldisp_gas",
+            "veldisp_matrix_gas",
             6,
             np.float32,
             unyt.km**2 / unyt.s**2,
             "Mass-weighted velocity dispersion of the gas. Measured relative w.r.t. the gas bulk velocity. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
         ),
         (
-            "veldisp_dm",
+            "veldisp_matrix_dm",
             6,
             np.float32,
             unyt.km**2 / unyt.s**2,
             "Mass-weighted velocity dispersion of the dark matter. Measured relative w.r.t. the DM bulk velocity. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
         ),
         (
-            "veldisp_star",
+            "veldisp_matrix_star",
             6,
             np.float32,
             unyt.km**2 / unyt.s**2,
@@ -192,51 +198,51 @@ class ExclusiveSphereProperties(HaloProperty):
             unyt.erg,
             "Total kinetic energy of the stars, relative w.r.t. the stellar bulk velocity.",
         ),
-        ("Mgas_SF", 1, np.float32, unyt.Msun, "Total mass of star-forming gas."),
-        ("Mgas_noSF", 1, np.float32, unyt.Msun, "Total mass of non star-forming gas."),
-        ("Mgasmetal", 1, np.float32, unyt.Msun, "Total gas mass in metals."),
+        ("Mgas_SF", 1, np.float32, "Msun", "Total mass of star-forming gas."),
+        ("Mgas_noSF", 1, np.float32, "Msun", "Total mass of non star-forming gas."),
+        ("Mgasmetal", 1, np.float32, "Msun", "Total gas mass in metals."),
         (
             "Mgasmetal_SF",
             1,
             np.float32,
-            unyt.Msun,
+            "Msun",
             "Total gas mass in metals for gas that is star-forming.",
         ),
         (
             "Mgasmetal_noSF",
             1,
             np.float32,
-            unyt.Msun,
+            "Msun",
             "Total gas mass in metals for gas that is non star-forming.",
         ),
-        ("MgasO", 1, np.float32, unyt.Msun, "Total gas mass in oxygen."),
+        ("MgasO", 1, np.float32, "Msun", "Total gas mass in oxygen."),
         (
             "MgasO_SF",
             1,
             np.float32,
-            unyt.Msun,
+            "Msun",
             "Total gas mass in oxygen for gas that is star-forming.",
         ),
         (
             "MgasO_noSF",
             1,
             np.float32,
-            unyt.Msun,
+            "Msun",
             "Total gas mass in oxygen for gas that is non star-forming.",
         ),
-        ("MgasFe", 1, np.float32, unyt.Msun, "Total gas mass in iron."),
+        ("MgasFe", 1, np.float32, "Msun", "Total gas mass in iron."),
         (
             "MgasFe_SF",
             1,
             np.float32,
-            unyt.Msun,
+            "Msun",
             "Total gas mass in iron for gas that is star-forming.",
         ),
         (
             "MgasFe_noSF",
             1,
             np.float32,
-            unyt.Msun,
+            "Msun",
             "Total gas mass in iron for gas that is non star-forming.",
         ),
         ("Tgas", 1, np.float32, unyt.K, "Mass-weighted gas temperature."),
@@ -247,18 +253,24 @@ class ExclusiveSphereProperties(HaloProperty):
             unyt.K,
             "Mass-weighted gas temperature, excluding gas that was recently heated by AGN.",
         ),
-        ("SFR", 1, np.float32, unyt.Msun / unyt.yr, "Total SFR"),
-        ("Luminosity", 9, np.float32, unyt.dimensionless, "Total luminosity"),
-        ("Mstarmetal", 1, np.float32, unyt.Msun, "Total stellar mass in metals."),
-        ("HalfMassRadiusTot", 1, np.float32, unyt.kpc, "Total half mass radius"),
-        ("HalfMassRadiusGas", 1, np.float32, unyt.kpc, "Total gas half mass radius"),
-        ("HalfMassRadiusDM", 1, np.float32, unyt.kpc, "Total DM half mass radius"),
+        ("SFR", 1, np.float32, unyt.Msun / unyt.yr, "Total SFR."),
+        (
+            "StellarLuminosity",
+            9,
+            np.float32,
+            unyt.dimensionless,
+            "Total stellar luminosity in the 9 GAMA bands.",
+        ),
+        ("Mstarmetal", 1, np.float32, "Msun", "Total stellar mass in metals."),
+        ("HalfMassRadiusTot", 1, np.float32, unyt.kpc, "Total half mass radius."),
+        ("HalfMassRadiusGas", 1, np.float32, unyt.kpc, "Total gas half mass radius."),
+        ("HalfMassRadiusDM", 1, np.float32, unyt.kpc, "Total DM half mass radius."),
         (
             "HalfMassRadiusStar",
             1,
             np.float32,
             unyt.kpc,
-            "Total stellar half mass radius",
+            "Total stellar half mass radius.",
         ),
         (
             "spin_parameter",
@@ -338,7 +350,7 @@ class ExclusiveSphereProperties(HaloProperty):
         # all variables are defined with physical units and an appropriate dtype
         # we need to use the custom unit registry so that everything can be converted
         # back to snapshot units in the end
-        for name, shape, dtype, unit, _ in self.exclusive_sphere_properties:
+        for name, shape, dtype, unit, _ in self.property_list:
             if shape > 1:
                 val = [0] * shape
             else:
@@ -402,7 +414,7 @@ class ExclusiveSphereProperties(HaloProperty):
             exclusive_sphere["Mstar_init"] += data["PartType4"]["InitialMasses"][
                 star_mask_all
             ][star_mask_ap].sum()
-            exclusive_sphere["Luminosity"] += data["PartType4"]["Luminosities"][
+            exclusive_sphere["StellarLuminosity"] += data["PartType4"]["Luminosities"][
                 star_mask_all
             ][star_mask_ap].sum(axis=0)
             exclusive_sphere["Mstarmetal"] += (
@@ -473,7 +485,7 @@ class ExclusiveSphereProperties(HaloProperty):
             exclusive_sphere["Lgas"] += Lgas
             exclusive_sphere["kappa_corot_gas"] += kappa
 
-            exclusive_sphere["veldisp_gas"] += get_velocity_dispersion_matrix(
+            exclusive_sphere["veldisp_matrix_gas"] += get_velocity_dispersion_matrix(
                 frac_mgas, vel_gas, vcom_gas
             )
 
@@ -492,7 +504,7 @@ class ExclusiveSphereProperties(HaloProperty):
                 mass_dm, pos_dm, vel_dm, ref_velocity=vcom_dm
             )
 
-            exclusive_sphere["veldisp_dm"] += get_velocity_dispersion_matrix(
+            exclusive_sphere["veldisp_matrix_dm"] += get_velocity_dispersion_matrix(
                 frac_mdm, vel_dm, vcom_dm
             )
 
@@ -505,7 +517,7 @@ class ExclusiveSphereProperties(HaloProperty):
             exclusive_sphere["Lstar"] += Lstar
             exclusive_sphere["kappa_corot_star"] += kappa
 
-            exclusive_sphere["veldisp_star"] += get_velocity_dispersion_matrix(
+            exclusive_sphere["veldisp_matrix_star"] += get_velocity_dispersion_matrix(
                 frac_mstar, vel_star, vcom_star
             )
 
@@ -611,7 +623,7 @@ class ExclusiveSphereProperties(HaloProperty):
                 )
 
         prefix = f"ExclusiveSphere/{self.physical_radius_mpc*1000.:.0f}kpc"
-        for name, _, _, _, description in self.exclusive_sphere_properties:
+        for name, _, _, _, description in self.property_list:
             halo_result.update(
                 {
                     f"{prefix}/{name}": (
@@ -683,14 +695,15 @@ def test_exclusive_sphere_properties():
             name,
             size,
             dtype,
-            unit,
+            unit_string,
             _,
-        ) in property_calculator.exclusive_sphere_properties:
+        ) in property_calculator.property_list:
             full_name = f"ExclusiveSphere/50kpc/{name}"
             assert full_name in halo_result
             result = halo_result[full_name][0]
             assert (len(result.shape) == 0 and size == 1) or result.shape[0] == size
             assert result.dtype == dtype
+            unit = unyt.Unit(unit_string)
             assert result.units.same_dimensions_as(unit.units)
 
 
@@ -711,7 +724,7 @@ if __name__ == "__main__":
         dtype,
         unit,
         description,
-    ) in ExclusiveSphereProperties.exclusive_sphere_properties:
+    ) in ExclusiveSphereProperties.property_list:
         unit_str = unit.__str__()
         unit_str = unit_str.replace("1.98841586e+30 kg", "M$_\\odot{}$")
         print(

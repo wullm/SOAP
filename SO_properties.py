@@ -215,312 +215,312 @@ class SOProperties(HaloProperty):
     #  - description: Description string that will be used to describe the property in the output.
     #                 Should contain a "{label}" entry that will be adjusted to describe the sphere for this
     #                 particular type of SO.
-    SO_properties = [
+    property_list = [
         # global properties
         ("r", 1, np.float32, "Mpc", "Radius of a sphere {label}"),
-        ("mass", 1, np.float32, "Msun", "Mass within a sphere {label}"),
+        ("Mtot", 1, np.float32, "Msun", "Total mass."),
         (
             "Ngas",
             1,
             np.uint32,
             "dimensionless",
-            "Number of gas particles within a sphere {label}",
+            "Number of gas particles.",
         ),
         (
             "Ndm",
             1,
             np.uint32,
             "dimensionless",
-            "Number of dark matter particles within a sphere {label}",
+            "Number of dark matter particles.",
         ),
         (
             "Nstar",
             1,
             np.uint32,
             "dimensionless",
-            "Number of star particles within a sphere {label}",
+            "Number of star particles.",
         ),
         (
             "Nbh",
             1,
             np.uint32,
             "dimensionless",
-            "Number of BH particles within a sphere {label}",
+            "Number of black hole particles.",
         ),
         (
             "Nnu",
             1,
             np.uint32,
             "dimensionless",
-            "Number of neutrino particles within a sphere {label}",
+            "Number of neutrino particles.",
         ),
-        ("com", 3, np.float32, "Mpc", "Centre of mass within a sphere {label}"),
+        ("com", 3, np.float32, "kpc", "Centre of mass."),
         (
             "vcom",
             3,
             np.float32,
             "km/s",
-            "Centre of mass velocity within a sphere {label}",
+            "Centre of mass velocity.",
         ),
         (
             "Mfrac_satellites",
             1,
             np.float32,
             "dimensionless",
-            "Fraction of mass that is bound to a satellite within a sphere {label}",
+            "Fraction of mass that is bound to a satellite.",
         ),
         # gas properties
-        ("mass_gas", 1, np.float32, "Msun", "Total gas mass within a sphere {label}"),
+        ("Mgas", 1, np.float32, "Msun", "Total gas mass."),
         (
-            "Jgas",
+            "Lgas",
             3,
             np.float32,
             "Msun*km*kpc/s",
-            "Total angular momentum of gas within a sphere {label}",
+            "Total angular momentum of the gas, relative w.r.t. the centre of potential and gas bulk velocity.",
         ),
         (
             "com_gas",
             3,
             np.float32,
             "Mpc",
-            "Centre of mass of gas within a sphere {label}",
+            "Centre of mass of gas.",
         ),
         (
             "vcom_gas",
             3,
             np.float32,
             "km/s",
-            "Centre of mass velocity of gas within a sphere {label}",
+            "Centre of mass velocity of gas.",
         ),
         (
-            "veldisp_gas",
+            "veldisp_matrix_gas",
             6,
             np.float32,
             "km**2/s**2",
-            "Velocity dispersion of gas within a sphere {label} Measured relative to the centre of mass velocity of all particles. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
+            "Mass-weighted velocity dispersion of the gas. Measured relative w.r.t. the gas bulk velocity. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
         ),
         (
             "Mgasmetal",
             1,
             np.float32,
             "Msun",
-            "Total metal mass of gas within a sphere {label}",
+            "Total gas mass in metals.",
         ),
         (
             "Mhotgas",
             1,
             np.float32,
             "Msun",
-            "Total mass of gas with T > 1e5 K within a sphere {label}",
+            "Total mass of gas with T > 1e5 K.",
         ),
         (
             "Thotgas",
             1,
             np.float32,
             "K",
-            "Mass-weighted average temperature of gas with T > 1e5 K within a sphere {label}",
+            "Mass-weighted average temperature of gas with T > 1e5 K.",
         ),
         (
             "Xraylum",
             3,
             np.float64,
             "erg/s",
-            "Total rest-frame Xray luminosity in three bands within a sphere {label}",
+            "Total rest-frame Xray luminosity in three bands.",
         ),
         (
             "Xrayphlum",
             3,
             np.float64,
             "1/s",
-            "Total rest-frame Xray photon luminosity in three bands within a sphere {label}",
+            "Total rest-frame Xray photon luminosity in three bands.",
         ),
         (
             "compY",
             1,
             np.float64,
             "cm**2",
-            "Total Compton y parameter within a sphere {label}",
+            "Total Compton y parameter.",
         ),
         (
             "Xraylum_no_agn",
             3,
             np.float64,
             "erg/s",
-            "Total rest-frame Xray luminosity in three bands within a sphere {label} Excludes gas that was heated by AGN less than 15 Myr ago.",
+            "Total rest-frame Xray luminosity in three bands. Excludes gas that was heated by AGN less than 15 Myr ago.",
         ),
         (
             "Xrayphlum_no_agn",
             3,
             np.float64,
             "1/s",
-            "Total rest-frame Xray photon luminosity in three bands within a sphere {label} Exclude gas that was heated by AGN less than 15 Myr ago.",
+            "Total rest-frame Xray photon luminosity in three bands. Exclude gas that was heated by AGN less than 15 Myr ago.",
         ),
         (
             "compY_no_agn",
             1,
             np.float64,
             "cm**2",
-            "Total Compton y parameter within a sphere {label} Excludes gas that was heated by AGN less than 15 Myr ago.",
+            "Total Compton y parameter. Excludes gas that was heated by AGN less than 15 Myr ago.",
         ),
         (
             "Ekin_gas",
             1,
             np.float64,
             "erg",
-            "Total kinetic energy of the gas within a sphere {label} Measured relative w.r.t. the bulk velocity of the gas.",
+            "Total kinetic energy of the gas, relative w.r.t. the gas bulk velocity.",
         ),
         (
             "Etherm_gas",
             1,
             np.float64,
             "erg",
-            "Total thermal energy of the gas within a sphere {label}",
+            "Total thermal energy of the gas.",
         ),
         # DM properties
-        ("mass_dm", 1, np.float32, "Msun", "Total DM mass within a sphere {label}"),
+        ("Mdm", 1, np.float32, "Msun", "Total DM mass."),
         (
-            "JDM",
+            "Ldm",
             3,
             np.float32,
             "Msun*km*kpc/s",
-            "Total angular momentum of DM within a sphere {label}",
+            "Total angular momentum of the dark matter, relative w.r.t. the centre of potential and DM bulk velocity.",
         ),
         (
-            "veldisp_dm",
+            "veldisp_matrix_dm",
             6,
             np.float32,
             "km**2/s**2",
-            "Velocity dispersion of DM within a sphere {label} Measured relative to the centre of mass velocity of all particles. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
+            "Mass-weighted velocity dispersion of the dark matter. Measured relative w.r.t. the DM bulk velocity. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
         ),
         # stellar properties
         (
-            "mass_star",
+            "Mstar",
             1,
             np.float32,
             "Msun",
-            "Total stellar mass within a sphere {label}",
+            "Total stellar mass.",
         ),
         (
             "com_star",
             3,
             np.float32,
             "Mpc",
-            "Centre of mass of stars within a sphere {label}",
+            "Centre of mass of stars.",
         ),
         (
             "vcom_star",
             3,
             np.float32,
             "km/s",
-            "Centre of mass velocity of stars within a sphere {label}",
+            "Centre of mass velocity of stars.",
         ),
         (
-            "veldisp_star",
+            "veldisp_matrix_star",
             6,
             np.float32,
             "km**2/s**2",
-            "Velocity dispersion of stars within a sphere {label} Measured relative to the centre of mass velocity of all particles. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
+            "Mass-weighted velocity dispersion of the stars. Measured relative w.r.t. the stellar bulk velocity. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
         ),
         (
-            "Jstar",
+            "Lstar",
             3,
             np.float32,
             "Msun*km*kpc/s",
-            "Total angular momentum of stars within a sphere {label}",
+            "Total angular momentum of the stars, relative w.r.t. the centre of potential and stellar bulk velocity.",
         ),
         (
-            "Mstarinit",
+            "Mstar_init",
             1,
             np.float32,
             "Msun",
-            "Total stellar initial mass with a sphere {label}",
+            "Total stellar initial mass.",
         ),
         (
             "Mstarmetal",
             1,
             np.float32,
             "Msun",
-            "Total metal mass of stars within a sphere {label}",
+            "Total stellar mass in metals.",
         ),
         (
-            "Lstar",
+            "StellarLuminosity",
             9,
             np.float32,
             "dimensionless",
-            "Total stellar luminosity in the 9 GAMA bands within a sphere {label}",
+            "Total stellar luminosity in the 9 GAMA bands.",
         ),
         (
             "Ekin_star",
             1,
             np.float64,
             "erg",
-            "Total kinetic energy of the stars within a sphere {label} Measured relative w.r.t. the bulk velocity of the stars.",
+            "Total kinetic energy of the stars, relative w.r.t. the stellar bulk velocity.",
         ),
         # Baryonic (gas + star) properties
         (
-            "Jbaryons",
+            "Lbaryons",
             3,
             np.float32,
             "Msun*km*kpc/s",
-            "Total angular momentum of baryons (gas and stars) within a sphere {label}",
+            "Total angular momentum of baryons (gas and stars), relative w.r.t. the centre of potential and baryonic bulk velocity.",
         ),
         # BH properties
         (
-            "MBHdyn",
+            "Mbh_dynamical",
             1,
             np.float32,
             "Msun",
-            "Total dynamical BH mass within a sphere {label}",
+            "Total BH dynamical mass.",
         ),
         (
-            "MBHsub",
+            "Mbh_subgrid",
             1,
             np.float32,
             "Msun",
-            "Total sub-grid BH mass within a sphere {label}",
+            "Total BH subgrid mass.",
         ),
         (
             "BHlasteventa",
             1,
             np.float32,
             "dimensionless",
-            "Last AGN feedback event within a sphere {label}",
+            "Scale-factor of last AGN event.",
         ),
-        ("BHmaxM", 1, np.float32, "Msun", "Maximum BH mass within a sphere {label}"),
+        ("BHmaxM", 1, np.float32, "Msun", "Mass of most massive black hole."),
         (
             "BHmaxID",
             1,
             np.uint64,
             "dimensionless",
-            "ID of most massive BH within a sphere {label}",
+            "ID of most massive black hole.",
         ),
         (
             "BHmaxpos",
             3,
-            np.float32,
-            "Mpc",
-            "Position of most massive BH within a sphere {label}",
+            np.float64,
+            "kpc",
+            "Position of most massive black hole.",
         ),
         (
             "BHmaxvel",
             3,
             np.float32,
             "km/s",
-            "Velocity of most massive BH within a sphere {label}",
+            "Velocity of most massive black hole.",
         ),
         (
             "BHmaxAR",
             1,
             np.float32,
             "Msun/yr",
-            "Accretion rate of most massive BH within a sphere {label}",
+            "Accretion rate of most massive black hole.",
         ),
         (
             "BHmaxlasteventa",
             1,
             np.float32,
             "dimensionless",
-            "Last AGN feedback event of the most massive BH within a sphere {label}",
+            "Scale-factor of last AGN event for most massive black hole.",
         ),
         # Neutrino properties
         (
@@ -528,14 +528,14 @@ class SOProperties(HaloProperty):
             1,
             np.float32,
             "Msun",
-            "Noise suppressed total neutrino mass within a sphere {label}",
+            "Noise suppressed total neutrino mass.",
         ),
         (
             "Mnu",
             1,
             np.float32,
             "Msun",
-            "Total neutrino particle mass within a sphere {label}",
+            "Total neutrino particle mass.",
         ),
     ]
 
@@ -634,7 +634,7 @@ class SOProperties(HaloProperty):
         # all variables are defined with physical units and an appropriate dtype
         # we need to use the custom unit registry so that everything can be converted
         # back to snapshot units in the end
-        for name, shape, dtype, unit, _ in self.SO_properties:
+        for name, shape, dtype, unit, _ in self.property_list:
             if shape > 1:
                 val = [0] * shape
             else:
@@ -643,7 +643,7 @@ class SOProperties(HaloProperty):
 
         # SOs only exist for central galaxies
         if input_halo["Structuretype"] != 10:
-            for name, _, _, _, description in self.SO_properties:
+            for name, _, _, _, description in self.property_list:
                 halo_result.update(
                     {
                         f"SO/{self.SO_name}/{name}": (
@@ -727,7 +727,7 @@ class SOProperties(HaloProperty):
                         self.reference_density,
                     )
                     SO["r"] += SO_r
-                    SO["mass"] += SO_mass
+                    SO["Mtot"] += SO_mass
                 except ReadRadiusTooSmallError:
                     raise ReadRadiusTooSmallError("SO radius multiple was too small!")
             else:
@@ -740,18 +740,18 @@ class SOProperties(HaloProperty):
                 outside_radius = ordered_radius > SO["r"]
                 if not np.any(outside_radius):
                     # all particles are within the radius, we cannot interpolate
-                    SO["mass"] += cumulative_mass[-1]
+                    SO["Mtot"] += cumulative_mass[-1]
                 else:
                     i = np.argmax(outside_radius)
                     if i == 0:
                         # we only have particles in the centre, so we cannot interpolate
-                        SO["mass"] += cumulative_mass[i]
+                        SO["Mtot"] += cumulative_mass[i]
                     else:
                         r1 = ordered_radius[i - 1]
                         r2 = ordered_radius[i]
                         M1 = cumulative_mass[i - 1]
                         M2 = cumulative_mass[i]
-                        SO["mass"] += M1 + (SO["r"] - r1) / (r2 - r1) * (M2 - M1)
+                        SO["Mtot"] += M1 + (SO["r"] - r1) / (r2 - r1) * (M2 - M1)
 
         else:
             # if we get here, we must be in the case where physical_radius_mpc is supposed to be 0
@@ -765,7 +765,7 @@ class SOProperties(HaloProperty):
 
         # the second condition is necessary to deal with physical SO radii and
         # no particles
-        if SO["r"] > 0.0 * radius.units and SO["mass"] > 0.0 * mass.units:
+        if SO["r"] > 0.0 * radius.units and SO["Mtot"] > 0.0 * mass.units:
 
             gas_selection = radius[types == "PartType0"] < SO["r"]
             dm_selection = radius[types == "PartType1"] < SO["r"]
@@ -785,54 +785,54 @@ class SOProperties(HaloProperty):
             SO["com"] += centre
             SO["vcom"] += (mass_frac[:, None] * velocity).sum(axis=0)
 
-            SO["Mfrac_satellites"] += mass[is_bound_to_satellite].sum() / SO["mass"]
+            SO["Mfrac_satellites"] += mass[is_bound_to_satellite].sum() / SO["Mtot"]
 
             gas_masses = mass[types == "PartType0"]
             gas_pos = position[types == "PartType0"]
             gas_vel = velocity[types == "PartType0"]
-            SO["mass_gas"] += gas_masses.sum()
-            if SO["mass_gas"] > 0.0 * SO["mass_gas"].units:
-                frac_mgas = gas_masses / SO["mass_gas"]
+            SO["Mgas"] += gas_masses.sum()
+            if SO["Mgas"] > 0.0 * SO["Mgas"].units:
+                frac_mgas = gas_masses / SO["Mgas"]
                 SO["com_gas"] += (frac_mgas[:, None] * gas_pos).sum(axis=0)
                 SO["com_gas"] += centre
                 SO["vcom_gas"] += (frac_mgas[:, None] * gas_vel).sum(axis=0)
 
-                SO["Jgas"] += get_angular_momentum(
+                SO["Lgas"] += get_angular_momentum(
                     gas_masses, gas_pos, gas_vel, ref_velocity=SO["vcom_gas"]
                 )
-                SO["veldisp_gas"] += get_velocity_dispersion_matrix(
+                SO["veldisp_matrix_gas"] += get_velocity_dispersion_matrix(
                     frac_mgas, gas_vel, SO["vcom_gas"]
                 )
 
             dm_masses = mass[types == "PartType1"]
             dm_pos = position[types == "PartType1"]
             dm_vel = velocity[types == "PartType1"]
-            SO["mass_dm"] += dm_masses.sum()
-            if SO["mass_dm"] > 0.0 * SO["mass_dm"].units:
-                frac_mdm = dm_masses / SO["mass_dm"]
+            SO["Mdm"] += dm_masses.sum()
+            if SO["Mdm"] > 0.0 * SO["Mdm"].units:
+                frac_mdm = dm_masses / SO["Mdm"]
                 vcom_dm = (frac_mdm[:, None] * dm_vel).sum(axis=0)
 
-                SO["JDM"] += get_angular_momentum(
+                SO["Ldm"] += get_angular_momentum(
                     dm_masses, dm_pos, dm_vel, ref_velocity=vcom_dm
                 )
-                SO["veldisp_dm"] += get_velocity_dispersion_matrix(
+                SO["veldisp_matrix_dm"] += get_velocity_dispersion_matrix(
                     frac_mdm, dm_vel, vcom_dm
                 )
 
             star_masses = mass[types == "PartType4"]
             star_pos = position[types == "PartType4"]
             star_vel = velocity[types == "PartType4"]
-            SO["mass_star"] += star_masses.sum()
-            if SO["mass_star"] > 0.0 * SO["mass_star"].units:
-                frac_mstar = star_masses / SO["mass_star"]
+            SO["Mstar"] += star_masses.sum()
+            if SO["Mstar"] > 0.0 * SO["Mstar"].units:
+                frac_mstar = star_masses / SO["Mstar"]
                 SO["com_star"] += (frac_mstar[:, None] * star_pos).sum(axis=0)
                 SO["com_star"] += centre
                 SO["vcom_star"] += (frac_mstar[:, None] * star_vel).sum(axis=0)
 
-                SO["Jstar"] += get_angular_momentum(
+                SO["Lstar"] += get_angular_momentum(
                     star_masses, star_pos, star_vel, ref_velocity=SO["vcom_star"]
                 )
-                SO["veldisp_star"] += get_velocity_dispersion_matrix(
+                SO["veldisp_matrix_star"] += get_velocity_dispersion_matrix(
                     frac_mstar, star_vel, SO["vcom_star"]
                 )
 
@@ -845,12 +845,12 @@ class SOProperties(HaloProperty):
                     axis=0
                 )
                 baryon_relvel = baryon_vel - baryon_vcom[None, :]
-                SO["Jbaryons"] += (
+                SO["Lbaryons"] += (
                     baryon_masses[:, None]
                     * unyt.array.ucross(baryon_pos, baryon_relvel)
                 ).sum(axis=0)
 
-            SO["MBHdyn"] += mass[types == "PartType5"].sum()
+            SO["Mbh_dynamical"] += mass[types == "PartType5"].sum()
 
             # gas specific properties. We (can) only do these if we have gas.
             # (remember that "PartType0" might not be part of 'data' at all)
@@ -923,14 +923,16 @@ class SOProperties(HaloProperty):
                     star_selection.sum(dtype=SO["Nstar"].dtype) * SO["Nstar"].units
                 )
 
-                SO["Mstarinit"] += data["PartType4"]["InitialMasses"][
+                SO["Mstar_init"] += data["PartType4"]["InitialMasses"][
                     star_selection
                 ].sum()
                 SO["Mstarmetal"] += (
                     star_masses
                     * data["PartType4"]["MetalMassFractions"][star_selection]
                 ).sum()
-                SO["Lstar"] += data["PartType4"]["Luminosities"][star_selection].sum()
+                SO["StellarLuminosity"] += data["PartType4"]["Luminosities"][
+                    star_selection
+                ].sum()
 
                 # below we need to force conversion to np.float64 before summing up particles
                 # to avoid overflow
@@ -946,7 +948,9 @@ class SOProperties(HaloProperty):
             if np.any(bh_selection):
                 SO["Nbh"] = bh_selection.sum(dtype=SO["Nbh"].dtype) * SO["Nbh"].units
 
-                SO["MBHsub"] += data["PartType5"]["SubgridMasses"][bh_selection].sum()
+                SO["Mbh_subgrid"] += data["PartType5"]["SubgridMasses"][
+                    bh_selection
+                ].sum()
                 agn_eventa = data["PartType5"]["LastAGNFeedbackScaleFactors"][
                     bh_selection
                 ]
@@ -989,7 +993,7 @@ class SOProperties(HaloProperty):
 
         # Return value should be a dict containing unyt_arrays and descriptions.
         # The dict keys will be used as HDF5 dataset names in the output.
-        for name, _, _, _, description in self.SO_properties:
+        for name, _, _, _, description in self.property_list:
             halo_result.update(
                 {
                     f"SO/{self.SO_name}/{name}": (
@@ -1149,7 +1153,7 @@ def test_SO_properties():
             assert input_halo_copy == input_halo
             assert input_data_copy == input_data
 
-            for name, size, dtype, unit_string, _ in prop_calc.SO_properties:
+            for name, size, dtype, unit_string, _ in prop_calc.property_list:
                 full_name = f"SO/{SO_name}/{name}"
                 assert full_name in halo_result
                 result = halo_result[full_name][0]
@@ -1174,7 +1178,7 @@ if __name__ == "__main__":
         dtype,
         unit,
         description,
-    ) in SOProperties.SO_properties:
+    ) in SOProperties.property_list:
         unit_str = unit.__str__()
         unit_str = unit_str.replace("1.98841586e+30 kg", "M$_\\odot{}$")
         unit_str = unit_str.replace(">", "$>$")
