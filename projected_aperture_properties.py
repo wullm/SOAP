@@ -6,6 +6,7 @@ import unyt
 from halo_properties import HaloProperty
 from dataset_names import mass_dataset
 from half_mass_radius import get_half_mass_radius
+from property_table import PropertyTable
 
 
 class ProjectedApertureProperties(HaloProperty):
@@ -18,78 +19,33 @@ class ProjectedApertureProperties(HaloProperty):
     the halo along the projection axis.
     """
 
-    # List of properties that get computed
-    # For each property, we have the following columns:
-    #  - name: Name of the property within calculate() and in the output file
-    #  - shape: Shape of this property for a single halo (1: scalar, 3: vector...)
-    #  - dtype: Data type that will be used. Should have enough precision to avoid over/underflow
-    #  - unit: Units that will be used internally and for the output.
-    #  - description: Description string that will be used to describe the property in the output.
+    # get the properties we want from the table
     property_list = [
-        ("Mtot", 1, np.float32, "Msun", "Total mass."),
-        ("Mgas", 1, np.float32, "Msun", "Total gas mass."),
-        ("Mdm", 1, np.float32, "Msun", "Total DM mass."),
-        ("Mstar", 1, np.float32, "Msun", "Total stellar mass."),
-        ("Mstar_init", 1, np.float32, "Msun", "Total stellar initial mass."),
-        ("Mbh_dynamical", 1, np.float32, "Msun", "Total BH dynamical mass."),
-        ("Mbh_subgrid", 1, np.float32, "Msun", "Total BH subgrid mass."),
-        ("Ngas", 1, np.uint32, unyt.dimensionless, "Number of gas particles."),
-        ("Ndm", 1, np.uint32, unyt.dimensionless, "Number of dark matter particles."),
-        ("Nstar", 1, np.uint32, unyt.dimensionless, "Number of star particles."),
-        ("Nbh", 1, np.uint32, unyt.dimensionless, "Number of black hole particles."),
-        ("com", 3, np.float32, unyt.kpc, "Centre of mass."),
-        ("vcom", 3, np.float32, unyt.km / unyt.s, "Centre of mass velocity."),
-        ("SFR", 1, np.float32, unyt.Msun / unyt.yr, "Total SFR."),
-        (
+        PropertyTable.full_property_list[prop]
+        for prop in [
+            "Mtot",
+            "Mgas",
+            "Mdm",
+            "Mstar",
+            "Mstar_init",
+            "Mbh_dynamical",
+            "Mbh_subgrid",
+            "Ngas",
+            "Ndm",
+            "Nstar",
+            "Nbh",
+            "com",
+            "vcom",
+            "SFR",
             "StellarLuminosity",
-            9,
-            np.float32,
-            unyt.dimensionless,
-            "Total stellar luminosity in the 9 GAMA bands.",
-        ),
-        (
             "HalfMassRadiusTot",
-            1,
-            np.float32,
-            unyt.kpc,
-            "Total half mass radius.",
-        ),
-        (
             "HalfMassRadiusGas",
-            1,
-            np.float32,
-            unyt.kpc,
-            "Total gas half mass radius.",
-        ),
-        ("HalfMassRadiusDM", 1, np.float32, unyt.kpc, "Total DM half mass radius."),
-        (
+            "HalfMassRadiusDM",
             "HalfMassRadiusStar",
-            1,
-            np.float32,
-            unyt.kpc,
-            "Total stellar half mass radius.",
-        ),
-        (
             "proj_veldisp_gas",
-            1,
-            np.float32,
-            unyt.km / unyt.s,
-            "Mass-weighted velocity dispersion of the gas along the projection axis, relative w.r.t. the gas bulk velocity.",
-        ),
-        (
             "proj_veldisp_dm",
-            1,
-            np.float32,
-            unyt.km / unyt.s,
-            "Mass-weighted velocity dispersion of the DM along the projection axis, relative w.r.t. the DM bulk velocity.",
-        ),
-        (
             "proj_veldisp_star",
-            1,
-            np.float32,
-            unyt.km / unyt.s,
-            "Mass-weighted velocity dispersion of the stars along the projection axis, relative w.r.t. the stellar bulk velocity.",
-        ),
+        ]
     ]
 
     # Particle properties that are used
@@ -200,7 +156,7 @@ class ProjectedApertureProperties(HaloProperty):
             # all variables are defined with physical units and an appropriate dtype
             # we need to use the custom unit registry so that everything can be converted
             # back to snapshot units in the end
-            for name, shape, dtype, unit, _ in self.property_list:
+            for name, shape, dtype, unit, _, _ in self.property_list:
                 if shape > 1:
                     val = [0] * shape
                 else:
@@ -339,7 +295,7 @@ class ProjectedApertureProperties(HaloProperty):
             prefix = (
                 f"ProjectedAperture/{self.physical_radius_mpc*1000.:.0f}kpc/{projname}"
             )
-            for name, _, _, _, description in self.property_list:
+            for name, _, _, _, description, _ in self.property_list:
                 halo_result.update(
                     {f"{prefix}/{name}": (projected_aperture[name], description)}
                 )
@@ -398,6 +354,7 @@ def test_projected_aperture_properties():
                 size,
                 dtype,
                 unit_string,
+                _,
                 _,
             ) in property_calculator.property_list:
                 full_name = f"ProjectedAperture/30kpc/{proj}/{name}"

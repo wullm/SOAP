@@ -10,6 +10,7 @@ from kinematic_properties import (
     get_angular_momentum,
 )
 from recently_heated_gas_filter import RecentlyHeatedGasFilter
+from property_table import PropertyTable
 
 from dataset_names import mass_dataset
 
@@ -206,337 +207,61 @@ class SOProperties(HaloProperty):
         "PartType6": ["Coordinates", "Masses", "Weights"],
     }
 
-    # List of properties that get computed
-    # For each property, we have the following columns:
-    #  - name: Name of the property within calculate() and in the output file
-    #  - shape: Shape of this property for a single halo (1: scalar, 3: vector...)
-    #  - dtype: Data type that will be used. Should have enough precision to avoid over/underflow
-    #  - unit: Units that will be used internally and for the output.
-    #  - description: Description string that will be used to describe the property in the output.
-    #                 Should contain a "{label}" entry that will be adjusted to describe the sphere for this
-    #                 particular type of SO.
+    # get the properties we want from the table
     property_list = [
-        # global properties
-        ("r", 1, np.float32, "Mpc", "Radius of a sphere {label}"),
-        ("Mtot", 1, np.float32, "Msun", "Total mass."),
-        (
+        PropertyTable.full_property_list[prop]
+        for prop in [
+            "r",
+            "Mtot",
             "Ngas",
-            1,
-            np.uint32,
-            "dimensionless",
-            "Number of gas particles.",
-        ),
-        (
             "Ndm",
-            1,
-            np.uint32,
-            "dimensionless",
-            "Number of dark matter particles.",
-        ),
-        (
             "Nstar",
-            1,
-            np.uint32,
-            "dimensionless",
-            "Number of star particles.",
-        ),
-        (
             "Nbh",
-            1,
-            np.uint32,
-            "dimensionless",
-            "Number of black hole particles.",
-        ),
-        (
             "Nnu",
-            1,
-            np.uint32,
-            "dimensionless",
-            "Number of neutrino particles.",
-        ),
-        ("com", 3, np.float32, "kpc", "Centre of mass."),
-        (
+            "com",
             "vcom",
-            3,
-            np.float32,
-            "km/s",
-            "Centre of mass velocity.",
-        ),
-        (
             "Mfrac_satellites",
-            1,
-            np.float32,
-            "dimensionless",
-            "Fraction of mass that is bound to a satellite.",
-        ),
-        # gas properties
-        ("Mgas", 1, np.float32, "Msun", "Total gas mass."),
-        (
+            "Mgas",
             "Lgas",
-            3,
-            np.float32,
-            "Msun*km*kpc/s",
-            "Total angular momentum of the gas, relative w.r.t. the centre of potential and gas bulk velocity.",
-        ),
-        (
             "com_gas",
-            3,
-            np.float32,
-            "Mpc",
-            "Centre of mass of gas.",
-        ),
-        (
             "vcom_gas",
-            3,
-            np.float32,
-            "km/s",
-            "Centre of mass velocity of gas.",
-        ),
-        (
             "veldisp_matrix_gas",
-            6,
-            np.float32,
-            "km**2/s**2",
-            "Mass-weighted velocity dispersion of the gas. Measured relative w.r.t. the gas bulk velocity. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
-        ),
-        (
             "Mgasmetal",
-            1,
-            np.float32,
-            "Msun",
-            "Total gas mass in metals.",
-        ),
-        (
             "Mhotgas",
-            1,
-            np.float32,
-            "Msun",
-            "Total mass of gas with T > 1e5 K.",
-        ),
-        (
-            "Thotgas",
-            1,
-            np.float32,
-            "K",
-            "Mass-weighted average temperature of gas with T > 1e5 K.",
-        ),
-        (
+            "Tgas_no_cool",
             "Xraylum",
-            3,
-            np.float64,
-            "erg/s",
-            "Total rest-frame Xray luminosity in three bands.",
-        ),
-        (
             "Xrayphlum",
-            3,
-            np.float64,
-            "1/s",
-            "Total rest-frame Xray photon luminosity in three bands.",
-        ),
-        (
             "compY",
-            1,
-            np.float64,
-            "cm**2",
-            "Total Compton y parameter.",
-        ),
-        (
             "Xraylum_no_agn",
-            3,
-            np.float64,
-            "erg/s",
-            "Total rest-frame Xray luminosity in three bands. Excludes gas that was heated by AGN less than 15 Myr ago.",
-        ),
-        (
             "Xrayphlum_no_agn",
-            3,
-            np.float64,
-            "1/s",
-            "Total rest-frame Xray photon luminosity in three bands. Exclude gas that was heated by AGN less than 15 Myr ago.",
-        ),
-        (
             "compY_no_agn",
-            1,
-            np.float64,
-            "cm**2",
-            "Total Compton y parameter. Excludes gas that was heated by AGN less than 15 Myr ago.",
-        ),
-        (
             "Ekin_gas",
-            1,
-            np.float64,
-            "erg",
-            "Total kinetic energy of the gas, relative w.r.t. the gas bulk velocity.",
-        ),
-        (
             "Etherm_gas",
-            1,
-            np.float64,
-            "erg",
-            "Total thermal energy of the gas.",
-        ),
-        # DM properties
-        ("Mdm", 1, np.float32, "Msun", "Total DM mass."),
-        (
+            "Mdm",
             "Ldm",
-            3,
-            np.float32,
-            "Msun*km*kpc/s",
-            "Total angular momentum of the dark matter, relative w.r.t. the centre of potential and DM bulk velocity.",
-        ),
-        (
             "veldisp_matrix_dm",
-            6,
-            np.float32,
-            "km**2/s**2",
-            "Mass-weighted velocity dispersion of the dark matter. Measured relative w.r.t. the DM bulk velocity. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
-        ),
-        # stellar properties
-        (
             "Mstar",
-            1,
-            np.float32,
-            "Msun",
-            "Total stellar mass.",
-        ),
-        (
             "com_star",
-            3,
-            np.float32,
-            "Mpc",
-            "Centre of mass of stars.",
-        ),
-        (
             "vcom_star",
-            3,
-            np.float32,
-            "km/s",
-            "Centre of mass velocity of stars.",
-        ),
-        (
             "veldisp_matrix_star",
-            6,
-            np.float32,
-            "km**2/s**2",
-            "Mass-weighted velocity dispersion of the stars. Measured relative w.r.t. the stellar bulk velocity. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
-        ),
-        (
             "Lstar",
-            3,
-            np.float32,
-            "Msun*km*kpc/s",
-            "Total angular momentum of the stars, relative w.r.t. the centre of potential and stellar bulk velocity.",
-        ),
-        (
             "Mstar_init",
-            1,
-            np.float32,
-            "Msun",
-            "Total stellar initial mass.",
-        ),
-        (
             "Mstarmetal",
-            1,
-            np.float32,
-            "Msun",
-            "Total stellar mass in metals.",
-        ),
-        (
             "StellarLuminosity",
-            9,
-            np.float32,
-            "dimensionless",
-            "Total stellar luminosity in the 9 GAMA bands.",
-        ),
-        (
             "Ekin_star",
-            1,
-            np.float64,
-            "erg",
-            "Total kinetic energy of the stars, relative w.r.t. the stellar bulk velocity.",
-        ),
-        # Baryonic (gas + star) properties
-        (
             "Lbaryons",
-            3,
-            np.float32,
-            "Msun*km*kpc/s",
-            "Total angular momentum of baryons (gas and stars), relative w.r.t. the centre of potential and baryonic bulk velocity.",
-        ),
-        # BH properties
-        (
             "Mbh_dynamical",
-            1,
-            np.float32,
-            "Msun",
-            "Total BH dynamical mass.",
-        ),
-        (
             "Mbh_subgrid",
-            1,
-            np.float32,
-            "Msun",
-            "Total BH subgrid mass.",
-        ),
-        (
             "BHlasteventa",
-            1,
-            np.float32,
-            "dimensionless",
-            "Scale-factor of last AGN event.",
-        ),
-        ("BHmaxM", 1, np.float32, "Msun", "Mass of most massive black hole."),
-        (
+            "BHmaxM",
             "BHmaxID",
-            1,
-            np.uint64,
-            "dimensionless",
-            "ID of most massive black hole.",
-        ),
-        (
             "BHmaxpos",
-            3,
-            np.float64,
-            "kpc",
-            "Position of most massive black hole.",
-        ),
-        (
             "BHmaxvel",
-            3,
-            np.float32,
-            "km/s",
-            "Velocity of most massive black hole.",
-        ),
-        (
             "BHmaxAR",
-            1,
-            np.float32,
-            "Msun/yr",
-            "Accretion rate of most massive black hole.",
-        ),
-        (
             "BHmaxlasteventa",
-            1,
-            np.float32,
-            "dimensionless",
-            "Scale-factor of last AGN event for most massive black hole.",
-        ),
-        # Neutrino properties
-        (
             "MnuNS",
-            1,
-            np.float32,
-            "Msun",
-            "Noise suppressed total neutrino mass.",
-        ),
-        (
             "Mnu",
-            1,
-            np.float32,
-            "Msun",
-            "Total neutrino particle mass.",
-        ),
+        ]
     ]
 
     def __init__(self, cellgrid, recently_heated_gas_filter, SOval, type="mean"):
@@ -634,7 +359,7 @@ class SOProperties(HaloProperty):
         # all variables are defined with physical units and an appropriate dtype
         # we need to use the custom unit registry so that everything can be converted
         # back to snapshot units in the end
-        for name, shape, dtype, unit, _ in self.property_list:
+        for name, shape, dtype, unit, _, _ in self.property_list:
             if shape > 1:
                 val = [0] * shape
             else:
@@ -643,7 +368,7 @@ class SOProperties(HaloProperty):
 
         # SOs only exist for central galaxies
         if input_halo["Structuretype"] != 10:
-            for name, _, _, _, description in self.property_list:
+            for name, _, _, _, description, _ in self.property_list:
                 halo_result.update(
                     {
                         f"SO/{self.SO_name}/{name}": (
@@ -868,7 +593,7 @@ class SOProperties(HaloProperty):
                 SO["Mhotgas"] += gas_masses[Tgas_selection].sum()
 
                 if np.any(Tgas_selection):
-                    SO["Thotgas"] += (
+                    SO["Tgas_no_cool"] += (
                         gas_temperatures[Tgas_selection] * gas_masses[Tgas_selection]
                     ).sum() / SO["Mhotgas"]
 
@@ -993,7 +718,7 @@ class SOProperties(HaloProperty):
 
         # Return value should be a dict containing unyt_arrays and descriptions.
         # The dict keys will be used as HDF5 dataset names in the output.
-        for name, _, _, _, description in self.property_list:
+        for name, _, _, _, description, _ in self.property_list:
             halo_result.update(
                 {
                     f"SO/{self.SO_name}/{name}": (
@@ -1153,7 +878,7 @@ def test_SO_properties():
             assert input_halo_copy == input_halo
             assert input_data_copy == input_data
 
-            for name, size, dtype, unit_string, _ in prop_calc.property_list:
+            for name, size, dtype, unit_string, _, _ in prop_calc.property_list:
                 full_name = f"SO/{SO_name}/{name}"
                 assert full_name in halo_result
                 result = halo_result[full_name][0]
