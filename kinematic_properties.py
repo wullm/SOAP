@@ -96,6 +96,7 @@ def get_angular_momentum_and_kappa_corot(
 
     return Ltot, kappa_corot
 
+
 def get_vmax(mass, radius):
     G = unyt.Unit("newton_G", registry=mass.units.registry)
     isort = np.argsort(radius)
@@ -109,3 +110,52 @@ def get_vmax(mass, radius):
     v_over_G = cumulative_mass / ordered_radius
     imax = np.argmax(v_over_G)
     return ordered_radius[imax], np.sqrt(v_over_G[imax] * G)
+
+
+def get_axis_lengths(mass, position):
+
+    Itensor = (mass[:, None, None] / mass.sum()) * np.ones((mass.shape[0], 3, 3))
+    # Note: unyt currently ignores the position units in the *=
+    # i.e. Itensor is dimensionless throughout (even though it should not be)
+    for i in range(3):
+        for j in range(3):
+            Itensor[:, i, j] *= position[:, i] * position[:, j]
+    Itensor = Itensor.sum(axis=0)
+
+    # linalg.eigenvals cannot deal with units anyway, so we have to add them
+    # back in
+    axes = np.sqrt(np.linalg.eigvals(Itensor)) * position.units
+
+    # sort the axes from long to short
+    axes.sort()
+    axes = axes[::-1]
+
+    return axes
+
+
+def test_axis_lengths():
+
+    np.random.seed(52)
+    npart = 10000
+
+    a = 1.5 * unyt.kpc
+    b = 1.0 * unyt.kpc
+    c = 2.0 * unyt.kpc
+
+    position = unyt.unyt_array(
+        np.random.multivariate_normal(
+            [0.0, 0.0, 0.0],
+            [[a**2, 0.0, 0.0], [0.0, b**2, 0.0], [0.0, 0.0, c**2]],
+            size=npart,
+        ),
+        units="kpc",
+        dtype=np.float64,
+    )
+
+    mass = unyt.unyt_array(np.ones(npart), units="Msun")
+
+    print(get_axis_lengths(mass, position))
+
+
+if __name__ == "__main__":
+    test_axis_lengths()
