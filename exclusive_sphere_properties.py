@@ -100,16 +100,12 @@ class ExclusiveSphereProperties(HaloProperty):
             "Ekin_gas",
             "Ekin_star",
             "Mgas_SF",
-            "Mgas_noSF",
             "Mgasmetal",
             "Mgasmetal_SF",
-            "Mgasmetal_noSF",
             "MgasO",
             "MgasO_SF",
-            "MgasO_noSF",
             "MgasFe",
             "MgasFe_SF",
-            "MgasFe_noSF",
             "Tgas",
             "Tgas_no_agn",
             "SFR",
@@ -392,13 +388,11 @@ class ExclusiveSphereProperties(HaloProperty):
             is_SFR = SFR > 0.0
             exclusive_sphere["SFR"] += SFR[is_SFR].sum()
             exclusive_sphere["Mgas_SF"] += mass_gas[is_SFR].sum()
-            exclusive_sphere["Mgas_noSF"] += mass_gas[~is_SFR].sum()
             Mgasmetal = (
                 mass_gas
                 * data["PartType0"]["MetalMassFractions"][gas_mask_all][gas_mask_ap]
             )
             exclusive_sphere["Mgasmetal_SF"] += Mgasmetal[is_SFR].sum()
-            exclusive_sphere["Mgasmetal_noSF"] += Mgasmetal[~is_SFR].sum()
             exclusive_sphere["Mgasmetal"] += Mgasmetal.sum()
             MgasO = (
                 mass_gas
@@ -407,7 +401,6 @@ class ExclusiveSphereProperties(HaloProperty):
                 ][:, indexO]
             )
             exclusive_sphere["MgasO_SF"] += MgasO[is_SFR].sum()
-            exclusive_sphere["MgasO_noSF"] += MgasO[~is_SFR].sum()
             exclusive_sphere["MgasO"] += MgasO.sum()
             MgasFe = (
                 mass_gas
@@ -416,7 +409,6 @@ class ExclusiveSphereProperties(HaloProperty):
                 ][:, indexFe]
             )
             exclusive_sphere["MgasFe_SF"] += MgasFe[is_SFR].sum()
-            exclusive_sphere["MgasFe_noSF"] += MgasFe[~is_SFR].sum()
             exclusive_sphere["MgasFe"] += MgasFe.sum()
             gas_temp = data["PartType0"]["Temperatures"][gas_mask_all][gas_mask_ap]
             last_agn_gas = data["PartType0"]["LastAGNFeedbackScaleFactors"][
