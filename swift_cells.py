@@ -308,13 +308,20 @@ class SWIFTCellGrid:
                     kk = k % self.dimension[2]
                     mask[ii,jj,kk] = True
 
-    def read_masked_cells_to_shared_memory(self, property_names, mask, comm):
+    def read_masked_cells_to_shared_memory(self, property_names, mask, comm, max_ranks_reading):
         """
         Read in the specified properties for the cells with mask=True
         """
         
         comm_size = comm.Get_size()
         comm_rank = comm.Get_rank()
+
+        # Make a communicator containing I/O ranks only
+        colour = 0 if comm_rank < max_ranks_reading else MPI.UNDEFINED
+        comm_io = MPI.COMM_WORLD.Split(colour, comm_rank)
+        if comm_io != MPI.COMM_NULL:
+            comm_io_size = comm_io.Get_size()
+            comm_io_rank = comm_io.Get_rank()
 
         # Make a list of all reads to execute for each particle type in this snapshot
         reads_for_type = {}
@@ -359,18 +366,19 @@ class SWIFTCellGrid:
                               for (file_offset, mem_offset, count) in reads_for_type[ptype][file_nr]:
                                 all_tasks.append(ReadTask(filename, ptype, dataset, file_offset, mem_offset, count))
 
-        # Make one task queue per MPI rank
-        tasks = [collections.deque() for _ in range(comm_size)]
+        if comm_io != MPI.COMM_NULL:
+            # Make one task queue per MPI rank reading
+            tasks = [collections.deque() for _ in range(comm_io_size)]
 
-        # Share tasks over the task queues roughly equally by number
-        nr_tasks = len(all_tasks)
-        tasks_per_rank = nr_tasks // comm_size
-        for rank in range(comm_size):
-            for _ in range(tasks_per_rank):
-                tasks[rank].append(all_tasks.popleft())
-            if rank < nr_tasks % comm_size:
-                tasks[rank].append(all_tasks.popleft())
-        assert len(all_tasks) == 0
+            # Share tasks over the task queues roughly equally by number
+            nr_tasks = len(all_tasks)
+            tasks_per_rank = nr_tasks // comm_io_size
+            for rank in range(comm_io_size):
+                for _ in range(tasks_per_rank):
+                    tasks[rank].append(all_tasks.popleft())
+                if rank < nr_tasks % comm_io_size:
+                    tasks[rank].append(all_tasks.popleft())
+            assert len(all_tasks) == 0
 
         # Allocate MPI shared memory for the particle data
         data = {}
@@ -399,10 +407,11 @@ class SWIFTCellGrid:
         comm.barrier()
 
         # Execute the tasks
-        cache = DatasetCache()
-        task_queue.execute_tasks(tasks, args=(data, cache), comm_all=comm, comm_master=comm,
-                                 comm_workers=MPI.COMM_SELF, queue_per_rank=True)
-        cache.close()
+        if comm_io != MPI.COMM_NULL:
+            cache = DatasetCache()
+            task_queue.execute_tasks(tasks, args=(data, cache), comm_all=comm_io, comm_master=comm_io,
+                                     comm_workers=MPI.COMM_SELF, queue_per_rank=True)
+            cache.close()
 
         # Create empty arrays for particle types which exist in the reference snapshot but not this one
         for ptype in property_names:
@@ -420,6 +429,9 @@ class SWIFTCellGrid:
             for name in property_names[ptype]:
                 data[ptype][name].sync()
         comm.barrier()
+
+        if comm_io != MPI.COMM_NULL:
+            comm_io.Free()
 
         return data
 

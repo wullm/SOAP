@@ -81,13 +81,18 @@ mpirun python3 -u -m mpi4py ./compute_halo_properties.py \
     ${swift_filename} ${vr_basename} ${outfile} ${snapnum} \
     --chunks=${nr_chunks} \
     --extra-input=${extra_filename} \
-    --calculations so_masses centre_of_mass
+    --calculations so_masses centre_of_mass \
+    --max-ranks-reading=16
 ```
 
 Here, `--chunks` determines how many chunks the simulation box is
 split into. Ideally it should be set such that one chunk fills a compute node.
 The `--calculations` flag specifies which calculations should be carried out.
 The possible calculation names are defined in halo_properties.py.
+
+The `--max-ranks-reading` flag determines how many MPI ranks per node read the
+snapshot. This can be used to avoid overloading the file system. The default
+value is 32.
 
 See scripts/FLAMINGO/L1000N1800/halo_properties_L1000N1800.sh for an example
 batch script.
