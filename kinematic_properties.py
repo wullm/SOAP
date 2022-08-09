@@ -48,7 +48,12 @@ def get_angular_momentum(
 
 
 def get_angular_momentum_and_kappa_corot(
-    mass, position, velocity, ref_position=None, ref_velocity=None
+    mass,
+    position,
+    velocity,
+    ref_position=None,
+    ref_velocity=None,
+    do_counterrot_mass=False,
 ):
     """
     Get the total angular momentum vector (as in get_angular_momentum()) and
@@ -78,11 +83,17 @@ def get_angular_momentum_and_kappa_corot(
     Ltot = Lpart.sum(axis=0)
     Lnrm = unyt.array.unorm(Ltot)
 
+    if do_counterrot_mass:
+        M_counterrot = unyt.unyt_array(
+            0.0, dtype=np.float32, units=mass.units, registry=mass.units.registry
+        )
+
     if Lnrm > 0.0 * Lnrm.units:
         K = 0.5 * (mass[:, None] * vrel**2).sum()
-        if K > 0.0 * K.units:
+        if K > 0.0 * K.units or do_counterrot_mass:
             Ldir = Ltot / Lnrm
             Li = (Lpart * Ldir[None, :]).sum(axis=1)
+        if K > 0.0 * K.units:
             r2 = prel[:, 0] ** 2 + prel[:, 1] ** 2 + prel[:, 2] ** 2
             rdotL = (prel * Ldir[None, :]).sum(axis=1)
             Ri2 = r2 - rdotL**2
@@ -94,7 +105,13 @@ def get_angular_momentum_and_kappa_corot(
             Kcorot = Krot[(~mask) & (Li > 0.0 * Li.units)].sum()
             kappa_corot += Kcorot / K
 
-    return Ltot, kappa_corot
+        if do_counterrot_mass:
+            M_counterrot += mass[Li < 0.0 * Li.units].sum()
+
+    if do_counterrot_mass:
+        return Ltot, kappa_corot, M_counterrot
+    else:
+        return Ltot, kappa_corot
 
 
 def get_vmax(mass, radius):
