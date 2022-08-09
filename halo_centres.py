@@ -149,15 +149,12 @@ class SOCatalogue:
         # this is the maximum radius we'll search to reach the required overdensity
         local_halo["read_radius"] = local_halo["search_radius"].copy()
         min_radius = 5.0*swift_cmpc
-        ind = local_halo["read_radius"] < min_radius
-        local_halo["read_radius"][ind] = min_radius
+        local_halo["read_radius"] = local_halo["read_radius"].clip(min=min_radius)
 
         # Ensure that both the initial search radius and the radius to read in
         # are >= the minimum physical radius required by property calculations
-        ind = local_halo["read_radius"] < physical_radius_mpc
-        local_halo["read_radius"][ind] = physical_radius_mpc
-        ind = local_halo["search_radius"] < physical_radius_mpc
-        local_halo["search_radius"][ind] = physical_radius_mpc
+        local_halo["read_radius"] = local_halo["read_radius"].clip(min=physical_radius_mpc)
+        local_halo["search_radius"] = local_halo["search_radius"].clip(min=physical_radius_mpc)
 
         # Discard satellites, if necessary
         if centrals_only:

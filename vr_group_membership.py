@@ -31,7 +31,7 @@ if __name__ == "__main__":
     # Find group number for each particle ID in the VR output
     (length_bound, offset_bound, ids_bound,
      length_unbound, offset_unbound, ids_unbound) = read_vr.read_vr_lengths_and_offsets(args.vr_basename)
-    grnr_bound = read_vr.vr_group_membership_from_ids(length_bound, offset_bound, ids_bound)
+    grnr_bound, grnr_rank = read_vr.vr_group_membership_from_ids(length_bound, offset_bound, ids_bound, return_rank=True)
     grnr_unbound = read_vr.vr_group_membership_from_ids(length_unbound, offset_unbound, ids_unbound)
 
     # Determine SWIFT particle types which exist in the snapshot
@@ -59,7 +59,8 @@ if __name__ == "__main__":
 
         # Allocate array to store SWIFT particle group membership
         swift_grnr_bound   = np.ndarray(len(swift_ids), dtype=grnr_bound.dtype)
-        swift_grnr_unbound = np.ndarray(len(swift_ids), dtype=grnr_bound.dtype)
+        swift_rank_bound   = np.ndarray(len(swift_ids), dtype=rank_bound.dtype)
+        swift_grnr_unbound = np.ndarray(len(swift_ids), dtype=grnr_unbound.dtype)
 
         if comm_rank == 0:
             print("  Matching SWIFT particle IDs to VR bound IDs")
@@ -70,6 +71,11 @@ if __name__ == "__main__":
         matched = ptr >= 0
         swift_grnr_bound[matched] = ps.fetch_elements(grnr_bound, ptr[matched])
         swift_grnr_bound[matched==False] = -1
+
+        if comm_rank == 0:
+            print("  Assigning VR rank by binding energy to SWIFT particles")
+        swift_rank_bound[matched] = ps.fetch_elements(rank_bound, ptr[matched])
+        swift_rank_bound[matched==False] = -1
 
         if comm_rank == 0:
             print("  Matching SWIFT particle IDs to VR unbound IDs")
@@ -102,8 +108,10 @@ if __name__ == "__main__":
             "h-scale exponent" : [0.0,],
         }
         attrs = {"GroupNr_bound" : {"Description" : "Index of halo in which this particle is a bound member, or -1 if none"},
+                 "Rank_bound" : {"Description" : "Ranking by binding energy of the bound particles (first in halo=0), or -1 if not bound"},
                  "GroupNr_all" : {"Description" : "Index of halo in which this particle is a member (bound or unbound), or -1 if none"}}
         attrs["GroupNr_bound"].update(unit_attrs)
+        attrs["Rank_bound"].update(unit_attrs)
         attrs["GroupNr_all"].update(unit_attrs)
 
         # Write these particles out with the same layout as the input snapshot
@@ -111,6 +119,7 @@ if __name__ == "__main__":
             print("  Writing out VR group membership of SWIFT particles")
         elements_per_file = snap_file.get_elements_per_file("ParticleIDs", group=ptype)
         output = {"GroupNr_bound"   : swift_grnr_bound,
+                  "Rank_bound"      : swift_rank_bound,
                   "GroupNr_all"     : swift_grnr_all}
         snap_file.write(output, elements_per_file, filenames=args.output_file, mode=mode, group=ptype, attrs=attrs)
 
@@ -122,6 +131,7 @@ if __name__ == "__main__":
                 print("  Writing out VR group membership to virtual file")
             vfile = h5py.File(args.update_virtual_file, "r+", driver="mpio", comm=comm)
             virgo.mpi.parallel_hdf5.collective_write(vfile[ptype], prefix+"GroupNr_bound", swift_grnr_bound, comm)
+            virgo.mpi.parallel_hdf5.collective_write(vfile[ptype], prefix+"Rank_bound", swift_rank_bound, comm)
             virgo.mpi.parallel_hdf5.collective_write(vfile[ptype], prefix+"GroupNr_all", swift_grnr_all, comm)
             vfile.close()
 
