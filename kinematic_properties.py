@@ -133,28 +133,85 @@ def get_axis_lengths(mass, position):
     return axes
 
 
+def get_projected_axis_lengths(mass, position, axis):
+
+    projected_position = unyt.unyt_array(
+        np.zeros((position.shape[0], 2)), units=position.units, dtype=position.dtype
+    )
+    if axis == 0:
+        projected_position[:, 0] = position[:, 1]
+        projected_position[:, 1] = position[:, 2]
+    elif axis == 1:
+        projected_position[:, 0] = position[:, 2]
+        projected_position[:, 1] = position[:, 0]
+    elif axis == 2:
+        projected_position[:, 0] = position[:, 0]
+        projected_position[:, 1] = position[:, 1]
+    else:
+        raise AttributeError(f"Invalid axis: {axis}!")
+
+    Itensor = (mass[:, None, None] / mass.sum()) * np.ones((mass.shape[0], 2, 2))
+    # Note: unyt currently ignores the position units in the *=
+    # i.e. Itensor is dimensionless throughout (even though it should not be)
+    for i in range(2):
+        for j in range(2):
+            Itensor[:, i, j] *= projected_position[:, i] * projected_position[:, j]
+    Itensor = Itensor.sum(axis=0)
+
+    # linalg.eigenvals cannot deal with units anyway, so we have to add them
+    # back in
+    axes = np.sqrt(np.linalg.eigvals(Itensor)) * projected_position.units
+
+    # sort the axes from long to short
+    axes.sort()
+    axes = axes[::-1]
+
+    return axes
+
+
 def test_axis_lengths():
 
     np.random.seed(52)
-    npart = 10000
 
-    a = 1.5 * unyt.kpc
-    b = 1.0 * unyt.kpc
-    c = 2.0 * unyt.kpc
+    for i in range(1000):
+        npart = np.random.choice([10, 100, 1000, 10000, 100000])
+        a = (10.0 * np.random.random() + 0.1) * unyt.kpc
+        b = (10.0 * np.random.random() + 0.1) * unyt.kpc
+        c = (10.0 * np.random.random() + 0.1) * unyt.kpc
 
-    position = unyt.unyt_array(
-        np.random.multivariate_normal(
-            [0.0, 0.0, 0.0],
-            [[a**2, 0.0, 0.0], [0.0, b**2, 0.0], [0.0, 0.0, c**2]],
-            size=npart,
-        ),
-        units="kpc",
-        dtype=np.float64,
-    )
+        position = unyt.unyt_array(
+            np.random.multivariate_normal(
+                [0.0, 0.0, 0.0],
+                [[a**2, 0.0, 0.0], [0.0, b**2, 0.0], [0.0, 0.0, c**2]],
+                size=npart,
+            ),
+            units="kpc",
+            dtype=np.float64,
+        )
 
-    mass = unyt.unyt_array(np.ones(npart), units="Msun")
+        mass = unyt.unyt_array(np.ones(npart), units="Msun")
 
-    print(get_axis_lengths(mass, position))
+        axes = get_axis_lengths(mass, position)
+        refaxes = unyt.unyt_array([a, b, c])
+        refaxes.sort()
+        refaxes = refaxes[::-1]
+        for ca, ra in zip(axes, refaxes):
+            assert abs(ca - ra) / refaxes[0] < 3.0 / np.sqrt(npart)
+
+        axes = get_projected_axis_lengths(mass, position, 0)
+        refaxes = unyt.unyt_array([max(b, c), min(b, c)])
+        for ca, ra in zip(axes, refaxes):
+            assert abs(ca - ra) / refaxes[0] < 3.0 / np.sqrt(npart)
+
+        axes = get_projected_axis_lengths(mass, position, 1)
+        refaxes = unyt.unyt_array([max(a, c), min(a, c)])
+        for ca, ra in zip(axes, refaxes):
+            assert abs(ca - ra) / refaxes[0] < 3.0 / np.sqrt(npart)
+
+        axes = get_projected_axis_lengths(mass, position, 2)
+        refaxes = unyt.unyt_array([max(a, b), min(a, b)])
+        for ca, ra in zip(axes, refaxes):
+            assert abs(ca - ra) / refaxes[0] < 3.0 / np.sqrt(npart)
 
 
 if __name__ == "__main__":
