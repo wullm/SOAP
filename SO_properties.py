@@ -209,7 +209,7 @@ class SOProperties(HaloProperty):
 
     # get the properties we want from the table
     property_list = [
-        PropertyTable.full_property_list[prop]
+        (prop, *PropertyTable.full_property_list[prop])
         for prop in [
             "r",
             "Mtot",
@@ -359,7 +359,7 @@ class SOProperties(HaloProperty):
         # all variables are defined with physical units and an appropriate dtype
         # we need to use the custom unit registry so that everything can be converted
         # back to snapshot units in the end
-        for name, shape, dtype, unit, _, _ in self.property_list:
+        for name, _, shape, dtype, unit, _, _ in self.property_list:
             if shape > 1:
                 val = [0] * shape
             else:
@@ -368,10 +368,10 @@ class SOProperties(HaloProperty):
 
         # SOs only exist for central galaxies
         if input_halo["Structuretype"] != 10:
-            for name, _, _, _, description, _ in self.property_list:
+            for name, outputname, _, _, _, description, _ in self.property_list:
                 halo_result.update(
                     {
-                        f"SO/{self.SO_name}/{name}": (
+                        f"SO/{self.SO_name}/{outputname}": (
                             SO[name],
                             description.format(label=self.label),
                         )
@@ -718,10 +718,10 @@ class SOProperties(HaloProperty):
 
         # Return value should be a dict containing unyt_arrays and descriptions.
         # The dict keys will be used as HDF5 dataset names in the output.
-        for name, _, _, _, description, _ in self.property_list:
+        for name, outputname, _, _, _, description, _ in self.property_list:
             halo_result.update(
                 {
-                    f"SO/{self.SO_name}/{name}": (
+                    f"SO/{self.SO_name}/{outputname}": (
                         SO[name],
                         description.format(label=self.label),
                     )
@@ -878,8 +878,16 @@ def test_SO_properties():
             assert input_halo_copy == input_halo
             assert input_data_copy == input_data
 
-            for name, size, dtype, unit_string, _, _ in prop_calc.property_list:
-                full_name = f"SO/{SO_name}/{name}"
+            for (
+                _,
+                outputname,
+                size,
+                dtype,
+                unit_string,
+                _,
+                _,
+            ) in prop_calc.property_list:
+                full_name = f"SO/{SO_name}/{outputname}"
                 assert full_name in halo_result
                 result = halo_result[full_name][0]
                 assert (len(result.shape) == 0 and size == 1) or result.shape[0] == size
@@ -895,18 +903,3 @@ if __name__ == "__main__":
     print("Calling test_SO_properties()...")
     test_SO_properties()
     print("Test passed.")
-
-    print("Name & Size & Unit & Type & Description \\\\")
-    for (
-        name,
-        size,
-        dtype,
-        unit,
-        description,
-    ) in SOProperties.property_list:
-        unit_str = unit.__str__()
-        unit_str = unit_str.replace("1.98841586e+30 kg", "M$_\\odot{}$")
-        unit_str = unit_str.replace(">", "$>$")
-        print(
-            f"\\verb+{name}+ & {size} & {unit_str} & {dtype.__name__} & {description.format(label='with a radius as determined for this particular SO type.')} \\\\"
-        )

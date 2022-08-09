@@ -65,7 +65,7 @@ class ExclusiveSphereProperties(HaloProperty):
 
     # get the properties we want from the table
     property_list = [
-        PropertyTable.full_property_list[prop]
+        (prop, *PropertyTable.full_property_list[prop])
         for prop in [
             "Mtot",
             "Mgas",
@@ -188,7 +188,7 @@ class ExclusiveSphereProperties(HaloProperty):
         # all variables are defined with physical units and an appropriate dtype
         # we need to use the custom unit registry so that everything can be converted
         # back to snapshot units in the end
-        for name, shape, dtype, unit, _, _ in self.property_list:
+        for name, _, shape, dtype, unit, _, _ in self.property_list:
             if shape > 1:
                 val = [0] * shape
             else:
@@ -457,10 +457,10 @@ class ExclusiveSphereProperties(HaloProperty):
                 )
 
         prefix = f"ExclusiveSphere/{self.physical_radius_mpc*1000.:.0f}kpc"
-        for name, _, _, _, description, _ in self.property_list:
+        for name, outputname, _, _, _, description, _ in self.property_list:
             halo_result.update(
                 {
-                    f"{prefix}/{name}": (
+                    f"{prefix}/{outputname}": (
                         exclusive_sphere[name],
                         description,
                     )
@@ -525,8 +525,16 @@ def test_exclusive_sphere_properties():
         assert input_data == input_data_copy
 
         # check that the calculation returns the correct values
-        for (name, size, dtype, unit_string, _, _) in property_calculator.property_list:
-            full_name = f"ExclusiveSphere/50kpc/{name}"
+        for (
+            _,
+            outputname,
+            size,
+            dtype,
+            unit_string,
+            _,
+            _,
+        ) in property_calculator.property_list:
+            full_name = f"ExclusiveSphere/50kpc/{outputname}"
             assert full_name in halo_result
             result = halo_result[full_name][0]
             assert (len(result.shape) == 0 and size == 1) or result.shape[0] == size
@@ -544,17 +552,3 @@ if __name__ == "__main__":
     print("Running test_exclusive_sphere_properties()...")
     test_exclusive_sphere_properties()
     print("Test passed.")
-
-    print("Name & Size & Unit & Type & Description \\\\")
-    for (
-        name,
-        size,
-        dtype,
-        unit,
-        description,
-    ) in ExclusiveSphereProperties.property_list:
-        unit_str = unit.__str__()
-        unit_str = unit_str.replace("1.98841586e+30 kg", "M$_\\odot{}$")
-        print(
-            f"\\verb+{name}+ & {size} & {unit_str} & {dtype.__name__} & {description} \\\\"
-        )

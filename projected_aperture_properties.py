@@ -21,7 +21,7 @@ class ProjectedApertureProperties(HaloProperty):
 
     # get the properties we want from the table
     property_list = [
-        PropertyTable.full_property_list[prop]
+        (prop, *PropertyTable.full_property_list[prop])
         for prop in [
             "Mtot",
             "Mgas",
@@ -156,7 +156,7 @@ class ProjectedApertureProperties(HaloProperty):
             # all variables are defined with physical units and an appropriate dtype
             # we need to use the custom unit registry so that everything can be converted
             # back to snapshot units in the end
-            for name, shape, dtype, unit, _, _ in self.property_list:
+            for name, _, shape, dtype, unit, _, _ in self.property_list:
                 if shape > 1:
                     val = [0] * shape
                 else:
@@ -295,9 +295,9 @@ class ProjectedApertureProperties(HaloProperty):
             prefix = (
                 f"ProjectedAperture/{self.physical_radius_mpc*1000.:.0f}kpc/{projname}"
             )
-            for name, _, _, _, description, _ in self.property_list:
+            for name, outputname, _, _, _, description, _ in self.property_list:
                 halo_result.update(
-                    {f"{prefix}/{name}": (projected_aperture[name], description)}
+                    {f"{prefix}/{outputname}": (projected_aperture[name], description)}
                 )
 
         return
@@ -350,14 +350,15 @@ def test_projected_aperture_properties():
 
         for proj in ["projx", "projy", "projz"]:
             for (
-                name,
+                _,
+                outputname,
                 size,
                 dtype,
                 unit_string,
                 _,
                 _,
             ) in property_calculator.property_list:
-                full_name = f"ProjectedAperture/30kpc/{proj}/{name}"
+                full_name = f"ProjectedAperture/30kpc/{proj}/{outputname}"
                 assert full_name in halo_result
                 result = halo_result[full_name][0]
                 assert (len(result.shape) == 0 and size == 1) or result.shape[0] == size
@@ -377,17 +378,3 @@ if __name__ == "__main__":
     print("Calling test_projected_aperture_properties()...")
     test_projected_aperture_properties()
     print("Test passed.")
-
-    print("Name & Size & Unit & Type & Description \\\\")
-    for (
-        name,
-        size,
-        dtype,
-        unit,
-        description,
-    ) in ProjectedApertureProperties.property_list:
-        unit_str = unit.__str__()
-        unit_str = unit_str.replace("1.98841586e+30 kg", "M$_\\odot{}$")
-        print(
-            f"\\verb+{name}+ & {size} & {unit_str} & {dtype.__name__} & {description} \\\\"
-        )

@@ -63,7 +63,7 @@ class InclusiveSphereProperties(HaloProperty):
 
     # get the properties we want from the table
     property_list = [
-        PropertyTable.full_property_list[prop]
+        (prop, *PropertyTable.full_property_list[prop])
         for prop in [
             "Mtot",
             "Ngas",
@@ -151,7 +151,7 @@ class InclusiveSphereProperties(HaloProperty):
         # all variables are defined with physical units and an appropriate dtype
         # we need to use the custom unit registry so that everything can be converted
         # back to snapshot units in the end
-        for name, shape, dtype, unit, _, _ in self.property_list:
+        for name, _, shape, dtype, unit, _, _ in self.property_list:
             if shape > 1:
                 val = [0] * shape
             else:
@@ -162,10 +162,10 @@ class InclusiveSphereProperties(HaloProperty):
 
         # inclusive spheres only exist for central galaxies?
         if input_halo["Structuretype"] != 10:
-            for name, _, _, _, description, _ in self.property_list:
+            for name, outputname, _, _, _, description, _ in self.property_list:
                 halo_result.update(
                     {
-                        f"InclusiveSphere/{self.physical_radius_mpc*1000.:.0f}kpc/{name}": (
+                        f"InclusiveSphere/{self.physical_radius_mpc*1000.:.0f}kpc/{outputname}": (
                             inclusive_sphere[name],
                             description,
                         )
@@ -460,10 +460,10 @@ class InclusiveSphereProperties(HaloProperty):
 
         # Return value should be a dict containing unyt_arrays and descriptions.
         # The dict keys will be used as HDF5 dataset names in the output.
-        for name, _, _, _, description, _ in self.property_list:
+        for name, outputname, _, _, _, description, _ in self.property_list:
             halo_result.update(
                 {
-                    f"InclusiveSphere/{self.physical_radius_mpc*1000.:.0f}kpc/{name}": (
+                    f"InclusiveSphere/{self.physical_radius_mpc*1000.:.0f}kpc/{outputname}": (
                         inclusive_sphere[name],
                         description,
                     )
@@ -504,14 +504,15 @@ def test_inclusive_sphere_properties():
         assert input_data_copy == input_data
 
         for (
-            name,
+            _,
+            outputname,
             size,
             dtype,
             unit_string,
             _,
             _,
         ) in property_calculator_50kpc.property_list:
-            full_name = f"InclusiveSphere/50kpc/{name}"
+            full_name = f"InclusiveSphere/50kpc/{outputname}"
             assert full_name in halo_result
             result = halo_result[full_name][0]
             assert (len(result.shape) == 0 and size == 1) or result.shape[0] == size

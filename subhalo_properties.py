@@ -19,7 +19,7 @@ class SubhaloProperties(HaloProperty):
 
     # get the properties we want from the table
     property_list = [
-        PropertyTable.full_property_list[prop]
+        (prop, *PropertyTable.full_property_list[prop])
         for prop in [
             "Mtot",
             "Mgas",
@@ -176,7 +176,7 @@ class SubhaloProperties(HaloProperty):
         # all variables are defined with physical units and an appropriate dtype
         # we need to use the custom unit registry so that everything can be converted
         # back to snapshot units in the end
-        for name, shape, dtype, unit, _, _ in self.property_list:
+        for name, _, shape, dtype, unit, _, _ in self.property_list:
             if shape > 1:
                 val = [0] * shape
             else:
@@ -386,10 +386,10 @@ class SubhaloProperties(HaloProperty):
             prefix = "BoundSubhaloProperties"
         else:
             prefix = "FOFSubhaloProperties"
-        for name, _, _, _, description, _ in self.property_list:
+        for name, outputname, _, _, _, description, _ in self.property_list:
             halo_result.update(
                 {
-                    f"{prefix}/{name}": (
+                    f"{prefix}/{outputname}": (
                         subhalo[name],
                         description,
                     )
@@ -445,14 +445,15 @@ def test_subhalo_properties():
 
             # check that the calculation returns the correct values
             for (
-                name,
+                _,
+                outputname,
                 size,
                 dtype,
                 unit_string,
                 _,
                 _,
             ) in prop_calc.property_list:
-                full_name = f"{subhalo_name}/{name}"
+                full_name = f"{subhalo_name}/{outputname}"
                 assert full_name in halo_result
                 result = halo_result[full_name][0]
                 assert (len(result.shape) == 0 and size == 1) or result.shape[0] == size
@@ -470,17 +471,3 @@ if __name__ == "__main__":
     print("Running test_subhalo_properties()...")
     test_subhalo_properties()
     print("Test passed.")
-
-    print("Name & Size & Unit & Type & Description \\\\")
-    for (
-        name,
-        size,
-        dtype,
-        unit,
-        description,
-    ) in SubhaloProperties.property_list:
-        unit_str = unit.__str__()
-        unit_str = unit_str.replace("1.98841586e+30 kg", "M$_\\odot{}$")
-        print(
-            f"\\verb+{name}+ & {size} & {unit_str} & {dtype.__name__} & {description} \\\\"
-        )
