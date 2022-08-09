@@ -28,6 +28,7 @@ import command_line_args
 import SO_properties
 import subhalo_properties
 import exclusive_sphere_properties
+import inclusive_sphere_properties
 import result_set
 import projected_aperture_properties
 from recently_heated_gas_filter import RecentlyHeatedGasFilter
@@ -133,13 +134,7 @@ def compute_halo_properties():
         subhalo_properties.SubhaloProperties(
             cellgrid, recently_heated_gas_filter, bound_only=False
         ),
-        SO_properties.SOProperties(cellgrid, recently_heated_gas_filter, 50.0, "mean"),
-        SO_properties.SOProperties(cellgrid, recently_heated_gas_filter, 100.0, "mean"),
         SO_properties.SOProperties(cellgrid, recently_heated_gas_filter, 200.0, "mean"),
-        SO_properties.SOProperties(cellgrid, recently_heated_gas_filter, 500.0, "mean"),
-        SO_properties.SOProperties(
-            cellgrid, recently_heated_gas_filter, 2500.0, "mean"
-        ),
         SO_properties.SOProperties(cellgrid, recently_heated_gas_filter, 50.0, "crit"),
         SO_properties.SOProperties(cellgrid, recently_heated_gas_filter, 100.0, "crit"),
         SO_properties.SOProperties(cellgrid, recently_heated_gas_filter, 200.0, "crit"),
@@ -147,36 +142,33 @@ def compute_halo_properties():
         SO_properties.SOProperties(
             cellgrid, recently_heated_gas_filter, 2500.0, "crit"
         ),
-        SO_properties.SOProperties(
-            cellgrid, recently_heated_gas_filter, 10.0, "physical"
-        ),
-        SO_properties.SOProperties(
-            cellgrid, recently_heated_gas_filter, 30.0, "physical"
-        ),
-        SO_properties.SOProperties(
-            cellgrid, recently_heated_gas_filter, 50.0, "physical"
-        ),
-        SO_properties.SOProperties(
-            cellgrid, recently_heated_gas_filter, 100.0, "physical"
-        ),
-        SO_properties.SOProperties(
-            cellgrid, recently_heated_gas_filter, 300.0, "physical"
-        ),
-        SO_properties.SOProperties(
-            cellgrid, recently_heated_gas_filter, 500.0, "physical"
-        ),
-        SO_properties.SOProperties(
-            cellgrid, recently_heated_gas_filter, 1000.0, "physical"
-        ),
-        SO_properties.SOProperties(
-            cellgrid, recently_heated_gas_filter, 3000.0, "physical"
-        ),
         SO_properties.SOProperties(cellgrid, recently_heated_gas_filter, 0.0, "BN98"),
         SO_properties.RadiusMultipleSOProperties(
-            cellgrid, recently_heated_gas_filter, 500.0, 5.0, type="mean"
-        ),
-        SO_properties.RadiusMultipleSOProperties(
             cellgrid, recently_heated_gas_filter, 500.0, 5.0, type="crit"
+        ),
+        inclusive_sphere_properties.InclusiveSphereProperties(
+            cellgrid, 10.0, recently_heated_gas_filter
+        ),
+        inclusive_sphere_properties.InclusiveSphereProperties(
+            cellgrid, 30.0, recently_heated_gas_filter
+        ),
+        inclusive_sphere_properties.InclusiveSphereProperties(
+            cellgrid, 50.0, recently_heated_gas_filter
+        ),
+        inclusive_sphere_properties.InclusiveSphereProperties(
+            cellgrid, 100.0, recently_heated_gas_filter
+        ),
+        inclusive_sphere_properties.InclusiveSphereProperties(
+            cellgrid, 300.0, recently_heated_gas_filter
+        ),
+        inclusive_sphere_properties.InclusiveSphereProperties(
+            cellgrid, 500.0, recently_heated_gas_filter
+        ),
+        inclusive_sphere_properties.InclusiveSphereProperties(
+            cellgrid, 1000.0, recently_heated_gas_filter
+        ),
+        inclusive_sphere_properties.InclusiveSphereProperties(
+            cellgrid, 3000.0, recently_heated_gas_filter
         ),
         projected_aperture_properties.ProjectedApertureProperties(cellgrid, 10.0),
         projected_aperture_properties.ProjectedApertureProperties(cellgrid, 30.0),
