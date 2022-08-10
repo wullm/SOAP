@@ -111,7 +111,6 @@ class ExclusiveSphereProperties(HaloProperty):
             "SFR",
             "StellarLuminosity",
             "Mstarmetal",
-            "HalfMassRadiusTot",
             "HalfMassRadiusGas",
             "HalfMassRadiusDM",
             "HalfMassRadiusStar",
@@ -428,20 +427,17 @@ class ExclusiveSphereProperties(HaloProperty):
 
         for name, r, m, M in zip(
             [
-                "HalfMassRadiusTot",
                 "HalfMassRadiusGas",
                 "HalfMassRadiusDM",
                 "HalfMassRadiusStar",
             ],
             [
-                radius,
                 radius[type == "PartType0"],
                 radius[type == "PartType1"],
                 radius[type == "PartType4"],
             ],
-            [mass, mass_gas, mass_dm, mass_star],
+            [mass_gas, mass_dm, mass_star],
             [
-                exclusive_sphere["Mtot"],
                 exclusive_sphere["Mgas"],
                 exclusive_sphere["Mdm"],
                 exclusive_sphere["Mstar"],

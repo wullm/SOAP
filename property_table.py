@@ -103,7 +103,7 @@ class PropertyTable:
             3,
             np.float32,
             "kpc",
-            "Axis lengths of the baryonic (gas and stars) mass distribution, computed from the 3D baryon intertia tensor.",
+            "Axis lengths of the baryonic (gas and stars) mass distribution, computed from the 3D baryon inertia tensor.",
             "baryon",
         ),
         "DMAxisLengths": (
@@ -111,7 +111,7 @@ class PropertyTable:
             3,
             np.float32,
             "kpc",
-            "Axis lengths of the dark matter mass distribution, computed from the 3D DM intertia tensor.",
+            "Axis lengths of the dark matter mass distribution, computed from the 3D DM inertia tensor.",
             "dm",
         ),
         "DiscToTotalMassFraction": (
@@ -152,7 +152,7 @@ class PropertyTable:
             3,
             np.float32,
             "kpc",
-            "Axis lengths of the gas mass distribution, computed from the 3D gas intertia tensor.",
+            "Axis lengths of the gas mass distribution, computed from the 3D gas inertia tensor.",
             "gas",
         ),
         "HalfMassRadiusBaryon": (
@@ -428,7 +428,7 @@ class PropertyTable:
             3,
             np.float32,
             "kpc",
-            "Axis lengths of the stellar mass distribution, computed from the 3D stellar intertia tensor.",
+            "Axis lengths of the stellar mass distribution, computed from the 3D stellar inertia tensor.",
             "star",
         ),
         "StellarLuminosity": (
@@ -476,7 +476,7 @@ class PropertyTable:
             3,
             np.float32,
             "kpc",
-            "Axis lengths of the total mass distribution, computed from the 3D gas intertia tensor.",
+            "Axis lengths of the total mass distribution, computed from the 3D inertia tensor.",
             "general",
         ),
         "Vmax": (
