@@ -9,6 +9,7 @@ from kinematic_properties import (
     get_velocity_dispersion_matrix,
     get_angular_momentum,
     get_vmax,
+    get_axis_lengths,
 )
 from recently_heated_gas_filter import RecentlyHeatedGasFilter
 from property_table import PropertyTable
@@ -265,6 +266,7 @@ class SOProperties(HaloProperty):
             "Mnu",
             "spin_parameter",
             "SFR",
+            "TotalAxisLengths",
         ]
     ]
 
@@ -525,6 +527,7 @@ class SOProperties(HaloProperty):
                     SO["spin_parameter"] += Ltot / (
                         np.sqrt(2.0) * Mtotpart * SO["r"] * vmax
                     )
+                SO["TotalAxisLengths"] += get_axis_lengths(mass, position)
 
             SO["Mfrac_satellites"] += mass[is_bound_to_satellite].sum() / SO["Mtot"]
 

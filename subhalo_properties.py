@@ -10,6 +10,7 @@ from kinematic_properties import (
     get_angular_momentum,
     get_angular_momentum_and_kappa_corot,
     get_vmax,
+    get_axis_lengths,
 )
 from recently_heated_gas_filter import RecentlyHeatedGasFilter
 from property_table import PropertyTable
@@ -63,6 +64,7 @@ class SubhaloProperties(HaloProperty):
             "HalfMassRadiusGas",
             "HalfMassRadiusDM",
             "HalfMassRadiusStar",
+            "TotalAxisLengths",
         ]
     ]
 
@@ -284,6 +286,7 @@ class SubhaloProperties(HaloProperty):
                     subhalo["spin_parameter"] += Ltot / (
                         np.sqrt(2.0) * M_r_vmax * vmax * r_vmax
                     )
+            subhalo["TotalAxisLengths"] += get_axis_lengths(mass, position)
 
         if subhalo["Mgas"] > 0.0 * subhalo["Mgas"].units:
             frac_mgas = mass_gas / subhalo["Mgas"]
