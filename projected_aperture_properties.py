@@ -45,6 +45,8 @@ class ProjectedApertureProperties(HaloProperty):
             "proj_veldisp_gas",
             "proj_veldisp_dm",
             "proj_veldisp_star",
+            "BHmaxM",
+            "BHmaxID",
         ]
     ]
 
@@ -70,6 +72,7 @@ class ProjectedApertureProperties(HaloProperty):
             "Coordinates",
             "DynamicalMasses",
             "GroupNr_bound",
+            "ParticleIDs",
             "SubgridMasses",
             "Velocities",
         ],
@@ -216,9 +219,16 @@ class ProjectedApertureProperties(HaloProperty):
             ].sum()
             if np.any(bh_mask_ap):
                 bh_mask_all = data["PartType5"]["GroupNr_bound"] == index
-                projected_aperture["Mbh_subgrid"] += data["PartType5"]["SubgridMasses"][
-                    bh_mask_all
-                ][bh_mask_ap].sum()
+                bh_masses = data["PartType5"]["SubgridMasses"][bh_mask_all][bh_mask_ap]
+                projected_aperture["Mbh_subgrid"] += bh_masses.sum()
+                iBHmax = np.argmax(bh_masses)
+                projected_aperture["BHmaxM"] += bh_masses[iBHmax]
+                projected_aperture["BHmaxID"] = (
+                    data["PartType5"]["ParticleIDs"][bh_mask_all][bh_mask_ap][
+                        iBHmax
+                    ].astype(projected_aperture["BHmaxID"].dtype)
+                    * projected_aperture["BHmaxID"].units
+                )
 
             if projected_aperture["Mtot"] > 0.0 * projected_aperture["Mtot"].units:
                 mass_frac = proj_mass / projected_aperture["Mtot"]
