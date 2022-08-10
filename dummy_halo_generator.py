@@ -139,6 +139,7 @@ class DummyCellGrid:
         # Get the box size. Assume it's comoving with no h factors.
         comoving_length_unit = self.get_unit("snap_length", reg) * self.a_unit
         self.boxsize = unyt.unyt_quantity(100.0, units=comoving_length_unit)
+        self.observer_position = unyt.unyt_array([50.0] * 3, units=comoving_length_unit)
 
 
 class DummyHaloGenerator:
@@ -179,6 +180,7 @@ class DummyHaloGenerator:
           "ComptonYParameters": (np.float32, snap_length**2, 0., 5.e-9),
           "Coordinates": (np.float64, a*snap_length, 0., boxsize),
           "Densities": (np.float32, snap_mass/(a**3*snap_length**3), 0.1, 1.e8),
+          "ElectronNumberDensities": (np.float64, 1/snap_length**3, 0., 3.4e73),
           "GroupNr_bound": (np.int32, dimensionless, N/A),
           "LastAGNFeedbackScaleFactors": (np.float32, dimensionless, 0., 1.),
           "Masses": (np.float32, snap_mass, 0.1, 0.1),
@@ -331,6 +333,14 @@ class DummyHaloGenerator:
                 units="snap_mass/(a**3*snap_length**3)",
                 registry=reg,
             )
+            data["PartType0"]["ElectronNumberDensities"] = unyt.unyt_array(
+                10.0 ** (65.0 + 8.0 * np.random.random(Ngas)),
+                dtype=np.float64,
+                units="1/snap_length**3",
+                registry=reg,
+            )
+            idx0 = np.random.choice(np.arange(Ngas), size=Ngas // 10, replace=False)
+            data["PartType0"]["ElectronNumberDensities"][idx0] = 0.0
             data["PartType0"]["GroupNr_all"] = groupnr_all[gas_mask]
             data["PartType0"]["GroupNr_bound"] = groupnr_bound[gas_mask]
             # we assume a fixed "snapshot" redshift of 0.1, so we make sure

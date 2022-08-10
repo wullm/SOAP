@@ -176,6 +176,7 @@ class SOProperties(HaloProperty):
             "ComptonYParameters",
             "Coordinates",
             "Densities",
+            "ElectronNumberDensities",
             "GroupNr_bound",
             "LastAGNFeedbackScaleFactors",
             "Masses",
@@ -267,10 +268,17 @@ class SOProperties(HaloProperty):
             "spin_parameter",
             "SFR",
             "TotalAxisLengths",
+            "DopplerB",
         ]
     ]
 
-    def __init__(self, cellgrid, recently_heated_gas_filter, SOval, type="mean"):
+    def __init__(
+        self,
+        cellgrid,
+        recently_heated_gas_filter,
+        SOval,
+        type="mean",
+    ):
         super().__init__(cellgrid)
 
         if not type in ["mean", "crit", "physical", "BN98"]:
@@ -278,6 +286,8 @@ class SOProperties(HaloProperty):
         self.type = type
 
         self.filter = recently_heated_gas_filter
+
+        self.observer_position = cellgrid.observer_position
 
         # in the neutrino model, the mean neutrino density is implicitly
         # assumed to be based on Omega_nu_0 and critical_density_0
@@ -644,23 +654,52 @@ class SOProperties(HaloProperty):
 
                 # below we need to force conversion to np.float64 before summing up particles
                 # to avoid overflow
-                ekin_gas = gas_masses * (
-                    (velocity[types == "PartType0"] - SO["vcom_gas"][None, :]) ** 2
-                ).sum(axis=1)
+                vgas = velocity[types == "PartType0"]
+                ekin_gas = gas_masses * ((vgas - SO["vcom_gas"][None, :]) ** 2).sum(
+                    axis=1
+                )
                 ekin_gas = unyt.unyt_array(
                     ekin_gas.value, dtype=np.float64, units=ekin_gas.units
                 )
                 SO["Ekin_gas"] += 0.5 * ekin_gas.sum()
+                gas_densities = data["PartType0"]["Densities"][gas_selection]
                 etherm_gas = (
                     1.5
                     * gas_masses
                     * data["PartType0"]["Pressures"][gas_selection]
-                    / data["PartType0"]["Densities"][gas_selection]
+                    / gas_densities
                 )
                 etherm_gas = unyt.unyt_array(
                     etherm_gas.value, dtype=np.float64, units=etherm_gas.units
                 )
                 SO["Etherm_gas"] += etherm_gas.sum()
+
+                ne = data["PartType0"]["ElectronNumberDensities"][gas_selection]
+                # note: the positions where relative to the centre, so we have
+                # to make them absolute again before subtracting the observer
+                # position
+                relpos = (
+                    position[types == "PartType0"]
+                    + centre[None, :]
+                    - self.observer_position[None, :]
+                )
+                distance = np.sqrt((relpos**2).sum(axis=1))
+                # we need to exclude particles at zero distance
+                # (we assume those have no relative velocity)
+                vr = unyt.unyt_array(
+                    np.zeros(vgas.shape[0]), dtype=vgas.dtype, units=vgas.units
+                )
+                has_distance = distance > 0.0
+                vr[has_distance] = (
+                    vgas[has_distance, 0] * relpos[has_distance, 0]
+                    + vgas[has_distance, 1] * relpos[has_distance, 1]
+                    + vgas[has_distance, 2] * relpos[has_distance, 2]
+                ) / distance[has_distance]
+                SO["DopplerB"] += (
+                    (unyt.sigma_thompson / unyt.c)
+                    * (ne * vr * gas_masses / gas_densities).sum(dtype=np.float64)
+                    / (np.pi * SO["r"] ** 2)
+                )
 
             if np.any(dm_selection):
                 SO["Ndm"] = dm_selection.sum(dtype=SO["Ndm"].dtype) * SO["Ndm"].units
