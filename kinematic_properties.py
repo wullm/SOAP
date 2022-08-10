@@ -142,7 +142,7 @@ def get_axis_lengths(mass, position):
     # linalg.eigenvals cannot deal with units anyway, so we have to add them
     # back in
     axes = np.linalg.eigvals(Itensor).real
-    axes = np.clip(axes, 0., None)
+    axes = np.clip(axes, 0.0, None)
     axes = np.sqrt(axes) * position.units
 
     # sort the axes from long to short
