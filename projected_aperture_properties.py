@@ -47,6 +47,10 @@ class ProjectedApertureProperties(HaloProperty):
             "proj_veldisp_star",
             "BHmaxM",
             "BHmaxID",
+            "BHmaxpos",
+            "BHmaxvel",
+            "BHlasteventa",
+            "BHmaxlasteventa",
         ]
     ]
 
@@ -72,6 +76,7 @@ class ProjectedApertureProperties(HaloProperty):
             "Coordinates",
             "DynamicalMasses",
             "GroupNr_bound",
+            "LastAGNFeedbackScaleFactors",
             "ParticleIDs",
             "SubgridMasses",
             "Velocities",
@@ -229,6 +234,17 @@ class ProjectedApertureProperties(HaloProperty):
                     ].astype(projected_aperture["BHmaxID"].dtype)
                     * projected_aperture["BHmaxID"].units
                 )
+                agn_eventa = data["PartType5"]["LastAGNFeedbackScaleFactors"][
+                    bh_mask_all
+                ][bh_mask_ap]
+                projected_aperture["BHlasteventa"] += np.max(agn_eventa)
+                projected_aperture["BHmaxlasteventa"] += agn_eventa[iBHmax]
+                projected_aperture["BHmaxpos"] += data["PartType5"]["Coordinates"][
+                    bh_mask_all
+                ][bh_mask_ap][iBHmax]
+                projected_aperture["BHmaxvel"] += data["PartType5"]["Velocities"][
+                    bh_mask_all
+                ][bh_mask_ap][iBHmax]
 
             if projected_aperture["Mtot"] > 0.0 * projected_aperture["Mtot"].units:
                 mass_frac = proj_mass / projected_aperture["Mtot"]
