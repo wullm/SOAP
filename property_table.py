@@ -199,7 +199,7 @@ class PropertyTable:
             "AngularMomentumBaryons",
             3,
             np.float32,
-            "Msun*km*kpc/s",
+            "Msun*kpc*km/s",
             "Total angular momentum of baryons (gas and stars), relative to the centre of potential and baryonic centre of mass velocity.",
             "baryon",
         ),
@@ -207,7 +207,7 @@ class PropertyTable:
             "AngularMomentumDarkMatter",
             3,
             np.float32,
-            "Msun*km*kpc/s",
+            "Msun*kpc*km/s",
             "Total angular momentum of the dark matter, relative to the centre of potential and DM centre of mass velocity.",
             "dm",
         ),
@@ -215,7 +215,7 @@ class PropertyTable:
             "AngularMomentumGas",
             3,
             np.float32,
-            "Msun*km*kpc/s",
+            "Msun*kpc*km/s",
             "Total angular momentum of the gas, relative to the centre of potential and gas centre of mass velocity.",
             "gas",
         ),
@@ -223,7 +223,7 @@ class PropertyTable:
             "AngularMomentumStars",
             3,
             np.float32,
-            "Msun*km*kpc/s",
+            "Msun*kpc*km/s",
             "Total angular momentum of the stars, relative to the centre of potential and stellar centre of mass velocity.",
             "star",
         ),
@@ -684,7 +684,15 @@ class PropertyTable:
             prop_description,
             prop_cat,
         ) in enumerate(props):
-            prop_units = unyt.unyt_quantity(1, units=prop_units).units.latex_repr
+            prop_units = (
+                unyt.unyt_quantity(1, units=prop_units)
+                .units.latex_repr.replace(
+                    "\\rm{km} \\cdot \\rm{kpc}", "\\rm{kpc} \\cdot \\rm{km}"
+                )
+                .replace(
+                    "\\frac{\\rm{km}^{2}}{\\rm{s}^{2}}", "\\rm{km}^{2} / \\rm{s}^{2}"
+                )
+            )
             prop_dtype = prop_dtype.__name__
             if prop_name in self.properties:
                 if not prop_cat in self.categories:
