@@ -8,6 +8,7 @@ from halo_properties import HaloProperty, ReadRadiusTooSmallError
 from kinematic_properties import (
     get_velocity_dispersion_matrix,
     get_angular_momentum,
+    get_vmax,
 )
 from recently_heated_gas_filter import RecentlyHeatedGasFilter
 from property_table import PropertyTable
@@ -179,6 +180,7 @@ class SOProperties(HaloProperty):
             "Masses",
             "MetalMassFractions",
             "Pressures",
+            "StarFormationRates",
             "Temperatures",
             "Velocities",
             "XrayLuminosities",
@@ -261,6 +263,8 @@ class SOProperties(HaloProperty):
             "BHmaxlasteventa",
             "MnuNS",
             "Mnu",
+            "spin_parameter",
+            "SFR",
         ]
     ]
 
@@ -499,16 +503,28 @@ class SOProperties(HaloProperty):
 
             all_selection = radius < SO["r"]
             mass = mass[all_selection]
+            radius = radius[all_selection]
             position = position[all_selection]
             velocity = velocity[all_selection]
             types = types[all_selection]
             is_bound_to_satellite = is_bound_to_satellite[all_selection]
 
             # note that we cannot divide by mSO here, since that was based on an interpolation
-            mass_frac = mass / mass.sum()
+            Mtotpart = mass.sum()
+            mass_frac = mass / Mtotpart
             SO["com"] += (mass_frac[:, None] * position).sum(axis=0)
             SO["com"] += centre
             SO["vcom"] += (mass_frac[:, None] * velocity).sum(axis=0)
+            if Mtotpart > 0.0 * Mtotpart.units:
+                _, vmax = get_vmax(mass, radius)
+                if vmax > 0.0 * vmax.units:
+                    vrel = velocity - SO["vcom"][None, :]
+                    Ltot = unyt.array.unorm(
+                        (mass[:, None] * unyt.array.ucross(position, vrel)).sum(axis=0)
+                    )
+                    SO["spin_parameter"] += Ltot / (
+                        np.sqrt(2.0) * Mtotpart * SO["r"] * vmax
+                    )
 
             SO["Mfrac_satellites"] += mass[is_bound_to_satellite].sum() / SO["Mtot"]
 
@@ -596,6 +612,10 @@ class SOProperties(HaloProperty):
                     SO["Tgas_no_cool"] += (
                         gas_temperatures[Tgas_selection] * gas_masses[Tgas_selection]
                     ).sum() / SO["Mhotgas"]
+
+                SFR = data["PartType0"]["StarFormationRates"][gas_selection]
+                is_SFR = SFR > 0.0
+                SO["SFR"] += SFR[is_SFR].sum()
 
                 xraylum = data["PartType0"]["XrayLuminosities"][gas_selection]
                 xrayphlum = data["PartType0"]["XrayPhotonLuminosities"][gas_selection]
