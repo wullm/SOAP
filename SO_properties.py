@@ -18,6 +18,10 @@ from dataset_names import mass_dataset
 
 from mpi4py import MPI
 
+# index of elements O and Fe in the SmoothedElementMassFractions dataset
+indexO = 4
+indexFe = 8
+
 
 def cumulative_mass_intersection(r, rho_dim, slope_dim):
     """
@@ -182,6 +186,7 @@ class SOProperties(HaloProperty):
             "Masses",
             "MetalMassFractions",
             "Pressures",
+            "SmoothedElementMassFractions",
             "StarFormationRates",
             "Temperatures",
             "Velocities",
@@ -232,7 +237,10 @@ class SOProperties(HaloProperty):
             "veldisp_matrix_gas",
             "Mgasmetal",
             "Mhotgas",
+            "Tgas",
             "Tgas_no_cool",
+            "Tgas_no_agn",
+            "Tgas_no_cool_no_agn",
             "Xraylum",
             "Xrayphlum",
             "compY",
@@ -270,6 +278,8 @@ class SOProperties(HaloProperty):
             "TotalAxisLengths",
             "GasAxisLengths",
             "DopplerB",
+            "MgasO",
+            "MgasFe",
         ]
     ]
 
@@ -619,6 +629,19 @@ class SOProperties(HaloProperty):
                     gas_masses * data["PartType0"]["MetalMassFractions"][gas_selection]
                 ).sum()
 
+                SO["MgasO"] += (
+                    gas_masses
+                    * data["PartType0"]["SmoothedElementMassFractions"][gas_selection][
+                        :, indexO
+                    ]
+                ).sum()
+                SO["MgasFe"] += (
+                    gas_masses
+                    * data["PartType0"]["SmoothedElementMassFractions"][gas_selection][
+                        :, indexFe
+                    ]
+                ).sum()
+
                 gas_temperatures = data["PartType0"]["Temperatures"][gas_selection]
                 Tgas_selection = gas_temperatures > 1.0e5 * unyt.K
                 SO["Mhotgas"] += gas_masses[Tgas_selection].sum()
@@ -653,6 +676,22 @@ class SOProperties(HaloProperty):
                     SO["Xraylum_no_agn"] += xraylum[no_agn].sum()
                     SO["Xrayphlum_no_agn"] += xrayphlum[no_agn].sum()
                     SO["compY_no_agn"] += compY[no_agn].sum().value * new_unit
+                    mass_gas_no_agn = gas_masses[no_agn]
+                    Mgas_no_agn = mass_gas_no_agn.sum()
+                    if Mgas_no_agn > 0.0:
+                        SO["Tgas_no_agn"] += (
+                            (mass_gas_no_agn / Mgas_no_agn) * gas_temperatures[no_agn]
+                        ).sum()
+
+                no_cool_no_agn = Tgas_selection & no_agn
+                if np.any(no_cool_no_agn):
+                    mass_gas_no_cool_no_agn = gas_masses[no_cool_no_agn]
+                    Mgas_no_cool_no_agn = mass_gas_no_cool_no_agn.sum()
+                    if Mgas_no_cool_no_agn > 0.0:
+                        SO["Tgas_no_cool_no_agn"] += (
+                            (mass_gas_no_cool_no_agn / Mgas_no_cool_no_agn)
+                            * gas_temperatures[no_cool_no_agn]
+                        ).sum()
 
                 # below we need to force conversion to np.float64 before summing up particles
                 # to avoid overflow
