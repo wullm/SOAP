@@ -11,6 +11,7 @@ from kinematic_properties import (
     get_angular_momentum_and_kappa_corot,
     get_vmax,
     get_axis_lengths,
+    get_velocity_dispersion_matrix,
 )
 from recently_heated_gas_filter import RecentlyHeatedGasFilter
 from property_table import PropertyTable
@@ -66,6 +67,9 @@ class SubhaloProperties(HaloProperty):
             "HalfMassRadiusStar",
             "TotalAxisLengths",
             "GasAxisLengths",
+            "veldisp_matrix_gas",
+            "veldisp_matrix_dm",
+            "veldisp_matrix_star",
         ]
     ]
 
@@ -298,12 +302,18 @@ class SubhaloProperties(HaloProperty):
             subhalo["Lgas"] += Lgas
             subhalo["kappa_corot_gas"] += kappa
             subhalo["GasAxisLengths"] += get_axis_lengths(mass_gas, pos_gas)
+            subhalo["veldisp_matrix_gas"] += get_velocity_dispersion_matrix(
+                frac_mgas, vel_gas, vcom_gas
+            )
 
         if subhalo["Mdm"] > 0.0 * subhalo["Mdm"].units:
             frac_mdm = mass_dm / subhalo["Mdm"]
             vcom_dm = (frac_mdm[:, None] * vel_dm).sum(axis=0)
             subhalo["Ldm"] += get_angular_momentum(
                 mass_dm, pos_dm, vel_dm, ref_velocity=vcom_dm
+            )
+            subhalo["veldisp_matrix_dm"] += get_velocity_dispersion_matrix(
+                frac_mdm, vel_dm, vcom_dm
             )
 
         if subhalo["Mstar"] > 0.0 * subhalo["Mstar"].units:
@@ -314,6 +324,9 @@ class SubhaloProperties(HaloProperty):
             )
             subhalo["Lstar"] += Lstar
             subhalo["kappa_corot_star"] += kappa
+            subhalo["veldisp_matrix_star"] += get_velocity_dispersion_matrix(
+                frac_mstar, vel_star, vcom_star
+            )
 
         if subhalo["Mgas"] + subhalo["Mstar"] > 0.0 * subhalo["Mgas"].units:
             frac_mbar = mass_baryons / (subhalo["Mgas"] + subhalo["Mstar"])

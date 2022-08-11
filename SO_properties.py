@@ -234,7 +234,7 @@ class SOProperties(HaloProperty):
             "Lgas",
             "com_gas",
             "vcom_gas",
-            "veldisp_matrix_gas",
+            #            "veldisp_matrix_gas",
             "Mgasmetal",
             "Mhotgas",
             "Tgas",
@@ -251,11 +251,11 @@ class SOProperties(HaloProperty):
             "Etherm_gas",
             "Mdm",
             "Ldm",
-            "veldisp_matrix_dm",
+            #            "veldisp_matrix_dm",
             "Mstar",
             "com_star",
             "vcom_star",
-            "veldisp_matrix_star",
+            #            "veldisp_matrix_star",
             "Lstar",
             "Mstar_init",
             "Mstarmetal",
@@ -565,9 +565,11 @@ class SOProperties(HaloProperty):
                 SO["Lgas"] += get_angular_momentum(
                     gas_masses, gas_pos, gas_vel, ref_velocity=SO["vcom_gas"]
                 )
+                """
                 SO["veldisp_matrix_gas"] += get_velocity_dispersion_matrix(
                     frac_mgas, gas_vel, SO["vcom_gas"]
                 )
+                """
                 SO["GasAxisLengths"] += get_axis_lengths(gas_masses, gas_pos)
 
             dm_masses = mass[types == "PartType1"]
@@ -581,9 +583,11 @@ class SOProperties(HaloProperty):
                 SO["Ldm"] += get_angular_momentum(
                     dm_masses, dm_pos, dm_vel, ref_velocity=vcom_dm
                 )
+                """
                 SO["veldisp_matrix_dm"] += get_velocity_dispersion_matrix(
                     frac_mdm, dm_vel, vcom_dm
                 )
+                """
 
             star_masses = mass[types == "PartType4"]
             star_pos = position[types == "PartType4"]
@@ -598,9 +602,11 @@ class SOProperties(HaloProperty):
                 SO["Lstar"] += get_angular_momentum(
                     star_masses, star_pos, star_vel, ref_velocity=SO["vcom_star"]
                 )
+                """
                 SO["veldisp_matrix_star"] += get_velocity_dispersion_matrix(
                     frac_mstar, star_vel, SO["vcom_star"]
                 )
+                """
 
             baryon_masses = mass[(types == "PartType0") | (types == "PartType4")]
             baryon_pos = position[(types == "PartType0") | (types == "PartType4")]

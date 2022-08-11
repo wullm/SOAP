@@ -95,9 +95,10 @@ class ExclusiveSphereProperties(HaloProperty):
             "kappa_corot_star",
             "Lbaryons",
             "kappa_corot_baryons",
-            "veldisp_matrix_gas",
-            "veldisp_matrix_dm",
-            "veldisp_matrix_star",
+            # temporarily (?) disabled
+            #            "veldisp_matrix_gas",
+            #            "veldisp_matrix_dm",
+            #            "veldisp_matrix_star",
             "Ekin_gas",
             "Ekin_star",
             "Mgas_SF",
@@ -324,9 +325,11 @@ class ExclusiveSphereProperties(HaloProperty):
             exclusive_sphere["Lgas"] += Lgas
             exclusive_sphere["kappa_corot_gas"] += kappa
 
+            """
             exclusive_sphere["veldisp_matrix_gas"] += get_velocity_dispersion_matrix(
                 frac_mgas, vel_gas, vcom_gas
             )
+            """
 
             # below we need to force conversion to np.float64 before summing
             # up particles to avoid overflow
@@ -345,9 +348,11 @@ class ExclusiveSphereProperties(HaloProperty):
                 mass_dm, pos_dm, vel_dm, ref_velocity=vcom_dm
             )
 
+            """
             exclusive_sphere["veldisp_matrix_dm"] += get_velocity_dispersion_matrix(
                 frac_mdm, vel_dm, vcom_dm
             )
+            """
 
         if exclusive_sphere["Mstar"] > 0.0 * exclusive_sphere["Mstar"].units:
             frac_mstar = mass_star / exclusive_sphere["Mstar"]
@@ -358,9 +363,11 @@ class ExclusiveSphereProperties(HaloProperty):
             exclusive_sphere["Lstar"] += Lstar
             exclusive_sphere["kappa_corot_star"] += kappa
 
+            """
             exclusive_sphere["veldisp_matrix_star"] += get_velocity_dispersion_matrix(
                 frac_mstar, vel_star, vcom_star
             )
+            """
 
             # below we need to force conversion to np.float64 before summing
             # up particles to avoid overflow
