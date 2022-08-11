@@ -766,11 +766,10 @@ class SOProperties(HaloProperty):
                     + vgas[has_distance, 1] * relpos[has_distance, 1]
                     + vgas[has_distance, 2] * relpos[has_distance, 2]
                 ) / distance[has_distance]
-                SO["DopplerB"] += (
-                    (unyt.sigma_thompson / unyt.c)
-                    * (ne * vr * gas_masses / gas_densities).sum(dtype=np.float64)
-                    / (np.pi * SO["r"] ** 2)
-                )
+                fac = unyt.sigma_thompson / unyt.c
+                volumes = gas_masses / gas_densities
+                area = np.pi * SO["r"] ** 2
+                SO["DopplerB"] += (fac * ne * vr * (volumes / area)).sum()
 
             if np.any(dm_selection):
                 SO["Ndm"] = dm_selection.sum(dtype=SO["Ndm"].dtype) * SO["Ndm"].units
@@ -879,6 +878,12 @@ class SOProperties(HaloProperty):
 
 
 class RadiusMultipleSOProperties(SOProperties):
+
+    # since the halo_result dictionary contains the name of the dataset as it
+    # appears in the output, we have to get that name from the property table
+    # to access the radius
+    radius_name = PropertyTable.full_property_list["r"][0]
+
     def __init__(
         self, cellgrid, recently_heated_gas_filter, SOval, multiple, type="mean"
     ):
@@ -902,7 +907,7 @@ class RadiusMultipleSOProperties(SOProperties):
     def calculate(self, input_halo, search_radius, data, halo_result):
 
         # find the actual physical radius we want
-        key = f"SO/{self.requested_SOval:.0f}_{self.requested_type}/r"
+        key = f"SO/{self.requested_SOval:.0f}_{self.requested_type}/{self.radius_name}"
         if not key in halo_result:
             raise RuntimeError(
                 f"Trying to obtain {key}, but the corresponding SO radius has not been calculated!"

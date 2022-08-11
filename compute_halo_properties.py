@@ -27,8 +27,7 @@ import lustre
 import command_line_args
 import SO_properties
 import subhalo_properties
-import exclusive_sphere_properties
-import inclusive_sphere_properties
+import aperture_properties
 import result_set
 import projected_aperture_properties
 from recently_heated_gas_filter import RecentlyHeatedGasFilter
@@ -146,56 +145,56 @@ def compute_halo_properties():
         SO_properties.RadiusMultipleSOProperties(
             cellgrid, recently_heated_gas_filter, 500.0, 5.0, type="crit"
         ),
-        inclusive_sphere_properties.InclusiveSphereProperties(
+        aperture_properties.InclusiveSphereProperties(
             cellgrid, 10.0, recently_heated_gas_filter
         ),
-        inclusive_sphere_properties.InclusiveSphereProperties(
+        aperture_properties.InclusiveSphereProperties(
             cellgrid, 30.0, recently_heated_gas_filter
         ),
-        inclusive_sphere_properties.InclusiveSphereProperties(
+        aperture_properties.InclusiveSphereProperties(
             cellgrid, 50.0, recently_heated_gas_filter
         ),
-        inclusive_sphere_properties.InclusiveSphereProperties(
+        aperture_properties.InclusiveSphereProperties(
             cellgrid, 100.0, recently_heated_gas_filter
         ),
-        inclusive_sphere_properties.InclusiveSphereProperties(
+        aperture_properties.InclusiveSphereProperties(
             cellgrid, 300.0, recently_heated_gas_filter
         ),
-        inclusive_sphere_properties.InclusiveSphereProperties(
+        aperture_properties.InclusiveSphereProperties(
             cellgrid, 500.0, recently_heated_gas_filter
         ),
-        inclusive_sphere_properties.InclusiveSphereProperties(
+        aperture_properties.InclusiveSphereProperties(
             cellgrid, 1000.0, recently_heated_gas_filter
         ),
-        inclusive_sphere_properties.InclusiveSphereProperties(
+        aperture_properties.InclusiveSphereProperties(
             cellgrid, 3000.0, recently_heated_gas_filter
         ),
         projected_aperture_properties.ProjectedApertureProperties(cellgrid, 10.0),
         projected_aperture_properties.ProjectedApertureProperties(cellgrid, 30.0),
         projected_aperture_properties.ProjectedApertureProperties(cellgrid, 50.0),
         projected_aperture_properties.ProjectedApertureProperties(cellgrid, 100.0),
-        exclusive_sphere_properties.ExclusiveSphereProperties(
+        aperture_properties.ExclusiveSphereProperties(
             cellgrid, 10.0, recently_heated_gas_filter
         ),
-        exclusive_sphere_properties.ExclusiveSphereProperties(
+        aperture_properties.ExclusiveSphereProperties(
             cellgrid, 30.0, recently_heated_gas_filter
         ),
-        exclusive_sphere_properties.ExclusiveSphereProperties(
+        aperture_properties.ExclusiveSphereProperties(
             cellgrid, 50.0, recently_heated_gas_filter
         ),
-        exclusive_sphere_properties.ExclusiveSphereProperties(
+        aperture_properties.ExclusiveSphereProperties(
             cellgrid, 100.0, recently_heated_gas_filter
         ),
-        exclusive_sphere_properties.ExclusiveSphereProperties(
+        aperture_properties.ExclusiveSphereProperties(
             cellgrid, 300.0, recently_heated_gas_filter
         ),
-        exclusive_sphere_properties.ExclusiveSphereProperties(
+        aperture_properties.ExclusiveSphereProperties(
             cellgrid, 500.0, recently_heated_gas_filter
         ),
-        exclusive_sphere_properties.ExclusiveSphereProperties(
+        aperture_properties.ExclusiveSphereProperties(
             cellgrid, 1000.0, recently_heated_gas_filter
         ),
-        exclusive_sphere_properties.ExclusiveSphereProperties(
+        aperture_properties.ExclusiveSphereProperties(
             cellgrid, 3000.0, recently_heated_gas_filter
         ),
     ]

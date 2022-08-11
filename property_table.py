@@ -878,8 +878,7 @@ class DummyProperties:
 
 if __name__ == "__main__":
 
-    from exclusive_sphere_properties import ExclusiveSphereProperties
-    from inclusive_sphere_properties import InclusiveSphereProperties
+    from aperture_properties import ExclusiveSphereProperties, InclusiveSphereProperties
     from projected_aperture_properties import ProjectedApertureProperties
     from SO_properties import SOProperties
     from subhalo_properties import SubhaloProperties
