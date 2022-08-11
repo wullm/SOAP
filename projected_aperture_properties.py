@@ -7,6 +7,7 @@ from halo_properties import HaloProperty
 from dataset_names import mass_dataset
 from half_mass_radius import get_half_mass_radius
 from property_table import PropertyTable
+from kinematic_properties import get_projected_axis_lengths
 
 
 class ProjectedApertureProperties(HaloProperty):
@@ -50,6 +51,7 @@ class ProjectedApertureProperties(HaloProperty):
             "BHmaxvel",
             "BHlasteventa",
             "BHmaxlasteventa",
+            "ProjectedGasAxisLengths",
         ]
     ]
 
@@ -271,6 +273,11 @@ class ProjectedApertureProperties(HaloProperty):
                 vcom_gas = (frac_mgas * proj_vgas).sum()
                 projected_aperture["proj_veldisp_gas"] += np.sqrt(
                     ((proj_vgas - vcom_gas) ** 2).sum()
+                )
+                projected_aperture[
+                    "ProjectedGasAxisLengths"
+                ] += get_projected_axis_lengths(
+                    proj_mass_gas, proj_position[proj_type == "PartType0"], iproj
                 )
             if projected_aperture["Mdm"] > 0.0 * projected_aperture["Mdm"].units:
                 frac_mdm = proj_mass_dm / projected_aperture["Mdm"]

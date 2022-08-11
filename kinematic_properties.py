@@ -179,7 +179,9 @@ def get_projected_axis_lengths(mass, position, axis):
 
     # linalg.eigenvals cannot deal with units anyway, so we have to add them
     # back in
-    axes = np.sqrt(np.linalg.eigvals(Itensor)) * projected_position.units
+    axes = np.linalg.eigvals(Itensor).real
+    axes = np.clip(axes, 0.0, None)
+    axes = np.sqrt(axes) * projected_position.units
 
     # sort the axes from long to short
     axes.sort()

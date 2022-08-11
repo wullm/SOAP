@@ -268,6 +268,7 @@ class SOProperties(HaloProperty):
             "spin_parameter",
             "SFR",
             "TotalAxisLengths",
+            "GasAxisLengths",
             "DopplerB",
         ]
     ]
@@ -557,6 +558,7 @@ class SOProperties(HaloProperty):
                 SO["veldisp_matrix_gas"] += get_velocity_dispersion_matrix(
                     frac_mgas, gas_vel, SO["vcom_gas"]
                 )
+                SO["GasAxisLengths"] += get_axis_lengths(gas_masses, gas_pos)
 
             dm_masses = mass[types == "PartType1"]
             dm_pos = position[types == "PartType1"]

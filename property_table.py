@@ -103,7 +103,7 @@ class PropertyTable:
             3,
             np.float32,
             "kpc",
-            "Axis lengths of the baryonic (gas and stars) mass distribution, computed from the 3D baryon inertia tensor, relative to the centre of potential..",
+            "Axis lengths of the baryonic (gas and stars) mass distribution, computed from the 3D baryon inertia tensor, relative to the centre of potential.",
             "baryon",
         ),
         "DMAxisLengths": (
@@ -111,7 +111,7 @@ class PropertyTable:
             3,
             np.float32,
             "kpc",
-            "Axis lengths of the dark matter mass distribution, computed from the 3D DM inertia tensor, relative to the centre of potential..",
+            "Axis lengths of the dark matter mass distribution, computed from the 3D DM inertia tensor, relative to the centre of potential.",
             "dm",
         ),
         "DiscToTotalMassFraction": (
@@ -152,7 +152,15 @@ class PropertyTable:
             3,
             np.float32,
             "kpc",
-            "Axis lengths of the gas mass distribution, computed from the 3D gas inertia tensor, relative to the centre of potential..",
+            "Axis lengths of the gas mass distribution, computed from the 3D gas inertia tensor, relative to the centre of potential.",
+            "gas",
+        ),
+        "ProjectedGasAxisLengths": (
+            "ProjectedGasAxisLengths",
+            2,
+            np.float32,
+            "kpc",
+            "Axis lengths of the projected gas mass distribution, computed from the 2D gas inertia tensor, relative to the centre of potential.",
             "gas",
         ),
         "HalfMassRadiusBaryon": (
@@ -428,7 +436,7 @@ class PropertyTable:
             3,
             np.float32,
             "kpc",
-            "Axis lengths of the stellar mass distribution, computed from the 3D stellar inertia tensor, relative to the centre of potential..",
+            "Axis lengths of the stellar mass distribution, computed from the 3D stellar inertia tensor, relative to the centre of potential.",
             "star",
         ),
         "StellarLuminosity": (
@@ -476,7 +484,7 @@ class PropertyTable:
             3,
             np.float32,
             "kpc",
-            "Axis lengths of the total mass distribution, computed from the 3D inertia tensor, relative to the centre of potential..",
+            "Axis lengths of the total mass distribution, computed from the 3D inertia tensor, relative to the centre of potential.",
             "general",
         ),
         "Vmax": (

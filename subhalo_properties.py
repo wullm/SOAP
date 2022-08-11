@@ -65,6 +65,7 @@ class SubhaloProperties(HaloProperty):
             "HalfMassRadiusDM",
             "HalfMassRadiusStar",
             "TotalAxisLengths",
+            "GasAxisLengths",
         ]
     ]
 
@@ -296,6 +297,7 @@ class SubhaloProperties(HaloProperty):
             )
             subhalo["Lgas"] += Lgas
             subhalo["kappa_corot_gas"] += kappa
+            subhalo["GasAxisLengths"] += get_axis_lengths(mass_gas, pos_gas)
 
         if subhalo["Mdm"] > 0.0 * subhalo["Mdm"].units:
             frac_mdm = mass_dm / subhalo["Mdm"]

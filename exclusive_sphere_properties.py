@@ -11,6 +11,7 @@ from kinematic_properties import (
     get_angular_momentum,
     get_angular_momentum_and_kappa_corot,
     get_vmax,
+    get_axis_lengths,
 )
 from recently_heated_gas_filter import RecentlyHeatedGasFilter
 from property_table import PropertyTable
@@ -115,6 +116,7 @@ class ExclusiveSphereProperties(HaloProperty):
             "HalfMassRadiusDM",
             "HalfMassRadiusStar",
             "spin_parameter",
+            "GasAxisLengths",
         ]
     ]
 
@@ -333,6 +335,8 @@ class ExclusiveSphereProperties(HaloProperty):
                 ekin_gas.value, dtype=np.float64, units=ekin_gas.units
             )
             exclusive_sphere["Ekin_gas"] += 0.5 * ekin_gas.sum()
+
+            exclusive_sphere["GasAxisLengths"] += get_axis_lengths(mass_gas, pos_gas)
 
         if exclusive_sphere["Mdm"] > 0.0 * exclusive_sphere["Mdm"].units:
             frac_mdm = mass_dm / exclusive_sphere["Mdm"]
