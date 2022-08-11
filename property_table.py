@@ -163,6 +163,22 @@ class PropertyTable:
             "Axis lengths of the projected gas mass distribution, computed from the 2D gas inertia tensor, relative to the centre of potential.",
             "gas",
         ),
+        "ProjectedStellarAxisLengths": (
+            "ProjectedStellarAxisLengths",
+            2,
+            np.float32,
+            "kpc",
+            "Axis lengths of the projected stellar mass distribution, computed from the 2D stellar inertia tensor, relative to the centre of potential.",
+            "star",
+        ),
+        "ProjectedBaryonAxisLengths": (
+            "ProjectedBaryonAxisLengths",
+            2,
+            np.float32,
+            "kpc",
+            "Axis lengths of the projected baryon (gas and stars) mass distribution, computed from the 2D baryon inertia tensor, relative to the centre of potential.",
+            "baryon",
+        ),
         "HalfMassRadiusBaryon": (
             "HalfMassRadiusBaryons",
             1,

@@ -67,6 +67,9 @@ class SubhaloProperties(HaloProperty):
             "HalfMassRadiusStar",
             "TotalAxisLengths",
             "GasAxisLengths",
+            "DMAxisLengths",
+            "StellarAxisLengths",
+            "BaryonAxisLengths",
             "veldisp_matrix_gas",
             "veldisp_matrix_dm",
             "veldisp_matrix_star",
@@ -312,6 +315,7 @@ class SubhaloProperties(HaloProperty):
             subhalo["Ldm"] += get_angular_momentum(
                 mass_dm, pos_dm, vel_dm, ref_velocity=vcom_dm
             )
+            subhalo["DMAxisLengths"] += get_axis_lengths(mass_dm, pos_dm)
             subhalo["veldisp_matrix_dm"] += get_velocity_dispersion_matrix(
                 frac_mdm, vel_dm, vcom_dm
             )
@@ -324,6 +328,7 @@ class SubhaloProperties(HaloProperty):
             )
             subhalo["Lstar"] += Lstar
             subhalo["kappa_corot_star"] += kappa
+            subhalo["StellarAxisLengths"] += get_axis_lengths(mass_star, pos_star)
             subhalo["veldisp_matrix_star"] += get_velocity_dispersion_matrix(
                 frac_mstar, vel_star, vcom_star
             )
@@ -336,6 +341,7 @@ class SubhaloProperties(HaloProperty):
             )
             subhalo["Lbaryons"] += Lbar
             subhalo["kappa_corot_baryons"] += kappa
+            subhalo["BaryonAxisLengths"] += get_axis_lengths(mass_baryons, pos_baryons)
 
         if subhalo["Ngas"] > 0:
             gas_mask_all = data["PartType0"][self.grnr] == index

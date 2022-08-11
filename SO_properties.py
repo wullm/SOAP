@@ -277,6 +277,9 @@ class SOProperties(HaloProperty):
             "SFR",
             "TotalAxisLengths",
             "GasAxisLengths",
+            "DMAxisLengths",
+            "StellarAxisLengths",
+            "BaryonAxisLengths",
             "DopplerB",
             "MgasO",
             "MgasFe",
@@ -588,6 +591,7 @@ class SOProperties(HaloProperty):
                     frac_mdm, dm_vel, vcom_dm
                 )
                 """
+                SO["DMAxisLengths"] += get_axis_lengths(dm_masses, dm_pos)
 
             star_masses = mass[types == "PartType4"]
             star_pos = position[types == "PartType4"]
@@ -607,6 +611,7 @@ class SOProperties(HaloProperty):
                     frac_mstar, star_vel, SO["vcom_star"]
                 )
                 """
+                SO["StellarAxisLengths"] += get_axis_lengths(star_masses, star_pos)
 
             baryon_masses = mass[(types == "PartType0") | (types == "PartType4")]
             baryon_pos = position[(types == "PartType0") | (types == "PartType4")]
@@ -621,6 +626,7 @@ class SOProperties(HaloProperty):
                     baryon_masses[:, None]
                     * unyt.array.ucross(baryon_pos, baryon_relvel)
                 ).sum(axis=0)
+                SO["BaryonAxisLengths"] += get_axis_lengths(baryon_masses, baryon_pos)
 
             SO["Mbh_dynamical"] += mass[types == "PartType5"].sum()
 

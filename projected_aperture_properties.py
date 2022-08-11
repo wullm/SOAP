@@ -52,6 +52,8 @@ class ProjectedApertureProperties(HaloProperty):
             "BHlasteventa",
             "BHmaxlasteventa",
             "ProjectedGasAxisLengths",
+            "ProjectedStellarAxisLengths",
+            "ProjectedBaryonAxisLengths",
         ]
     ]
 
@@ -292,6 +294,27 @@ class ProjectedApertureProperties(HaloProperty):
                 vcom_star = (frac_mstar * proj_vstar).sum()
                 projected_aperture["proj_veldisp_star"] += np.sqrt(
                     ((proj_vstar - vcom_star) ** 2).sum()
+                )
+                projected_aperture[
+                    "ProjectedStellarAxisLengths"
+                ] += get_projected_axis_lengths(
+                    proj_mass_star, proj_position[proj_type == "PartType4"], iproj
+                )
+
+            if (
+                projected_aperture["Mgas"] + projected_aperture["Mstar"]
+                > 0.0 * projected_aperture["Mgas"].units
+            ):
+                proj_mass_baryon = proj_mass[
+                    (proj_type == "PartType0") | (proj_type == "PartType4")
+                ]
+                proj_pos_baryon = proj_position[
+                    (proj_type == "PartType0") | (proj_type == "PartType4")
+                ]
+                projected_aperture[
+                    "ProjectedBaryonAxisLengths"
+                ] += get_projected_axis_lengths(
+                    proj_mass_baryon, proj_pos_baryon, iproj
                 )
 
             for name, r, m, M in zip(

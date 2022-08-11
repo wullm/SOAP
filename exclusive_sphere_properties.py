@@ -118,6 +118,9 @@ class ExclusiveSphereProperties(HaloProperty):
             "HalfMassRadiusStar",
             "spin_parameter",
             "GasAxisLengths",
+            "DMAxisLengths",
+            "StellarAxisLengths",
+            "BaryonAxisLengths",
         ]
     ]
 
@@ -347,6 +350,7 @@ class ExclusiveSphereProperties(HaloProperty):
             exclusive_sphere["Ldm"] += get_angular_momentum(
                 mass_dm, pos_dm, vel_dm, ref_velocity=vcom_dm
             )
+            exclusive_sphere["DMAxisLengths"] += get_axis_lengths(mass_dm, pos_dm)
 
             """
             exclusive_sphere["veldisp_matrix_dm"] += get_velocity_dispersion_matrix(
@@ -362,6 +366,9 @@ class ExclusiveSphereProperties(HaloProperty):
             )
             exclusive_sphere["Lstar"] += Lstar
             exclusive_sphere["kappa_corot_star"] += kappa
+            exclusive_sphere["StellarAxisLengths"] += get_axis_lengths(
+                mass_star, pos_star
+            )
 
             """
             exclusive_sphere["veldisp_matrix_star"] += get_velocity_dispersion_matrix(
@@ -390,6 +397,9 @@ class ExclusiveSphereProperties(HaloProperty):
             )
             exclusive_sphere["Lbaryons"] += Lbar
             exclusive_sphere["kappa_corot_baryons"] += kappa
+            exclusive_sphere["BaryonAxisLengths"] += get_axis_lengths(
+                mass_baryons, pos_baryons
+            )
 
         if exclusive_sphere["Ngas"] > 0:
             gas_mask_all = data["PartType0"]["GroupNr_bound"] == index
