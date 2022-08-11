@@ -50,6 +50,7 @@ class ExclusiveSphereProperties(HaloProperty):
             "Luminosities",
             "Masses",
             "MetalMassFractions",
+            "SmoothedElementMassFractions",
             "Velocities",
         ],
         "PartType5": [
@@ -123,6 +124,8 @@ class ExclusiveSphereProperties(HaloProperty):
             "BaryonAxisLengths",
             "DtoTgas",
             "DtoTstar",
+            "MstarO",
+            "MstarFe",
         ]
     ]
 
@@ -266,6 +269,20 @@ class ExclusiveSphereProperties(HaloProperty):
                 mass_star
                 * data["PartType4"]["MetalMassFractions"][star_mask_all][star_mask_ap]
             ).sum()
+            MstarO = (
+                mass_star
+                * data["PartType4"]["SmoothedElementMassFractions"][star_mask_all][
+                    star_mask_ap
+                ][:, indexO]
+            )
+            exclusive_sphere["MstarO"] += MstarO.sum()
+            MstarFe = (
+                mass_star
+                * data["PartType4"]["SmoothedElementMassFractions"][star_mask_all][
+                    star_mask_ap
+                ][:, indexFe]
+            )
+            exclusive_sphere["MstarFe"] += MstarFe.sum()
         exclusive_sphere["Mbh_dynamical"] = mass[type == "PartType5"].sum()
         if exclusive_sphere["Nbh"] > 0:
             bh_mask_all = data["PartType5"]["GroupNr_bound"] == index

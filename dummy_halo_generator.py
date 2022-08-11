@@ -453,6 +453,25 @@ class DummyHaloGenerator:
                 units=unyt.dimensionless,
                 registry=reg,
             )
+            # all entries in the element mass fractions have their own limits,
+            # so we need to generate those separately if we want a realistic
+            # sample
+            semf = np.zeros((Nstar, 9))
+            semf[:, 0] = 0.68 + 0.07 * np.random.random(Nstar)
+            semf[:, 1] = 0.25 + 0.04 * np.random.random(Nstar)
+            semf[:, 2] = 0.006 * np.random.random(Nstar)
+            semf[:, 3] = 0.001 * np.random.random(Nstar)
+            semf[:, 4] = 0.01 * np.random.random(Nstar)
+            semf[:, 5] = 0.002 * np.random.random(Nstar)
+            semf[:, 6] = 0.001 * np.random.random(Nstar)
+            semf[:, 7] = 0.002 * np.random.random(Nstar)
+            semf[:, 8] = 0.002 * np.random.random(Nstar)
+            data["PartType4"]["SmoothedElementMassFractions"] = unyt.unyt_array(
+                semf,
+                dtype=np.float32,
+                units=unyt.dimensionless,
+                registry=reg,
+            )
             data["PartType4"]["Velocities"] = vs[star_mask]
 
         # BH properties

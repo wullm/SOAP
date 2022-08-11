@@ -202,6 +202,7 @@ class SOProperties(HaloProperty):
             "Luminosities",
             "Masses",
             "MetalMassFractions",
+            "SmoothedElementMassFractions",
             "Velocities",
         ],
         "PartType5": [
@@ -286,6 +287,8 @@ class SOProperties(HaloProperty):
             "MgasFe",
             "DtoTgas",
             "DtoTstar",
+            "MstarO",
+            "MstarFe",
         ]
     ]
 
@@ -785,6 +788,20 @@ class SOProperties(HaloProperty):
                     star_masses
                     * data["PartType4"]["MetalMassFractions"][star_selection]
                 ).sum()
+
+                SO["MstarO"] += (
+                    star_masses
+                    * data["PartType4"]["SmoothedElementMassFractions"][star_selection][
+                        :, indexO
+                    ]
+                ).sum()
+                SO["MstarFe"] += (
+                    star_masses
+                    * data["PartType4"]["SmoothedElementMassFractions"][star_selection][
+                        :, indexFe
+                    ]
+                ).sum()
+
                 SO["StellarLuminosity"] += data["PartType4"]["Luminosities"][
                     star_selection
                 ].sum()
