@@ -122,7 +122,7 @@ class PropertyTable:
             "Fraction of the total stellar mass that is in a disc.",
             "star",
         ),
-        "DopplerB": ("DopplerB", 1, np.float32, "dimensionless", "Kinetic Sunyaey-Zel'dovich effect.", "gas"),
+        "DopplerB": ("DopplerB", 1, np.float32, "dimensionless", "Kinetic Sunyaey-Zel'dovich effect, assuming a line of sight towards the position of the first lightcone observer.", "gas"),
         "Ekin_gas": (
             "KineticEnergyGas",
             1,
