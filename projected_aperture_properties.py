@@ -42,6 +42,7 @@ class ProjectedApertureProperties(HaloProperty):
             "HalfMassRadiusGas",
             "HalfMassRadiusDM",
             "HalfMassRadiusStar",
+            "HalfMassRadiusBaryon",
             "proj_veldisp_gas",
             "proj_veldisp_dm",
             "proj_veldisp_star",
@@ -322,17 +323,27 @@ class ProjectedApertureProperties(HaloProperty):
                     "HalfMassRadiusGas",
                     "HalfMassRadiusDM",
                     "HalfMassRadiusStar",
+                    "HalfMassRadiusBaryon",
                 ],
                 [
                     proj_radius[proj_type == "PartType0"],
                     proj_radius[proj_type == "PartType1"],
                     proj_radius[proj_type == "PartType4"],
+                    proj_radius[
+                        (proj_type == "PartType0") | (proj_type == "PartType4")
+                    ],
                 ],
-                [proj_mass_gas, proj_mass_dm, proj_mass_star],
+                [
+                    proj_mass_gas,
+                    proj_mass_dm,
+                    proj_mass_star,
+                    proj_mass[(proj_type == "PartType0") | (proj_type == "PartType4")],
+                ],
                 [
                     projected_aperture["Mgas"],
                     projected_aperture["Mdm"],
                     projected_aperture["Mstar"],
+                    projected_aperture["Mgas"] + projected_aperture["Mstar"],
                 ],
             ):
                 projected_aperture[name] += get_half_mass_radius(r, m, M)

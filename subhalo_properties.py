@@ -65,6 +65,7 @@ class SubhaloProperties(HaloProperty):
             "HalfMassRadiusGas",
             "HalfMassRadiusDM",
             "HalfMassRadiusStar",
+            "HalfMassRadiusBaryon",
             "TotalAxisLengths",
             "GasAxisLengths",
             "DMAxisLengths",
@@ -400,19 +401,22 @@ class SubhaloProperties(HaloProperty):
                 "HalfMassRadiusGas",
                 "HalfMassRadiusDM",
                 "HalfMassRadiusStar",
+                "HalfMassRadiusBaryon",
             ],
             [
                 radius,
                 radius[gas_mask_sh],
                 radius[dm_mask_sh],
                 radius[star_mask_sh],
+                radius[gas_mask_sh | star_mask_sh],
             ],
-            [mass, mass_gas, mass_dm, mass_star],
+            [mass, mass_gas, mass_dm, mass_star, mass[gas_mask_sh | star_mask_sh]],
             [
                 subhalo["Mtot"],
                 subhalo["Mgas"],
                 subhalo["Mdm"],
                 subhalo["Mstar"],
+                subhalo["Mgas"] + subhalo["Mstar"],
             ],
         ):
             subhalo[name] += get_half_mass_radius(r, m, M)

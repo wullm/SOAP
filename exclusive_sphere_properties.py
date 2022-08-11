@@ -117,6 +117,7 @@ class ExclusiveSphereProperties(HaloProperty):
             "HalfMassRadiusGas",
             "HalfMassRadiusDM",
             "HalfMassRadiusStar",
+            "HalfMassRadiusBaryon",
             "spin_parameter",
             "GasAxisLengths",
             "DMAxisLengths",
@@ -484,17 +485,25 @@ class ExclusiveSphereProperties(HaloProperty):
                 "HalfMassRadiusGas",
                 "HalfMassRadiusDM",
                 "HalfMassRadiusStar",
+                "HalfMassRadiusBaryon",
             ],
             [
                 radius[type == "PartType0"],
                 radius[type == "PartType1"],
                 radius[type == "PartType4"],
+                radius[(type == "PartType0") | (type == "PartType4")],
             ],
-            [mass_gas, mass_dm, mass_star],
+            [
+                mass_gas,
+                mass_dm,
+                mass_star,
+                mass[(type == "PartType0") | (type == "PartType4")],
+            ],
             [
                 exclusive_sphere["Mgas"],
                 exclusive_sphere["Mdm"],
                 exclusive_sphere["Mstar"],
+                exclusive_sphere["Mgas"] + exclusive_sphere["Mstar"],
             ],
         ):
             exclusive_sphere[name] += get_half_mass_radius(r, m, M)
