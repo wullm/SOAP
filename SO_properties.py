@@ -989,7 +989,12 @@ def test_SO_properties():
         # force the radius multiple to trip over the search radius
         fail = False
         try:
-            halo_result = {"SO/2500_mean/r": (0.1 * rmax, "Dummy value.")}
+            halo_result = {
+                f"SO/2500_mean/{property_calculator_5x2500mean.radius_name}": (
+                    0.1 * rmax,
+                    "Dummy value.",
+                )
+            }
             property_calculator_5x2500mean.calculate(
                 input_halo, 0.2 * rmax, data, halo_result
             )
@@ -1013,7 +1018,9 @@ def test_SO_properties():
             halo_result = {}
             # make sure the radius multiple is found this time
             if SO_name == "5xR_2500_mean":
-                halo_result["SO/2500_mean/r"] = (
+                halo_result[
+                    f"SO/2500_mean/{property_calculator_5x2500mean.radius_name}"
+                ] = (
                     0.1 * rmax,
                     "Dummy value to force correct behaviour",
                 )
