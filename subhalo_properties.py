@@ -73,6 +73,8 @@ class SubhaloProperties(HaloProperty):
             "veldisp_matrix_gas",
             "veldisp_matrix_dm",
             "veldisp_matrix_star",
+            "DtoTgas",
+            "DtoTstar",
         ]
     ]
 
@@ -299,11 +301,16 @@ class SubhaloProperties(HaloProperty):
         if subhalo["Mgas"] > 0.0 * subhalo["Mgas"].units:
             frac_mgas = mass_gas / subhalo["Mgas"]
             vcom_gas = (frac_mgas[:, None] * vel_gas).sum(axis=0)
-            Lgas, kappa = get_angular_momentum_and_kappa_corot(
-                mass_gas, pos_gas, vel_gas, ref_velocity=vcom_gas
+            Lgas, kappa, Mcountrot = get_angular_momentum_and_kappa_corot(
+                mass_gas,
+                pos_gas,
+                vel_gas,
+                ref_velocity=vcom_gas,
+                do_counterrot_mass=True,
             )
             subhalo["Lgas"] += Lgas
             subhalo["kappa_corot_gas"] += kappa
+            subhalo["DtoTgas"] += 1.0 - 2.0 * Mcountrot / subhalo["Mgas"]
             subhalo["GasAxisLengths"] += get_axis_lengths(mass_gas, pos_gas)
             subhalo["veldisp_matrix_gas"] += get_velocity_dispersion_matrix(
                 frac_mgas, vel_gas, vcom_gas
@@ -323,11 +330,16 @@ class SubhaloProperties(HaloProperty):
         if subhalo["Mstar"] > 0.0 * subhalo["Mstar"].units:
             frac_mstar = mass_star / subhalo["Mstar"]
             vcom_star = (frac_mstar[:, None] * vel_star).sum(axis=0)
-            Lstar, kappa = get_angular_momentum_and_kappa_corot(
-                mass_star, pos_star, vel_star, ref_velocity=vcom_star
+            Lstar, kappa, Mcountrot = get_angular_momentum_and_kappa_corot(
+                mass_star,
+                pos_star,
+                vel_star,
+                ref_velocity=vcom_star,
+                do_counterrot_mass=True,
             )
             subhalo["Lstar"] += Lstar
             subhalo["kappa_corot_star"] += kappa
+            subhalo["DtoTstar"] += 1.0 - 2.0 * Mcountrot / subhalo["Mstar"]
             subhalo["StellarAxisLengths"] += get_axis_lengths(mass_star, pos_star)
             subhalo["veldisp_matrix_star"] += get_velocity_dispersion_matrix(
                 frac_mstar, vel_star, vcom_star

@@ -114,13 +114,21 @@ class PropertyTable:
             "Axis lengths of the dark matter mass distribution, computed from the 3D DM inertia tensor, relative to the centre of potential.",
             "dm",
         ),
-        "DiscToTotalMassFraction": (
+        "DtoTstar": (
             "DiscToTotalStellarMassFraction",
             1,
             np.float32,
             "dimensionless",
-            "Fraction of the total stellar mass that is in a disc.",
+            "Fraction of the total stellar mass that is co-rotating.",
             "star",
+        ),
+        "DtoTgas": (
+            "DiscToTotalGasMassFraction",
+            1,
+            np.float32,
+            "dimensionless",
+            "Fraction of the total gas mass that is co-rotating.",
+            "gas",
         ),
         "DopplerB": ("DopplerB", 1, np.float32, "dimensionless", "Kinetic Sunyaey-Zel'dovich effect, assuming a line of sight towards the position of the first lightcone observer.", "gas"),
         "Ekin_gas": (

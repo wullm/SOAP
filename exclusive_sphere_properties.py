@@ -121,6 +121,8 @@ class ExclusiveSphereProperties(HaloProperty):
             "DMAxisLengths",
             "StellarAxisLengths",
             "BaryonAxisLengths",
+            "DtoTgas",
+            "DtoTstar",
         ]
     ]
 
@@ -322,11 +324,18 @@ class ExclusiveSphereProperties(HaloProperty):
         if exclusive_sphere["Mgas"] > 0.0 * exclusive_sphere["Mgas"].units:
             frac_mgas = mass_gas / exclusive_sphere["Mgas"]
             vcom_gas = (frac_mgas[:, None] * vel_gas).sum(axis=0)
-            Lgas, kappa = get_angular_momentum_and_kappa_corot(
-                mass_gas, pos_gas, vel_gas, ref_velocity=vcom_gas
+            Lgas, kappa, Mcountrot = get_angular_momentum_and_kappa_corot(
+                mass_gas,
+                pos_gas,
+                vel_gas,
+                ref_velocity=vcom_gas,
+                do_counterrot_mass=True,
             )
             exclusive_sphere["Lgas"] += Lgas
             exclusive_sphere["kappa_corot_gas"] += kappa
+            exclusive_sphere["DtoTgas"] += (
+                1.0 - 2.0 * Mcountrot / exclusive_sphere["Mgas"]
+            )
 
             """
             exclusive_sphere["veldisp_matrix_gas"] += get_velocity_dispersion_matrix(
@@ -361,11 +370,18 @@ class ExclusiveSphereProperties(HaloProperty):
         if exclusive_sphere["Mstar"] > 0.0 * exclusive_sphere["Mstar"].units:
             frac_mstar = mass_star / exclusive_sphere["Mstar"]
             vcom_star = (frac_mstar[:, None] * vel_star).sum(axis=0)
-            Lstar, kappa = get_angular_momentum_and_kappa_corot(
-                mass_star, pos_star, vel_star, ref_velocity=vcom_star
+            Lstar, kappa, Mcountrot = get_angular_momentum_and_kappa_corot(
+                mass_star,
+                pos_star,
+                vel_star,
+                ref_velocity=vcom_star,
+                do_counterrot_mass=True,
             )
             exclusive_sphere["Lstar"] += Lstar
             exclusive_sphere["kappa_corot_star"] += kappa
+            exclusive_sphere["DtoTstar"] += (
+                1.0 - 2.0 * Mcountrot / exclusive_sphere["Mstar"]
+            )
             exclusive_sphere["StellarAxisLengths"] += get_axis_lengths(
                 mass_star, pos_star
             )

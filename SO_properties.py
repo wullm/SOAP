@@ -8,6 +8,7 @@ from halo_properties import HaloProperty, ReadRadiusTooSmallError
 from kinematic_properties import (
     get_velocity_dispersion_matrix,
     get_angular_momentum,
+    get_angular_momentum_and_kappa_corot,
     get_vmax,
     get_axis_lengths,
 )
@@ -283,6 +284,8 @@ class SOProperties(HaloProperty):
             "DopplerB",
             "MgasO",
             "MgasFe",
+            "DtoTgas",
+            "DtoTstar",
         ]
     ]
 
@@ -565,9 +568,15 @@ class SOProperties(HaloProperty):
                 SO["com_gas"] += centre
                 SO["vcom_gas"] += (frac_mgas[:, None] * gas_vel).sum(axis=0)
 
-                SO["Lgas"] += get_angular_momentum(
-                    gas_masses, gas_pos, gas_vel, ref_velocity=SO["vcom_gas"]
+                Lgas, _, Mcountrot = get_angular_momentum_and_kappa_corot(
+                    gas_masses,
+                    gas_pos,
+                    gas_vel,
+                    ref_velocity=SO["vcom_gas"],
+                    do_counterrot_mass=True,
                 )
+                SO["Lgas"] += Lgas
+                SO["DtoTgas"] += 1.0 - 2.0 * Mcountrot / SO["Mgas"]
                 """
                 SO["veldisp_matrix_gas"] += get_velocity_dispersion_matrix(
                     frac_mgas, gas_vel, SO["vcom_gas"]
@@ -603,9 +612,15 @@ class SOProperties(HaloProperty):
                 SO["com_star"] += centre
                 SO["vcom_star"] += (frac_mstar[:, None] * star_vel).sum(axis=0)
 
-                SO["Lstar"] += get_angular_momentum(
-                    star_masses, star_pos, star_vel, ref_velocity=SO["vcom_star"]
+                Lstar, _, Mcountrot = get_angular_momentum_and_kappa_corot(
+                    star_masses,
+                    star_pos,
+                    star_vel,
+                    ref_velocity=SO["vcom_star"],
+                    do_counterrot_mass=True,
                 )
+                SO["Lstar"] += Lstar
+                SO["DtoTstar"] += 1.0 - 2.0 * Mcountrot / SO["Mstar"]
                 """
                 SO["veldisp_matrix_star"] += get_velocity_dispersion_matrix(
                     frac_mstar, star_vel, SO["vcom_star"]
