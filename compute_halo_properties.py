@@ -139,6 +139,9 @@ def compute_halo_properties():
         SO_properties.SOProperties(cellgrid, recently_heated_gas_filter, 200.0, "crit"),
         SO_properties.SOProperties(cellgrid, recently_heated_gas_filter, 500.0, "crit"),
         SO_properties.SOProperties(
+            cellgrid, recently_heated_gas_filter, 1000.0, "crit"
+        ),
+        SO_properties.SOProperties(
             cellgrid, recently_heated_gas_filter, 2500.0, "crit"
         ),
         SO_properties.SOProperties(cellgrid, recently_heated_gas_filter, 0.0, "BN98"),
