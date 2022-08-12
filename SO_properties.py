@@ -673,6 +673,7 @@ class SOProperties(HaloProperty):
                 ).sum()
 
                 gas_temperatures = data["PartType0"]["Temperatures"][gas_selection]
+                SO["Tgas"] += (gas_temperatures * (gas_masses / SO["Mgas"])).sum()
                 Tgas_selection = gas_temperatures > 1.0e5 * unyt.K
                 SO["Mhotgas"] += gas_masses[Tgas_selection].sum()
 
