@@ -1,9 +1,10 @@
 # SOAP: Spherical Overdensity and Aperture Processor
 
-This repository contains two programs which can be used to compute extra
-properties of VELOCIraptor halos in SWIFT snapshots.
+This repository contains programs which can be used to compute
+properties of halos in spherical apertures in SWIFT snapshots and to
+match halos between simulations using the particle IDs.
 
-These are both written in python and use mpi4py for parallelism.
+The code is written in python and uses mpi4py for parallelism.
 
 ## Computing halo membership for particles in the snapshot
 
@@ -225,9 +226,3 @@ The output is a HDF5 file with the following datasets:
 
 There are corresponding datasets with `1` and `2` reversed with information about matching in the opposite direction.
 
-## TODO
-
-Possible improvements:
-
-  * Specify multi-file inputs/outputs more consistently
-  * Use swiftsimio cosmo_arrays (may require a more complete wrapping of unyt_array).
