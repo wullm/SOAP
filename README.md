@@ -1,4 +1,4 @@
-# Halo properties in SWIFT simulations
+# SOAP: Spherical Overdensity and Aperture Processor
 
 This repository contains two programs which can be used to compute extra
 properties of VELOCIraptor halos in SWIFT snapshots.
