@@ -1,0 +1,237 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{longtable}
+\usepackage{a4wide}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{pifont}
+\usepackage{pdflscape}
+\usepackage{graphicx}
+
+\title{SOAP -- Spherical Overdensity and Aperture Processor}
+\author{Bert Vandenbroucke, Joop Schaye, John Helly, Matthieu Schaller}
+\date{August 2022}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+SOAP computes four different types of properties, depending on whether all particles or only bound particles 
+are included, and depending on how particles are included (by radius, in projection...). For all types, we use 
+the halo membership and centre of potential as determined by VELOCIraptor (VR; Elahi et al., 2019). The latter 
+is equivalent to the position of the most gravitationally bound particle in the halo. VR determines the 
+binding energy by summing the gravitational potential energy and the kinetic energy. For gas particles, the 
+thermal energy is also included in the calculation. These choices are not configurable. VR identifies 
+(sub-)halos using a FOF algorithm in 6D phase space, and (sub-)halo membership is based on FOF membership. 
+After the initial FOF search, VR runs a gravitational unbinding algorithm to remove particles that are part of 
+the 6D FOF group but not actually gravitationally bound to the structure. This leaves us with two classes of 
+(sub-)halo member particles: FOF particles, and FOF particles that are also bound. Note that VR does not know 
+about neutrinos; neutrino particles can hence never be bound to a (sub-)halo.
+
+\section{Property types}
+
+\paragraph{Subhalo quantities (SH)} are computed for each (sub-)halo identified by VR, irrespective of whether 
+this is a field halo or a satellite (or even satellite of satellite and so on). They include all particles 
+that are members of the friends-of-friends (FOF) halo, or only those particles that are bound to the 
+(sub-)halo (FOF minus unbound particles). For each (sub-)halo, there are thus only two sets of subhalo 
+properties of this type. Subhalo properties are contained within the groups \verb+FOFSubhaloProperties+ and 
+\verb+BoundSubhaloProperties+ in the output file, depending on whether they include all particles in the FOF 
+or only the subset that is also gravitionally bound.
+
+\paragraph{Exclusive sphere quantities (ES)} are similar to subhalo quantities, but they include only the 
+particles that are bound to the (sub-)halo, and apply an additional radial cut (aperture). We use eight 
+different aperture radii (10, 30, 50, 100, 300, 500, 1000, 3000 kpc), so that every (sub-)halo has eight of 
+these. Exclusive sphere properties are contained within a group \verb+ExclusiveSphere/XXXkpc+, where 
+\verb+XXX+ is the corresponding aperture radius.
+
+\paragraph{Inclusive sphere quantities (IS)} use the same physical aperture radii as the exclusive sphere 
+quantities, but include all particles within the radius, regardless of their membership status. They are
+stored within a group \verb+InclusiveSphere/XXXkpc+.
+
+\paragraph{Exclusive projected quantities (EP)} are similar to exclusive sphere quantities, except that their 
+aperture filter is applied in projection, and this for independent projections along the x-, y- and z-axis. 
+Along the projection axis, we do not apply any radial cut, so that the depth corresponds to all particles 
+bound to the (sub-)halo. With four projected aperture radii (10, 30, 50, 100 kpc), we then have twelve sets of 
+projected aperture quantities for each (sub-)halo. Projected aperture quantities are stored in a group named 
+\verb+ProjectedAperture/XXXkpc/projP+, where \verb+XXX+ is the corresponding aperture radius, and \verb+P+ 
+corresponds to a particular projection direction (\verb+x+, \verb+y+ or \verb+z+).
+
+\paragraph{Spherical overdensity properties (SO)} are fundamentally different from the three other types in 
+that their aperture radius is determined from the density profile and is different for different halos. They 
+always include all particles within a sphere around the centre of potential, regardless of halo membership. 
+The radius is either the radius at which the density reaches a certain target value (50 crit, 100 crit, 200 
+crit, 500 crit, 1000 crit, 2500 crit, 200 mean, BN98) or a multiple of such a radius (5xR 500 crit). Details 
+of the spherical overdensity calculation are given at the end of this document. Spherical overdensities are 
+only computed for centrals, i.e. field halos. The inclusive sphere quantities are stored in a group 
+\verb+SO/XXX+, where \verb+XXX+ can be either \verb+XXX_mean+ for density multiples of the mean density, 
+\verb+XXX_crit+ for density multiples of the critical density, \verb+BN98+ for the overdensity definition of 
+Bryan \& Norman (1998), and \verb+YxR_XXX_ZZZ+ for multiples of some other radius (e.g. \verb+5xR_2500_mean+). 
+The latter can only be computed after the corresponding density multiple SO radius has been computed. This is 
+achieved by ordering the calculations.
+
+\paragraph{The table below summarises} the different halo types.
+
+\begin{longtable}{llcp{6cm}}
+ & Name & Inclusive? & Variations \\
+\hline{}SH & \verb+XXSubhaloProperties+ & \ding{53} & \verb+FOF+, \verb+Bound+ \\
+ES & \verb+ExclusiveSphere/XXXkpc+ & \ding{53} & 30, 50, 100, 300, 500, 1000, 3000 kpc \\
+IS & \verb+InclusiveSphere/XXXkpc+ & \ding{51} & 30, 50, 100, 300, 500, 1000, 3000 kpc \\
+EP & \verb+ProjectedAperture/XXXkpc/projP+ & \ding{53} & 10, 30, 50, 100 kpc \\
+SO & \verb+SO/XXX+ & \ding{51} & 200 mean, (50, 100, 200, 500, 1000, 2500) crit, 5$\times{}$500 crit \\
+\end{longtable}
+
+\section{Property categories}
+
+Halo properties only make sense if the (sub)halo contains sufficient particles. VR was run with a 
+configuration that requires at least 20 particles within a satellite subhalo and 32 particles within a central 
+subhalo. However, even for those particle numbers, a lot of the properties computed by SOAP will be zero (e.g. 
+the gas mass within a 10 kpc aperture), or have values that are outliers compared to the full halo population 
+because of undersampling. We can save a lot of disk space by filtering these out by applying appropriate cuts. 
+Filtering means setting the value of the property to \verb+NaN+; HDF5 file compression then very effectively 
+reduces the data storage required to store these properties, while the size of the arrays that the end user 
+sees remains unchanged. Evidently, we can also save on computing time by not computing properties that are 
+filtered out.
+
+Since different properties can have very different requirements, filtering is done in categories, where each 
+category corresponds to a set of quantities that are filtered using the same criterion. Inclusive, exclusive 
+or projected quantities with different aperture radii (or overdensity criteria) can be used to create 
+profiles. In order for these profiles to make sense, we have to apply a consistent cut across all the 
+different aperture radii (or overdensity criteria) for the same subhalo property type. Or in other words: the 
+quantities for an inclusive sphere with a 10 kpc aperture radius will use the same filter mask as the 
+quantities of the inclusive sphere with a 3000 kpc aperture radius, even though the latter by construction has 
+many more particles.
+
+\paragraph{Basic quantities (basic)} are never filtered out, and hence go all the way down to the 20/32 
+particle limit imposed by VR.
+
+\paragraph{General derived quanties (general)} use a filter based on the total number of particles within the 
+VR FOF group.
+
+\paragraph{Derived gas quantities (gas)} use a filter based on the number of gas particles within the VR FOF 
+group.
+
+\paragraph{Derived DM quantities (dm)} use a filter based on the number of DM particles within the VR FOF 
+group.
+
+\paragraph{Derived stellar quantities (star)} use a filter based on the number of star particles within the VR 
+FOF group.
+
+\paragraph{Derived baryon quantities (baryon)} use a filter based on the number of gas and star particles 
+within the VR FOF group.
+
+\paragraph{}Note that there are no quantities that use a BH or neutrino particle number filter.
+
+The different categories are summarised in the table below.
+
+\begin{longtable}{ll}
+Name & criterion \\
+\hline{}basic & (all halos) \\
+general & $N_{\rm{}gas}+N_{\rm{}dm}+N_{\rm{}star}+N_{\rm{}BH} > 100$ \\
+gas & $N_{\rm{}gas} > 50$ \\
+dm & $N_{\rm{}dm} > 100$ \\
+star & $N_{\rm{}star} > 50$ \\
+baryon & $N_{\rm{}gas}+N_{\rm{}star} > 100$ \\
+\end{longtable}
+
+\section{Overview table}
+
+The table below lists all the properties that are computed by SOAP. This table is automatically generated by 
+SOAP from the source code, so that all names, types, units, categories and descriptions match what is actually 
+used and output by SOAP. For each quantity, the table indicates for which halo types the property is computed. 
+Superscript numbers refer to more detailed explanations for some of the properties and match the numbers in 
+the next section.
+
+\input{table}
+
+\section{Non-trivial properties}
+
+\input{footnotes}
+
+\section{Spherical overdensity calculations}
+
+The radius at which the density reaches a certain threshold value is found by linear interpolation of the 
+cumulative mass profile obtained after sorting the particles by radius. The approach we use is different from 
+that taken by VR, where both the mass and the radius are obtained from independent interpolations on the mass 
+and density profiles (the latter uses the logarithm of the density in the interpolation). The VR approach is 
+inconsistent, in the sense that the condition
+
+\begin{equation}
+    \frac{4\pi{}}{3} R_{\rm{}SO}^3 \rho{}_{\rm{}target} = M_{\rm{}SO},\label{eq:MSO_condition}
+\end{equation}
+
+is not guaranteed to be true, and will be especially violated for large radial bins (the bins are generated 
+from the particle radii by sorting the particles, so we have no control over their width). We instead opt to 
+guarantee this condition by only finding $R_{\rm{}SO}$ or $M_{\rm{}SO}$ by interpolation and using eq. 
+\ref{eq:MSO_condition} to derive the other quantity.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.48\textwidth{}]{image7.png}
+    \includegraphics[width=0.48\textwidth{}]{image4.png}
+    \caption{Density profile (\emph{top row}) and cumulative mass profile (\emph{bottom row}) for an example 
+    halo in a 400 Mpc FLAMINGO box. The orange lines show $\rho{}_{\rm{}target}$ and $R_{\rm{}SO}$ and 
+    $M_{\rm{}SO}$ as determined by SOAP, while the green line is the cumulative mass profile at fixed 
+    $\rho{}_{\rm{}target}$. The two left columns correspond to a run where $R_{\rm{}SO}$ is fixed by 
+    interpolating on the density profile (so in the top row plot), while the second two columns determine 
+    $R_{\rm{}SO}$ by interpolating on the cumulative mass in the bottom row plots. The right column for each 
+    pair of columns shows a zoom of the left column.}
+    \label{fig:MSO_vs_RSO}
+\end{figure}
+
+While the interpolation of the logarithmic density profile to find $R_{\rm{}SO}$ is more straightforward, we 
+found that it can lead to significant deviations between the value of $M_{\rm{}SO}$ and the cumulative mass in 
+neighbouring bins that can be more than one particle mass, as illustrated in Fig. \ref{fig:MSO_vs_RSO}. The 
+reason for this is that the cumulative mass profile at fixed density increases very steeply with radius, so 
+that a small difference in $R_{\rm{}SO}$ leads to a relatively large difference in $M_{\rm{}SO}$. Conversely, 
+fixing $M_{\rm{}SO}$ will lead to an $R_{\rm{}SO}$ that only deviates a little bit from the $R_{\rm{}SO}$ 
+found by interpolating the density profile. However, doing so requires us to find the intersection of the 
+cumulative mass profile at fixed density (green line in Fig. \ref{fig:MSO_vs_RSO}) with the actual cumulative 
+mass profile, which means solving the following equation:
+
+\begin{equation}
+    \frac{4\pi{}}{3} \rho{}_{\rm{}target} R_{\rm{}SO}^3 = M_{\rm{}low} + \left( \frac{M_{\rm{}high}-M_{\rm{}low}}{R_{\rm{}high} - R_{\rm{}low}} \right) \left(R_{\rm{}SO} - R_{\rm{}low}\right),
+    \label{eq:RSO}
+\end{equation}
+
+where $R/M_{\rm{}low/high}$ are the bounds of the intersecting bin (which we find in the density profile). 
+This third degree polynomial equation has no unique solution, although in practice only one of the three 
+possible complex solutions is real. We find this solution by using a root finding algorithm within the 
+intersecting bin (we use Brent's method for this).
+
+For clarity, this is the full set of rules for determining the SO radius in SOAP:
+\begin{enumerate}
+    \item Sort particles according to radius and construct the cumulative mass profile.
+    \item Discard any particles at zero radius, since we cannot compute a density for those. The mass of these 
+    particles is used as an $r=0$ offset for the cumulative mass profile. Since the centre of potential is the 
+    position of the most bound particle, there should always be at least one such particle.
+    \item Construct the density profile by dividing the cumulative mass at every radius by the volume of the 
+    sphere with that radius.
+    \item Find intersection points between the density profile and the target density, i.e. the radii 
+    $R_{1,2}$ and masses $M_{1,2}$ where the density profile goes from above to below the threshold:
+    \begin{enumerate}
+        \item If there are none, analytically compute $R_{\rm{}SO}=\sqrt{3M_1/(4\pi{}R_1\rho_{\rm{}target})}$, 
+        where $R_1$ and $M_1$ are the first non zero radius and the corresponding cumulative mass. This is a 
+        special case of Eq. \ref{eq:RSO}. Unless there are multiple particles at the exact centre of potential 
+        position, this radius estimate will then be based on just two particles.
+        \item If the first intersection point has a positive slope, i.e. the density was actually below the 
+        threshold in the centre, we use the next intersection point, which then necessarily should have a 
+        negative slope (if such a point does not exist, we need to increase the search radius).
+        \item In all other cases, we use $R_{1,2}$ and $M_{1,2}$ as input for Eq. \ref{eq:RSO} and solve for 
+        $R_{\rm{}SO}$. The only exception is the special case where $R_1 = R_2$. If that happens, we simply 
+        move further down the line until we find a suitable interval.
+
+    \end{enumerate}
+    \item From $R_{\rm{}SO}$, we determine $M_{\rm{}SO}$ using Eq. \ref{eq:MSO_condition}.
+\end{enumerate}
+
+\paragraph{Neutrinos are included} in the inclusive sphere calculation (and only here, since neutrino 
+particles cannot be bound to a halo) by adding both their weighted masses (which can be negative), as well as 
+the contribution from the background neutrino density. The latter is achieved by explicitly adding the 
+cumulative mass profile at constant neutrino density to the total cumulative mass profile before computing the 
+density profile. This is the only place where neutrinos explicitly enter the algorithm, except for the 
+neutrino masses computed for the SOs. Neutrinos are not included in the calculation of the centre of mass and 
+centre of mass velocity.
+
+\end{document}

@@ -1,0 +1,20 @@
+\paragraph{$^{$FOOTNOTE_NUMBER$}$The mass-weighted temperature} is computed as
+
+\begin{equation}
+    T = \frac{1}{\sum_i m_i} \sum_i m_i T_i,
+\end{equation}
+
+and the \verb+GasTemperatureWithoutRecentAGNHeating+ variant uses the same definition, but excludes particles 
+that satisfy
+
+\begin{equation}
+    \verb+LastAGNFeedbackScaleFactors+_i \geq{} a - 15{\rm{}Myr}
+\end{equation}
+
+and
+
+\begin{equation}
+    0.1 \Delta{}T_{\rm{}AGN} \leq{} T_i \leq{} 10^{0.3} \Delta{}T_{\rm{}AGN},
+\end{equation}
+
+using the same parameters as used internally by SWIFT and with $a$ the current scale factor.

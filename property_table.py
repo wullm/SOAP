@@ -7,32 +7,62 @@ import unyt
 class PropertyTable:
 
     categories = ["basic", "general", "gas", "dm", "star", "baryon"]
-    explanation = [
-        ["BHmaxM"],
-        ["com", "vcom"],
-        ["Lgas", "Ldm", "Lstar", "Lbaryons"],
-        ["kappa_corot_gas", "kappa_corot_star", "kappa_corot_baryons"],
-        ["SFR", "MgasFe_SF", "MgasO_SF", "Mgas_SF", "Mgasmetal_SF"],
-        ["Tgas", "Tgas_no_agn", "Tgas_no_cool", "Tgas_no_cool_no_agn"],
-        ["StellarLuminosity"],
-        ["R_vmax", "Vmax"],
-        ["spin_parameter"],
-        ["veldisp_matrix_gas", "veldisp_matrix_dm", "veldisp_matrix_star"],
-        ["proj_veldisp_gas", "proj_veldisp_dm", "proj_veldisp_star"],
-        ["MgasO", "MgasO_SF", "MgasFe", "MgasFe_SF", "Mgasmetal", "Mgasmetal_SF"],
-        [
+    explanation = {
+        "footnote_MBH.tex": ["BHmaxM"],
+        "footnote_com.tex": ["com", "vcom"],
+        "footnote_AngMom.tex": ["Lgas", "Ldm", "Lstar", "Lbaryons"],
+        "footnote_kappa.tex": [
+            "kappa_corot_gas",
+            "kappa_corot_star",
+            "kappa_corot_baryons",
+        ],
+        "footnote_SF.tex": ["SFR", "MgasFe_SF", "MgasO_SF", "Mgas_SF", "Mgasmetal_SF"],
+        "footnote_Tgas.tex": [
+            "Tgas",
+            "Tgas_no_agn",
+            "Tgas_no_cool",
+            "Tgas_no_cool_no_agn",
+        ],
+        "footnote_lum.tex": ["StellarLuminosity"],
+        "footnote_circvel.tex": ["R_vmax", "Vmax"],
+        "footnote_spin.tex": ["spin_parameter"],
+        "footnote_veldisp_matrix.tex": [
+            "veldisp_matrix_gas",
+            "veldisp_matrix_dm",
+            "veldisp_matrix_star",
+        ],
+        "footnote_proj_veldisp.tex": [
+            "proj_veldisp_gas",
+            "proj_veldisp_dm",
+            "proj_veldisp_star",
+        ],
+        "footnote_elements.tex": [
+            "MgasO",
+            "MgasO_SF",
+            "MgasFe",
+            "MgasFe_SF",
+            "Mgasmetal",
+            "Mgasmetal_SF",
+        ],
+        "footnote_halfmass.tex": [
             "HalfMassRadiusTot",
             "HalfMassRadiusGas",
             "HalfMassRadiusDM",
             "HalfMassRadiusStar",
         ],
-        ["Mfrac_satellites"],
-        ["Ekin_gas", "Ekin_star"],
-        ["Etherm_gas"],
-        ["Mnu", "MnuNS"],
-        ["Xraylum", "Xraylum_no_agn", "Xrayphlum", "Xrayphlum_no_agn"],
-        ["compY", "compY_no_agn"],
-    ]
+        "footnote_satfrac.tex": ["Mfrac_satellites"],
+        "footnote_Ekin.tex": ["Ekin_gas", "Ekin_star"],
+        "footnote_Etherm.tex": ["Etherm_gas"],
+        "footnote_Mnu.tex": ["Mnu", "MnuNS"],
+        "footnote_Xray.tex": [
+            "Xraylum",
+            "Xraylum_no_agn",
+            "Xrayphlum",
+            "Xrayphlum_no_agn",
+        ],
+        "footnote_compY.tex": ["compY", "compY_no_agn"],
+        "footnote_dopplerB.tex": ["DopplerB"],
+    }
 
     # List of properties that get computed
     # For each property, we have the following columns:
@@ -130,7 +160,14 @@ class PropertyTable:
             "Fraction of the total gas mass that is co-rotating.",
             "gas",
         ),
-        "DopplerB": ("DopplerB", 1, np.float32, "dimensionless", "Kinetic Sunyaey-Zel'dovich effect, assuming a line of sight towards the position of the first lightcone observer.", "gas"),
+        "DopplerB": (
+            "DopplerB",
+            1,
+            np.float32,
+            "dimensionless",
+            "Kinetic Sunyaey-Zel'dovich effect, assuming a line of sight towards the position of the first lightcone observer.",
+            "gas",
+        ),
         "Ekin_gas": (
             "KineticEnergyGas",
             1,
@@ -693,8 +730,14 @@ class PropertyTable:
 
     def get_footnotes(self, name):
         footnotes = []
-        for i, names in enumerate(self.explanation):
+        for fnote in self.explanation.keys():
+            names = self.explanation[fnote]
             if name in names:
+                try:
+                    i = self.footnotes.index(fnote)
+                except ValueError:
+                    i = len(self.footnotes)
+                    self.footnotes.append(fnote)
                 footnotes.append(i + 1)
         if len(footnotes) > 0:
             return f'$^{{{",".join([f"{i}" for i in footnotes])}}}$'
@@ -703,6 +746,7 @@ class PropertyTable:
 
     def __init__(self):
         self.properties = {}
+        self.footnotes = []
 
     def add_properties(self, halo_property):
         halo_type = halo_property.__name__
@@ -788,7 +832,7 @@ class PropertyTable:
             )
         print("}")
 
-    def print_table(self):
+    def print_table(self, tablefile, footnotefile):
         prop_names = sorted(
             self.properties.keys(),
             key=lambda key: (
@@ -796,7 +840,7 @@ class PropertyTable:
                 self.properties[key]["name"].lower(),
             ),
         )
-        tablestr = """\\documentclass{article}
+        headstr = """\\documentclass{article}
 \\usepackage{amsmath}
 \\usepackage{amssymb}
 \\usepackage{longtable}
@@ -804,9 +848,9 @@ class PropertyTable:
 \\usepackage{pdflscape}
 \\usepackage{a4wide}
 \\usepackage{multirow}
-\\begin{document}
+\\begin{document}"""
 
-\\begin{landscape}
+        tablestr = """\\begin{landscape}
 \\begin{longtable}{llllllllll}
 Name & Shape & Type & Units & SH & ES & IS & EP & SO & Category \\\\
 \\multicolumn{10}{l}{\\rule{30pt}{0pt}Description}\\\\
@@ -864,9 +908,17 @@ Name & Shape & Type & Units & SH & ES & IS & EP & SO & Category \\\\
             )
             tablestr += f"\\multicolumn{{10}}{{p{{20cm}}}}{{\\rule{{30pt}}{{0pt}}{prop_description}}}\\\\\n"
         tablestr += """\\end{longtable}
-\\end{landscape}
-\\end{document}"""
-        print(tablestr)
+\\end{landscape}"""
+        tailstr = "\\end{document}"
+        with open(tablefile, "w") as ofile:
+            ofile.write(tablestr)
+        with open(footnotefile, "w") as ofile:
+            for i, fnote in enumerate(self.footnotes):
+                with open(f"documentation/{fnote}", "r") as ifile:
+                    fnstr = ifile.read()
+                fnstr = fnstr.replace("$FOOTNOTE_NUMBER$", f"{i+1}")
+                ofile.write(f"{fnstr}\n\n")
+        print(f"{headstr}\n{tablestr}\n{tailstr}")
 
 
 class DummyProperties:
@@ -894,4 +946,4 @@ if __name__ == "__main__":
     if False:
         table.print_dictionary()
     else:
-        table.print_table()
+        table.print_table("documentation/table.tex", "documentation/footnotes.tex")
