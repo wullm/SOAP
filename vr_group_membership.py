@@ -39,7 +39,7 @@ if __name__ == "__main__":
     with h5py.File(args.swift_filename % {"file_nr" : 0}, "r") as infile:
         nr_types = infile["Header"].attrs["NumPartTypes"][0]
         numpart_total = (infile["Header"].attrs["NumPart_Total"].astype(np.int64) +
-                         infile["Header"].attrs["NumPart_Total_HighWord"].astype(np.int64) << 32)
+                         (infile["Header"].attrs["NumPart_Total_HighWord"].astype(np.int64) << 32))
         nr_files = infile["Header"].attrs["NumFilesPerSnapshot"][0]
         for i in range(nr_types):
             if numpart_total[i] > 0:
