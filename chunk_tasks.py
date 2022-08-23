@@ -14,6 +14,7 @@ from halo_tasks import process_halos
 from mask_cells import mask_cells
 import memory_use
 import domain_decomposition
+import result_set
 
 # Will label messages with time since run start
 time_start = time.time()
@@ -137,7 +138,9 @@ class ChunkTask:
         comm_rank = comm.Get_rank()
         comm_size = comm.Get_size()
 
-        result_set_list = []
+        # Create object to store the results for this chunk
+        nr_halos = len(self.halo_arrays["ID"].full)
+        results = result_set.ResultSet(initial_size=max(1, nr_halos//comm_size))
         
         # Unpack arrays we need
         centre = self.halo_arrays["cofp"]
@@ -258,20 +261,15 @@ class ChunkTask:
 
             # Calculate the halo properties
             t0_halos = time.time()
-            nr_halos = len(self.halo_arrays["ID"].full)
-            result_set, total_time, task_time, nr_left, nr_done = process_halos(comm, cellgrid.snap_unit_registry, data, mesh,
-                                                                            self.halo_prop_list, critical_density,
-                                                                            mean_density, boxsize, self.halo_arrays)
+            total_time, task_time, nr_left, nr_done = process_halos(comm, cellgrid.snap_unit_registry, data, mesh,
+                                                                    self.halo_prop_list, critical_density,
+                                                                    mean_density, boxsize, self.halo_arrays, results)
             t1_halos = time.time()
             task_time_all_iterations += task_time
             dead_time_fraction = 1.0-comm.allreduce(task_time)/comm.allreduce(total_time)
             message("processing %d of %d halos on %d ranks took %.1fs (dead time frac.=%.2f)" % (nr_done, nr_halos, comm_size,
                                                                                                  t1_halos-t0_halos,
                                                                                                  dead_time_fraction))
-            # If we processed at least one halo, add it to the list of ResultSets for this chunk
-            if len(result_set) > 0:
-                result_set_list.append(result_set)
-
             # Free the shared particle data
             for ptype in data:
                 for name in data[ptype]:
@@ -297,7 +295,7 @@ class ChunkTask:
         # Store time taken for this task
         timings.append(task_time_all_iterations)
 
-        return result_set_list
+        return results
 
     @classmethod
     def bcast(cls, comm, instance):

@@ -16,18 +16,15 @@ def concatenate(result_sets):
     Also clears the input result sets as a side effect.
     """
 
-    # Create the output result set
-    output = ResultSet()
-
-    # Ensure input sets are allocated to exactly the right size
-    for rs in result_sets:
-        rs.trim()
-
     # Make sure all result sets contains the same quantity names
     for rs in result_sets:
         if sorted(list(rs.result_arrays.keys())) != sorted(list(result_sets[0].result_arrays.keys())):
             raise Exception("Attempting to concatenate inconsistent ResultSets!")
     names = list(result_sets[0].result_arrays.keys())
+
+    # Make sure all arrays are exactly the right size
+    for rs in result_sets:
+        rs.trim()
 
     # Check units, dtype and shape for all quantities
     for name in names:
@@ -41,7 +38,11 @@ def concatenate(result_sets):
             raise Exception(f"Result arrays for quantity {name} have inconsistent shapes!")
 
     # Compute total number of halos in the output
-    output.nr_halos = sum([rs.nr_halos for rs in result_sets])
+    nr_halos = sum([rs.nr_halos for rs in result_sets])
+
+    # Create the output result set
+    output = ResultSet(initial_size=nr_halos)
+    output.nr_halos = nr_halos
 
     # Concatenate arrays
     for name in names:
@@ -65,11 +66,11 @@ class ResultSet:
     Class to store halo properties as a dict of (unyt_array, description)
     tuples.
     """
-    def __init__(self):
+    def __init__(self, initial_size):
         
         # Initially we have no data arrays
         self.nr_halos = 0
-        self.initial_size = 1000
+        self.initial_size = initial_size
         self.result_arrays = {}
 
     def __len__(self):
@@ -133,6 +134,9 @@ class ResultSet:
         Do an MPI parallel sort of the results on the specified sort key
         """
         
+        # Ensure arrays are exactly the right size
+        self.trim()
+
         # First, make sure everyone has the same set of array names
         names_local = list(self.result_arrays.keys())
         names_ref = comm.bcast(names_local)
@@ -165,6 +169,9 @@ class ResultSet:
         """
         Write the results to a file in collective mode
         """
+
+        # Ensure arrays are exactly the right size
+        self.trim()
 
         # Get names in a consistent order between MPI ranks
         names = comm.bcast(list(self.result_arrays.keys()))

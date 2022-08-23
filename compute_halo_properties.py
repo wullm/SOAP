@@ -213,10 +213,8 @@ def compute_halo_properties():
                                              comm_all=comm_world, comm_master=comm_inter_node,
                                              comm_workers=comm_intra_node, task_type=chunk_tasks.ChunkTask)
 
-    # The result list has one element per chunk processed. Each element is itself a
-    # list of result sets, with one element per iteration that was required.
-    # Flatten this so we just have a list of result sets on each MPI rank.
-    local_results = [item for sublist in local_results for item in sublist]
+    # Discard empty ResultSets. This happens when a chunk has fewer halos than MPI ranks.
+    local_results = [lr for lr in local_results if len(lr) > 0]
 
     # Make a communicator which only contains tasks which have results
     colour = 0 if len(local_results) > 0 else 1
