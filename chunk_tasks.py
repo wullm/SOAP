@@ -13,7 +13,6 @@ from dataset_names import mass_dataset, ptypes_for_so_masses
 from halo_tasks import process_halos
 from mask_cells import mask_cells
 import memory_use
-import domain_decomposition
 
 # Will label messages with time since run start
 time_start = time.time()
@@ -74,9 +73,7 @@ class ChunkTaskList:
     def __init__(self, cellgrid, so_cat, nr_chunks, halo_prop_list):
 
         # Assign the input halos to chunk tasks
-        task_id = domain_decomposition.peano_decomposition(cellgrid.boxsize,
-                                                           so_cat.halo_arrays["cofp"],
-                                                           nr_chunks)
+        task_id = so_cat.halo_arrays["task_id"]
 
         # Sort the halos by task ID
         idx = np.argsort(task_id)

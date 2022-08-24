@@ -186,7 +186,7 @@ def compute_halo_properties():
     so_cat = halo_centres.SOCatalogue(comm_world, vr_basename, cellgrid.a_unit,
                                       cellgrid.snap_unit_registry, cellgrid.boxsize,
                                       args.max_halos[0], args.centrals_only,
-                                      args.halo_ids, halo_prop_list)
+                                      args.halo_ids, halo_prop_list, args.chunks)
 
     # Generate the chunk task list
     if comm_world_rank == 0:
