@@ -134,6 +134,10 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
             current_radius = min(current_radius*SEARCH_RADIUS_FACTOR, input_halo["read_radius"])
             current_radius = max(current_radius, required_radius)
 
+    # In case we're not doing any calculations with a target density
+    if target_density is None:
+        target_density = density*0.0
+
     # Add the halo index to the result set
     halo_result["VR/index"]         = (input_halo["index"],         "Index of this halo in the input catalogue")
     halo_result["VR/ID"]            = (input_halo["ID"],            "VELOCIraptor halo ID")

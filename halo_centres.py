@@ -8,6 +8,7 @@ import virgo.util.match
 import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.gather_array as g
 
+import domain_decomposition
 
 def gather_to_rank_zero(arr):
     """Gather the specified array on rank 0, preserving units"""
@@ -19,7 +20,7 @@ def gather_to_rank_zero(arr):
 class SOCatalogue:
 
     def __init__(self, comm, vr_basename, a_unit, registry, boxsize, max_halos,
-                 centrals_only, halo_ids, halo_prop_list):
+                 centrals_only, halo_ids, halo_prop_list, nr_chunks):
         """
         This reads in the VR catalogues and stores the halo properties in a
         dict of unyt_arrays, self.halo_arrays, on rank 0 of communicator comm.
@@ -128,6 +129,11 @@ class SOCatalogue:
                 local_halo[name] = unyt.unyt_array(local_halo[name]*conv_fac, units=units, dtype=dtype, registry=registry)
             else:
                 local_halo[name] = unyt.unyt_array(local_halo[name], units=units, dtype=dtype, registry=registry)
+
+        # Assign halos to chunk tasks
+        task_id = domain_decomposition.peano_decomposition(boxsize, local_halo["cofp"], nr_chunks, comm)
+        local_halo["task_id"] = unyt.unyt_array(task_id, units=unyt.dimensionless, registry=registry, dtype=task_id.dtype)
+
         #
         # Compute initial search radius for each halo:
         #
