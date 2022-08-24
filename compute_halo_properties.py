@@ -15,6 +15,9 @@ import numpy as np
 import h5py
 import unyt
 
+import virgo.mpi.parallel_hdf5 as phdf5
+import virgo.mpi.parallel_sort as psort
+
 import halo_centres
 import swift_cells
 import chunk_tasks
@@ -246,28 +249,53 @@ def compute_halo_properties():
         params.attrs["calculations"] = calc_names
         params.attrs["halo_ids"] = args.halo_ids if args.halo_ids is not None else np.ndarray(0, dtype=int)
         outfile.close()
+
     comm_world.barrier()
+    t0_reorder = time.time()
 
     # Open the per-chunk scratch files
-    #scratch_file = virgo.mpi.parallel_hdf5.MultiFile(scratch_file_format, file_idx=range(args.nchunks), comm=comm_world)
+    scratch_file = phdf5.MultiFile(scratch_file_format, file_idx=range(args.chunks), comm=comm_world)
 
-    # Read the VR halo IDs
+    # Read the VR halo IDs from the scratch files and make a sorting index to put them in order
+    vr_id = scratch_file.read(("VR/ID",))["VR/ID"]
+    order = psort.parallel_sort(vr_id, return_index=True, comm=comm_world)
+    del vr_id
 
-    # Generate sorting index to arrange halos by VR ID
+    # Reopen the output file in parallel mode
+    outfile = h5py.File(output_file, "r+", driver="mpio", comm=comm_world)
 
-    # Loop over halo properties
+    # Loop over halo properties, a few at a time
+    total_nr_props = len(ref_metadata)
+    props_per_iteration = min(total_nr_props, 100) # TODO: how to choose this number?
+    for i1 in range(0, total_nr_props, props_per_iteration):
+        i2 = min(i1 + props_per_iteration, total_nr_props)
 
-    # Read halo property
+        # Get the names of properties to read on this iteration
+        prop_names = [name for (name, size, units) in ref_metadata[i1:i2]]
 
-    # Reorder by VR ID
+        # Read in and reorder the properties
+        data = scratch_file.read(prop_names)
+        for name in data:
+            data[name] = psort.fetch_elements(data[name], order, comm=comm_world)
 
-    # Write to the output file
+        # Write these properties to the output file
+        for name in data:
+            phdf5.collective_write(outfile, name, data[name], comm=comm_world)
+
+    outfile.close()
+
+    comm_world.barrier()
+    t1_reorder = time.time()
+    if comm_world_rank == 0:
+        print("Sorting %d halo properties took %.1fs" % (total_nr_props, t1_reorder-t0_reorder))
 
     # Delete scratch files
-
-
-
-
+    comm_world.barrier()
+    for file_nr in range(args.chunks):
+        os.remove(scratch_file_format % {"file_nr" : file_nr})
+    comm_world.barrier()
+    if comm_world_rank == 0:
+        print("Deleted scratch files.")
 
     # Stop the clock
     comm_world.barrier()
