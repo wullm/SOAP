@@ -1,8 +1,6 @@
 #!/bin/env python
 
 import time
-import os
-import os.path
 import numpy as np
 from mpi4py import MPI
 import unyt
@@ -300,16 +298,7 @@ class ChunkTask:
         colour = 0 if len(results) > 0 else 1
         comm_have_results = comm.Split(colour, comm_rank)
         if len(results) > 0:
-
-            # Ensure the scratch directory exists
             filename = scratch_file_format % {"file_nr" : self.chunk_nr}
-            dirname = os.path.dirname(filename)
-            try:
-                os.makedirs(dirname)
-            except OSError:
-                pass
-
-            # Write the results to a temporary file
             with h5py.File(filename, "w", driver="mpio", comm=comm_have_results) as outfile:
                 results.collective_write(outfile, comm_have_results)
         comm_have_results.Free()

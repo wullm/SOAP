@@ -8,6 +8,8 @@ comm_world = MPI.COMM_WORLD
 comm_world_rank = comm_world.Get_rank()
 comm_world_size = comm_world.Get_size()
 
+import os
+import os.path
 import sys
 import traceback
 import time
@@ -212,6 +214,17 @@ def compute_halo_properties():
     # Make a format string to generate the name of the file each chunk task will write to
     scratch_file_format = args.scratch_dir+"/chunk_%(file_nr)d.hdf5"
 
+    # Ensure that the directories which will contain the scratch files exist
+    if comm_world_rank == 0:
+        for file_nr in range(args.chunks):
+            scratch_file_name = scratch_file_format % {"file_nr" : file_nr}
+            scratch_file_dir = os.path.dirname(scratch_file_name)
+            try:
+                os.makedirs(scratch_file_dir)
+            except OSError:
+                pass
+    comm_world.barrier()
+
     # Execute the chunk tasks. This writes one file per chunk with the halo properties.
     timings = []
     task_args=(cellgrid, comm_intra_node, inter_node_rank, timings, args.max_ranks_reading, scratch_file_format)
@@ -281,6 +294,7 @@ def compute_halo_properties():
         # Write these properties to the output file
         for name in data:
             phdf5.collective_write(outfile, name, data[name], comm=comm_world)
+        del data
 
     outfile.close()
 
@@ -291,11 +305,11 @@ def compute_halo_properties():
 
     # Delete scratch files
     comm_world.barrier()
-    for file_nr in range(args.chunks):
-        os.remove(scratch_file_format % {"file_nr" : file_nr})
-    comm_world.barrier()
     if comm_world_rank == 0:
+        for file_nr in range(args.chunks):
+            os.remove(scratch_file_format % {"file_nr" : file_nr})
         print("Deleted scratch files.")
+    comm_world.barrier()
 
     # Stop the clock
     comm_world.barrier()
