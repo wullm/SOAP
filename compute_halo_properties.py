@@ -206,65 +206,68 @@ def compute_halo_properties():
     # We no longer need the VR catalogue, since halo centres etc are stored in the chunk tasks
     del so_cat
 
-    # Execute the chunk tasks
+    # Make a format string to generate the name of the file each chunk task will write to
+    scratch_file_format = args.scratch_dir+"/chunk_%(file_nr)d.hdf5"
+
+    # Execute the chunk tasks. This writes one file per chunk with the halo properties.
     timings = []
-    local_results = task_queue.execute_tasks(tasks,
-                                             args=(cellgrid, comm_intra_node, inter_node_rank, timings, args.max_ranks_reading),
-                                             comm_all=comm_world, comm_master=comm_inter_node,
-                                             comm_workers=comm_intra_node, task_type=chunk_tasks.ChunkTask)
-
-    # Discard empty ResultSets. This happens when a chunk has fewer halos than MPI ranks.
-    local_results = [lr for lr in local_results if len(lr) > 0]
-
-    # Make a communicator which only contains tasks which have results
-    colour = 0 if len(local_results) > 0 else 1
-    comm_have_results = comm_world.Split(colour, comm_world_rank)
+    task_args=(cellgrid, comm_intra_node, inter_node_rank, timings, args.max_ranks_reading, scratch_file_format)
+    metadata = task_queue.execute_tasks(tasks, args=task_args, comm_all=comm_world, comm_master=comm_inter_node,
+                                        comm_workers=comm_intra_node, task_type=chunk_tasks.ChunkTask)
     
-    # Only tasks with results are involved in writing the output file
-    if len(local_results) > 0:
-        
-        # Combine results on this MPI rank so that we have one array per quantity calculated.
-        local_results = result_set.concatenate(local_results)
+    # Discard empty metadata dicts from chunks where this rank processed no halos
+    metadata = [md for md in metadata if len(md) > 0]
 
-        # Sort all arrays by halo index
-        comm_have_results.barrier()
-        t0_sort = time.time()
-        local_results.parallel_sort("VR/ID", comm_have_results)
-        comm_have_results.barrier()
-        t1_sort = time.time()
-        if comm_have_results.Get_rank() == 0:
-            print("Sorting output arrays took %.2fs" % (t1_sort-t0_sort))
+    # Sanity check: every chunk should return quantities with the same names, dimensions and units
+    all_metadata = comm_world.gather(metadata)
+    if comm_world_rank == 0:
+        all_metadata = [item for sublist in all_metadata for item in sublist] # Flatten list of lists
+        ref_metadata = all_metadata[0]
+        for md in all_metadata:
+            if md != ref_metadata:
+                raise RuntimeError("Chunk has returned inconsistent metadata!")
+    else:
+        ref_metadata = None
 
-        # Start the clock for writing output
-        comm_have_results.barrier()
-        t0_write = time.time()
+    # Sync reference metadata between ranks (e.g. in case some ranks processed no chunks/halos at all)
+    ref_metadata = comm_world.bcast(ref_metadata)
 
-        # First rank creates file and writes metadata in serial mode
-        output_file = sub_snapnum(args.output_file, args.snapshot_nr)
-        if comm_have_results.Get_rank() == 0:
-            outfile = h5py.File(output_file, "w")
-            cellgrid.write_metadata(outfile.create_group("SWIFT"))
-            params = outfile.create_group("Parameters")
-            params.attrs["swift_filename"] = args.swift_filename
-            params.attrs["vr_basename"]    = args.vr_basename
-            params.attrs["snapshot_nr"]    = args.snapshot_nr
-            params.attrs["centrals_only"]  = 0 if args.centrals_only==False else 1
-            calc_names = sorted([hp.name for hp in halo_prop_list])
-            params.attrs["calculations"] = calc_names
-            params.attrs["halo_ids"] = args.halo_ids if args.halo_ids is not None else np.ndarray(0, dtype=int)
-            outfile.close()
-        comm_have_results.barrier()
-
-        # Write halo arrays in collective mode
-        outfile = h5py.File(output_file, "r+", driver="mpio", comm=comm_have_results)
-        local_results.collective_write(outfile, comm_have_results)
+    # First MPI rank creates the output file and writes some metadata in serial mode
+    output_file = sub_snapnum(args.output_file, args.snapshot_nr)
+    if comm_world.Get_rank() == 0:
+        outfile = h5py.File(output_file, "w")
+        cellgrid.write_metadata(outfile.create_group("SWIFT"))
+        params = outfile.create_group("Parameters")
+        params.attrs["swift_filename"] = args.swift_filename
+        params.attrs["vr_basename"]    = args.vr_basename
+        params.attrs["snapshot_nr"]    = args.snapshot_nr
+        params.attrs["centrals_only"]  = 0 if args.centrals_only==False else 1
+        calc_names = sorted([hp.name for hp in halo_prop_list])
+        params.attrs["calculations"] = calc_names
+        params.attrs["halo_ids"] = args.halo_ids if args.halo_ids is not None else np.ndarray(0, dtype=int)
         outfile.close()
-            
-        # Finished writing the output
-        comm_have_results.barrier()
-        t1_write = time.time()
-        if comm_have_results.Get_rank() == 0:
-            print("Writing output took %.2fs" % (t1_write-t0_write))
+    comm_world.barrier()
+
+    # Open the per-chunk scratch files
+    #scratch_file = virgo.mpi.parallel_hdf5.MultiFile(scratch_file_format, file_idx=range(args.nchunks), comm=comm_world)
+
+    # Read the VR halo IDs
+
+    # Generate sorting index to arrange halos by VR ID
+
+    # Loop over halo properties
+
+    # Read halo property
+
+    # Reorder by VR ID
+
+    # Write to the output file
+
+    # Delete scratch files
+
+
+
+
 
     # Stop the clock
     comm_world.barrier()
@@ -275,7 +278,7 @@ def compute_halo_properties():
         task_time_local = sum(timings)
     else:
         task_time_local = 0.0
-    task_time_total = comm_have_results.allreduce(task_time_local)
+    task_time_total = comm_world.allreduce(task_time_local)
     task_time_fraction = task_time_total / (comm_world_size*(t1-t0))
 
     # Save profiling results for each MPI rank
