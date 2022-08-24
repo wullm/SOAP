@@ -1,9 +1,10 @@
-# Halo properties in SWIFT simulations
+# SOAP: Spherical Overdensity and Aperture Processor
 
-This repository contains two programs which can be used to compute extra
-properties of VELOCIraptor halos in SWIFT snapshots.
+This repository contains programs which can be used to compute
+properties of halos in spherical apertures in SWIFT snapshots and to
+match halos between simulations using the particle IDs.
 
-These are both written in python and use mpi4py for parallelism.
+The code is written in python and uses mpi4py for parallelism.
 
 ## Computing halo membership for particles in the snapshot
 
@@ -56,6 +57,15 @@ mpirun python3 -u -m mpi4py \
 See scripts/FLAMINGO/L1000N1800/group_membership_L1000N1800.sh for an example
 batch script.
 
+The code can optionally also write group membership to a single file
+virtual snapshot specified with the `--update-virtual-file` flag. This
+can be used to create a single file snapshot with group membership
+included that can be read with swiftsimio or gadgetviewer.
+
+The `--output-prefix` flag can be used to specify a prefix used to name the
+datasets written to the virtual file. This may be useful if writing group
+membership from several different VR runs to a single file.
+
 ### Calculating halo properties
 
 To calculate halo properties:
@@ -72,13 +82,18 @@ mpirun python3 -u -m mpi4py ./compute_halo_properties.py \
     ${swift_filename} ${vr_basename} ${outfile} ${snapnum} \
     --chunks=${nr_chunks} \
     --extra-input=${extra_filename} \
-    --calculations so_masses centre_of_mass
+    --calculations so_masses centre_of_mass \
+    --max-ranks-reading=16
 ```
 
 Here, `--chunks` determines how many chunks the simulation box is
 split into. Ideally it should be set such that one chunk fills a compute node.
 The `--calculations` flag specifies which calculations should be carried out.
 The possible calculation names are defined in halo_properties.py.
+
+The `--max-ranks-reading` flag determines how many MPI ranks per node read the
+snapshot. This can be used to avoid overloading the file system. The default
+value is 32.
 
 See scripts/FLAMINGO/L1000N1800/halo_properties_L1000N1800.sh for an example
 batch script.
@@ -147,9 +162,67 @@ pip install snakeviz --user
 snakeviz -b "firefox -no-remote %s" ./profile.0.dat
 ```
 
-## TODO
+## Matching halos between VR outputs
 
-Possible improvements:
+Note that this requires the latest version of https://github.com/jchelly/VirgoDC 
 
-  * Specify multi-file inputs/outputs more consistently
-  * Use swiftsimio cosmo_arrays (may require a more complete wrapping of unyt_array).
+This repository also contains a program to find halos which contain the same
+particle IDs between two outputs. It can be used to find the same halos between
+different snapshots or between hydro and dark matter only simulations.
+
+For each halo in the first output we find the N most bound particle IDs and
+determine which halo in the second output contains the largest number of these
+IDs. This matching process is then repeated in the opposite direction and we
+check for cases were we have consistent matches in both directions.
+
+### Running the program
+
+It can be run as follows:
+```
+vr_basename1="./vr/catalogue_0012/vr_catalogue_0012"
+vr_basename2="./vr/catalogue_0013/vr_catalogue_0013"
+
+outfile="halo_matching_0012_to_0013.hdf5"
+nr_particles=10
+
+mpirun python3 -u -m mpi4py \
+    ./match_vr_halos.py ${vr_basename1} ${vr_basename2} \
+    ${nr_particles} ${outfile} --use-types 0 1 2 3 4 5
+```
+Here `nr_particles` is the number of most bound particles to use for matching.
+
+### Matching using only specified particle types
+
+The `--use-types` flag specifies which particle types to use for matching using
+the type numbering scheme from Swift. Only the specified types are included in
+the most bound particles used to match halos between snapshots. For example,
+`--use-types 1` will cause the code to track the `nr_particles` most bound dark
+matter particles from each halo.
+
+### Matching to field halos only
+
+The `--to-field-halos-only` flag can be used to match field halos (those with
+hostHaloID=-1 in the VR output) between outputs. If it is set we follow the
+first `nr_particles` most bound particles from each halo as usual, but when
+locating them in the other output any particles in halos with hostHaloID>=0
+are treated as belonging to the host halo.
+
+In this mode field halos in one catalogue will only ever be matched to field
+halos in the other catalogue. 
+
+Output is still generated for non-field halos. These halos will be matched to
+the field halo which contains the largest number of their `nr_particles` most
+bound particles. These matches will never be consistent in both directions
+because matches to non-field halos are not possible.
+
+### Output
+
+The output is a HDF5 file with the following datasets:
+
+  * `BoundParticleNr1` - number of bound particles in each halo in the first catalogue
+  * `MatchIndex1to2` - for each halo in the first catalogue, index of the matching halo in the second
+  * `MatchCount1to2` - how many of the most bound particles from the halo in the first catalogue are in the matched halo in the second
+  * `Consistent1to2` - whether the match from first to second catalogue is consistent with second to first (1) or not (0)
+
+There are corresponding datasets with `1` and `2` reversed with information about matching in the opposite direction.
+

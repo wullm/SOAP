@@ -89,10 +89,8 @@ def compute_halo_properties():
     # Report number of ranks, compute nodes etc
     if comm_world_rank == 0:
         print("Starting halo properties calculation on %d MPI ranks" % comm_world_size)
-        print(
-            "Can process %d chunks in parallel using %d ranks per chunk"
-            % (inter_node_size, intra_node_size)
-        )
+        print("Can process %d chunks in parallel using %d ranks per chunk" % (inter_node_size, intra_node_size))
+        print("Number of MPI ranks per node reading snapshots: %d" % args.max_ranks_reading)
 
     # Open the snapshot and read SWIFT cell structure, units etc
     if comm_world_rank == 0:
@@ -270,14 +268,10 @@ def compute_halo_properties():
 
     # Execute the chunk tasks
     timings = []
-    local_results = task_queue.execute_tasks(
-        tasks,
-        args=(cellgrid, comm_intra_node, inter_node_rank, timings),
-        comm_all=comm_world,
-        comm_master=comm_inter_node,
-        comm_workers=comm_intra_node,
-        task_type=chunk_tasks.ChunkTask,
-    )
+    local_results = task_queue.execute_tasks(tasks,
+                                             args=(cellgrid, comm_intra_node, inter_node_rank, timings, args.max_ranks_reading),
+                                             comm_all=comm_world, comm_master=comm_inter_node,
+                                             comm_workers=comm_intra_node, task_type=chunk_tasks.ChunkTask)
 
     # The result list has one element per chunk processed. Each element is itself a
     # list of result sets, with one element per iteration that was required.

@@ -5,13 +5,12 @@ import re
 import numpy as np
 import h5py
 
-import virgo.mpi.util
 import virgo.mpi.parallel_hdf5
-import virgo.mpi.gather_array as ga
 import virgo.mpi.parallel_sort as ps
 
 import lustre
 import command_line_args
+import read_vr
 
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
@@ -19,132 +18,7 @@ comm_rank = comm.Get_rank()
 comm_size = comm.Get_size()
 
 
-def read_vr_datasets(vr_basename, file_type, datasets, return_file_nr=None):
-    """
-    Parallel read of datasets from VR split over any number of files
-    """
-    # Make a format string for the filename
-    filename_format = vr_basename+"."+file_type+".%(file_nr)d"
-
-    # Open the file
-    vr_file = virgo.mpi.parallel_hdf5.MultiFile(filename_format, file_nr_dataset="Num_of_files")
-
-    # Read the data
-    return vr_file.read(datasets, return_file_nr=return_file_nr)
-
-
-def compute_lengths(offsets, total_nr_ids):
-    """
-    Compute group lengths given the offsets and the total number
-    of particle IDs. 
-    """
-    
-    # Only include ranks with >0 groups
-    if len(offsets) > 0:
-        color = 1
-    else:
-        color = 0
-    local_comm = comm.Split(color)
-
-    if color==1:
-        # Find first offset on each rank
-        first_offset = local_comm.allgather(offsets[0])
-        # Allocate lengths array
-        lengths = np.ndarray(len(offsets), dtype=int)
-        # Compute lengths of all but last group
-        lengths[:-1] = offsets[1:] - offsets[:-1]
-        # Compute length of last group
-        if local_comm.Get_rank() == local_comm.Get_size()-1:
-            lengths[-1] = total_nr_ids - offsets[-1]
-        else:
-            lengths[-1] = first_offset[local_comm.Get_rank()+1] - offsets[-1]
-    else:
-        # Have zero groups on this rank
-        lengths = np.ndarray(0, dtype=int)
-
-    local_comm.Free()
-    return lengths
-
-
-def find_group_membership(vr_basename):
-    """
-    For each particle ID in a VR output, find the halo index
-    """
-
-    # Find number of VR output files
-    fname = vr_basename+".catalog_particles.0"
-    if comm_rank == 0:
-        infile = h5py.File(fname, "r")
-        nr_files = infile["Num_of_files"][0]
-        infile.close()
-    else:
-        nr_files = None
-    nr_files = comm.bcast(nr_files)
-
-    # Assign files to ranks
-    files_on_rank = virgo.mpi.parallel_hdf5.assign_files(nr_files, comm_size)    
-    first_file = np.cumsum(files_on_rank) - files_on_rank
-
-    # Loop over files on this rank and read numbers of bound, unbound IDs
-    nr_ids_bound = []
-    nr_ids_unbound = []
-    for file_nr in range(first_file[comm_rank], first_file[comm_rank]+files_on_rank[comm_rank]):
-        fname = vr_basename+(".catalog_particles.%d" % file_nr)
-        with h5py.File(fname, "r") as infile:
-            nr_ids_bound.append(infile["Particle_IDs"].shape[0])
-        fname = vr_basename+(".catalog_particles.unbound.%d" % file_nr)
-        with h5py.File(fname, "r") as infile:
-            nr_ids_unbound.append(infile["Particle_IDs"].shape[0])
-
-    # Combine results from all ranks
-    nr_ids_bound = np.concatenate(comm.allgather(np.asarray(nr_ids_bound, dtype=int)), dtype=int)
-    nr_ids_unbound = np.concatenate(comm.allgather(np.asarray(nr_ids_unbound, dtype=int)), dtype=int)
-
-    # Find offsets which need to be added to particle offsets read from each file
-    cumulative_nr_bound_ids = np.cumsum(nr_ids_bound) - nr_ids_bound
-    cumulative_nr_unbound_ids = np.cumsum(nr_ids_unbound) - nr_ids_unbound
-
-    # Read in the VR particle offsets
-    names = ("Offset","Offset_unbound")
-    data, file_nr = read_vr_datasets(vr_basename, "catalog_groups", names, return_file_nr=names)
-
-    # Make all offsets relative to the start of file zero
-    offset_bound = data["Offset"] + cumulative_nr_bound_ids[file_nr["Offset"]]
-    offset_unbound = data["Offset_unbound"] + cumulative_nr_unbound_ids[file_nr["Offset_unbound"]]
-
-    # Report number of groups read in
-    nr_bound_offsets = comm.reduce(len(offset_bound))
-    nr_unbound_offsets = comm.reduce(len(offset_unbound))
-    if comm_rank == 0:
-        print("Read in %d bound offsets and %d unbound offsets" % (nr_bound_offsets, nr_unbound_offsets))
-
-    # Read in the particle IDs
-    data = read_vr_datasets(vr_basename, "catalog_particles", ("Particle_IDs",))
-    ids_bound = data["Particle_IDs"]
-    data = read_vr_datasets(vr_basename, "catalog_particles.unbound", ("Particle_IDs",))
-    ids_unbound = data["Particle_IDs"]
-    nr_bound_ids = comm.reduce(len(ids_bound))
-    nr_unbound_ids = comm.reduce(len(ids_unbound))
-    if comm_rank == 0:
-        print("Read in %d bound ids and %d unbound ids" % (nr_bound_ids, nr_unbound_ids))
-
-    # Find the bound and unbound length of each halo
-    total_nr_bound = comm.allreduce(len(ids_bound))
-    length_bound = compute_lengths(offset_bound, total_nr_bound)
-    total_nr_unbound = comm.allreduce(len(ids_unbound))
-    length_unbound = compute_lengths(offset_unbound, total_nr_unbound)
-    if comm_rank == 0:
-        print("Calculated halo lengths ")
-
-    # Associate a group index to each particle ID
-    grnr_bound = virgo.mpi.util.group_index_from_length_and_offset(length_bound, offset_bound, len(ids_bound))
-    grnr_unbound = virgo.mpi.util.group_index_from_length_and_offset(length_unbound, offset_unbound, len(ids_unbound))
-
-    return ids_bound, grnr_bound, ids_unbound, grnr_unbound
-
-
 if __name__ == "__main__":
-
 
     # Read command line parameters
     args = command_line_args.get_group_membership_args(comm)
@@ -155,14 +29,17 @@ if __name__ == "__main__":
     comm.barrier()
 
     # Find group number for each particle ID in the VR output
-    ids_bound, grnr_bound, ids_unbound, grnr_unbound = find_group_membership(args.vr_basename)
+    (length_bound, offset_bound, ids_bound,
+     length_unbound, offset_unbound, ids_unbound) = read_vr.read_vr_lengths_and_offsets(args.vr_basename)
+    grnr_bound, rank_bound = read_vr.vr_group_membership_from_ids(length_bound, offset_bound, ids_bound, return_rank=True)
+    grnr_unbound = read_vr.vr_group_membership_from_ids(length_unbound, offset_unbound, ids_unbound)
 
     # Determine SWIFT particle types which exist in the snapshot
     ptypes = []
     with h5py.File(args.swift_filename % {"file_nr" : 0}, "r") as infile:
         nr_types = infile["Header"].attrs["NumPartTypes"][0]
         numpart_total = (infile["Header"].attrs["NumPart_Total"].astype(np.int64) +
-                         infile["Header"].attrs["NumPart_Total_HighWord"].astype(np.int64) << 32)
+                         (infile["Header"].attrs["NumPart_Total_HighWord"].astype(np.int64) << 32))
         nr_files = infile["Header"].attrs["NumFilesPerSnapshot"][0]
         for i in range(nr_types):
             if numpart_total[i] > 0:
@@ -182,7 +59,8 @@ if __name__ == "__main__":
 
         # Allocate array to store SWIFT particle group membership
         swift_grnr_bound   = np.ndarray(len(swift_ids), dtype=grnr_bound.dtype)
-        swift_grnr_unbound = np.ndarray(len(swift_ids), dtype=grnr_bound.dtype)
+        swift_rank_bound   = np.ndarray(len(swift_ids), dtype=rank_bound.dtype)
+        swift_grnr_unbound = np.ndarray(len(swift_ids), dtype=grnr_unbound.dtype)
 
         if comm_rank == 0:
             print("  Matching SWIFT particle IDs to VR bound IDs")
@@ -193,6 +71,11 @@ if __name__ == "__main__":
         matched = ptr >= 0
         swift_grnr_bound[matched] = ps.fetch_elements(grnr_bound, ptr[matched])
         swift_grnr_bound[matched==False] = -1
+
+        if comm_rank == 0:
+            print("  Assigning VR rank by binding energy to SWIFT particles")
+        swift_rank_bound[matched] = ps.fetch_elements(rank_bound, ptr[matched])
+        swift_rank_bound[matched==False] = -1
 
         if comm_rank == 0:
             print("  Matching SWIFT particle IDs to VR unbound IDs")
@@ -225,17 +108,32 @@ if __name__ == "__main__":
             "h-scale exponent" : [0.0,],
         }
         attrs = {"GroupNr_bound" : {"Description" : "Index of halo in which this particle is a bound member, or -1 if none"},
+                 "Rank_bound" : {"Description" : "Ranking by binding energy of the bound particles (first in halo=0), or -1 if not bound"},
                  "GroupNr_all" : {"Description" : "Index of halo in which this particle is a member (bound or unbound), or -1 if none"}}
         attrs["GroupNr_bound"].update(unit_attrs)
+        attrs["Rank_bound"].update(unit_attrs)
         attrs["GroupNr_all"].update(unit_attrs)
 
-        # Write these particles out with the same layout as the snapshot
+        # Write these particles out with the same layout as the input snapshot
         if comm_rank == 0:
             print("  Writing out VR group membership of SWIFT particles")
         elements_per_file = snap_file.get_elements_per_file("ParticleIDs", group=ptype)
         output = {"GroupNr_bound"   : swift_grnr_bound,
+                  "Rank_bound"      : swift_rank_bound,
                   "GroupNr_all"     : swift_grnr_all}
         snap_file.write(output, elements_per_file, filenames=args.output_file, mode=mode, group=ptype, attrs=attrs)
+
+        # Optionally, also write the particle group membership to the specified single file snapshot.
+        # (e.g. a copy of the virtual file written by SWIFT)
+        if args.update_virtual_file is not None:
+            prefix = args.output_prefix if args.output_prefix is not None else ""
+            if comm_rank == 0:
+                print("  Writing out VR group membership to virtual file")
+            vfile = h5py.File(args.update_virtual_file, "r+", driver="mpio", comm=comm)
+            virgo.mpi.parallel_hdf5.collective_write(vfile[ptype], prefix+"GroupNr_bound", swift_grnr_bound, comm)
+            virgo.mpi.parallel_hdf5.collective_write(vfile[ptype], prefix+"Rank_bound", swift_rank_bound, comm)
+            virgo.mpi.parallel_hdf5.collective_write(vfile[ptype], prefix+"GroupNr_all", swift_grnr_all, comm)
+            vfile.close()
 
     comm.barrier()
     if comm_rank == 0:

@@ -132,7 +132,7 @@ class ChunkTask:
         self.chunk_nr = chunk_nr
         self.nr_chunks = nr_chunks
         
-    def __call__(self, cellgrid, comm, inter_node_rank, timings):
+    def __call__(self, cellgrid, comm, inter_node_rank, timings, max_ranks_reading):
 
         comm_rank = comm.Get_rank()
         comm_size = comm.Get_size()
@@ -205,7 +205,7 @@ class ChunkTask:
             # Read in particles in the required region
             comm.barrier()
             t0_read = time.time()
-            data = cellgrid.read_masked_cells_to_shared_memory(properties, mask, comm)
+            data = cellgrid.read_masked_cells_to_shared_memory(properties, mask, comm, max_ranks_reading)
             comm.barrier()
             t1_read = time.time()
 

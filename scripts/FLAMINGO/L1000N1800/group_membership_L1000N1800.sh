@@ -11,10 +11,10 @@
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=1
 #SBATCH -o ./logs/group_membership_L1000N1800_%x.%a.out
-#SBATCH -p cosma8
+#SBATCH -p cosma8-shm
 #SBATCH -A dp004
 #SBATCH --exclusive
-#SBATCH -t 4:00:00
+#SBATCH -t 0:30:00
 #
 
 module purge
@@ -41,5 +41,10 @@ outfile="${outbase}/group_membership/group_membership_${snapnum}/vr_membership_$
 outdir=`dirname "${outfile}"`
 mkdir -p "${outdir}"
 
+# Copy virtual file
+cp "${basedir}/snapshots/flamingo_${snapnum}/flamingo_${snapnum}.hdf5" ${outdir}
+vfile_out=${outdir}/flamingo_${snapnum}.hdf5
+chmod u+w ${vfile_out}
+
 mpirun python3 -u -m mpi4py \
-    ./vr_group_membership.py ${swift_filename} ${vr_basename} ${outfile}
+    ./vr_group_membership.py ${swift_filename} ${vr_basename} ${outfile} --update-virtual-file=${vfile_out}
