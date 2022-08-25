@@ -72,7 +72,7 @@ class ChunkTaskList:
     """
     Stores a list of ChunkTasks to be executed.
     """
-    def __init__(self, cellgrid, so_cat, nr_chunks, halo_prop_list):
+    def __init__(self, cellgrid, so_cat, halo_prop_list):
 
         # Assign the input halos to chunk tasks
         task_id = so_cat.halo_arrays["task_id"]
@@ -86,6 +86,7 @@ class ChunkTaskList:
 
         # Find groups of halos with the same task ID
         unique_ids, offsets, counts = np.unique(task_id, return_index=True, return_counts=True)
+        nr_chunks = len(counts)
 
         # Create the task list
         tasks = []

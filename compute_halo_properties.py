@@ -196,11 +196,13 @@ def compute_halo_properties():
     # Generate the chunk task list
     if comm_world_rank == 0:
         task_list = chunk_tasks.ChunkTaskList(cellgrid, so_cat,
-                                              nr_chunks=args.chunks,
                                               halo_prop_list=halo_prop_list)
         tasks = task_list.tasks
+        nr_chunks = len(tasks)
     else:
         tasks = None
+        nr_chunks = None
+    nr_chunks = comm_world.bcast(nr_chunks)
 
     # Report initial set-up time
     comm_world.barrier()
@@ -212,11 +214,11 @@ def compute_halo_properties():
     del so_cat
 
     # Make a format string to generate the name of the file each chunk task will write to
-    scratch_file_format = args.scratch_dir+"/chunk_%(file_nr)d.hdf5"
+    scratch_file_format = args.scratch_dir+f"/snapshot_{args.snapshot_nr:04d}/"+"chunk_%(file_nr)d.hdf5"
 
     # Ensure that the directories which will contain the scratch files exist
     if comm_world_rank == 0:
-        for file_nr in range(args.chunks):
+        for file_nr in range(nr_chunks):
             scratch_file_name = scratch_file_format % {"file_nr" : file_nr}
             scratch_file_dir = os.path.dirname(scratch_file_name)
             try:
@@ -269,7 +271,7 @@ def compute_halo_properties():
     t0_reorder = time.time()
 
     # Open the per-chunk scratch files
-    scratch_file = phdf5.MultiFile(scratch_file_format, file_idx=range(args.chunks), comm=comm_world)
+    scratch_file = phdf5.MultiFile(scratch_file_format, file_idx=range(nr_chunks), comm=comm_world)
 
     # Read the VR halo IDs from the scratch files and make a sorting index to put them in order
     vr_id = scratch_file.read(("VR/ID",))["VR/ID"]
@@ -315,7 +317,7 @@ def compute_halo_properties():
     # Delete scratch files
     comm_world.barrier()
     if comm_world_rank == 0:
-        for file_nr in range(args.chunks):
+        for file_nr in range(nr_chunks):
             os.remove(scratch_file_format % {"file_nr" : file_nr})
         print("Deleted scratch files.")
     comm_world.barrier()
