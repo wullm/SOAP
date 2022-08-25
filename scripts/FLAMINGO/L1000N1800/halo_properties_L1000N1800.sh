@@ -8,7 +8,7 @@
 #
 # sbatch -J HYDRO_FIDUCIAL --array=77 ./halo_properties_L1000N1800.sh
 #
-#SBATCH --nodes=2
+#SBATCH --nodes=4
 #SBATCH --cpus-per-task=1
 #SBATCH -J test_halo_props
 #SBATCH -o ./logs/halo_properties_L1000N1800_%x.%a.out
@@ -27,8 +27,11 @@ sim="L1000N1800/${SLURM_JOB_NAME}"
 # Input simulation location
 basedir="/cosma8/data/dp004/flamingo/Runs/${sim}/"
 
-# Where to write the output
+# Where to write the final output
 outbase="/cosma8/data/dp004/jch/FLAMINGO/ScienceRuns/${sim}/"
+
+# Location for temporary chunk output
+scratchdir="/snap8/scratch/dp004/jch/SOAP-tmp/${sim}/"
 
 # Generate file names for this snapshot
 swift_filename="${basedir}/snapshots/flamingo_%(snap_nr)04d/flamingo_%(snap_nr)04d.%(file_nr)d.hdf5"
@@ -43,6 +46,6 @@ outdir=`dirname "${outfile}"`
 mkdir -p "${outdir}"
 
 mpirun python3 -u -m mpi4py ./compute_halo_properties.py \
-    ${swift_filename} ${vr_basename} ${outfile} ${SLURM_ARRAY_TASK_ID} \
+    ${swift_filename} ${scratchdir} ${vr_basename} ${outfile} ${SLURM_ARRAY_TASK_ID} \
     --chunks=${nr_chunks} \
     --extra-input=${extra_filename}
