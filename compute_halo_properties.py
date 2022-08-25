@@ -165,7 +165,7 @@ def compute_halo_properties():
                 raise Exception("Don't recognise calculation name: %s" % calc)
 
         # Filter out calculations which were not selected
-        halo_prop_list = [hp for hp in halo_prop_list if hp.name in calc]
+        halo_prop_list = [hp for hp in halo_prop_list if hp.name in args.calculations]
 
     if len(halo_prop_list) < 1:
         raise Exception("Must select at least one halo property calculation!")
