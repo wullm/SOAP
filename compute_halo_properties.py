@@ -226,6 +226,8 @@ def compute_halo_properties():
     comm_world.barrier()
 
     # Execute the chunk tasks. This writes one file per chunk with the halo properties.
+    # For each chunk it returns a list with (name, size, units, description) for each
+    # quantity that was calculated.
     timings = []
     task_args=(cellgrid, comm_intra_node, inter_node_rank, timings, args.max_ranks_reading, scratch_file_format)
     metadata = task_queue.execute_tasks(tasks, args=task_args, comm_all=comm_world, comm_master=comm_inter_node,
@@ -283,17 +285,24 @@ def compute_halo_properties():
     for i1 in range(0, total_nr_props, props_per_iteration):
         i2 = min(i1 + props_per_iteration, total_nr_props)
 
-        # Get the names of properties to read on this iteration
-        prop_names = [name for (name, size, units) in ref_metadata[i1:i2]]
+        # Find the properties to reorder on this iteration
+        names, sizes, units, descriptions = zip(*ref_metadata[i1:i2])
 
         # Read in and reorder the properties
-        data = scratch_file.read(prop_names)
-        for name in data:
+        data = scratch_file.read(names)
+        for name in names:
             data[name] = psort.fetch_elements(data[name], order, comm=comm_world)
 
         # Write these properties to the output file
-        for name in data:
+        for name, size, unit, description in zip(names, sizes, units, descriptions):
+            # Write the data
             phdf5.collective_write(outfile, name, data[name], comm=comm_world)
+            # Add units and description
+            attrs = swift_units.attributes_from_units(unit)
+            attrs["Description"] = description
+            for attr_name, attr_value in attrs.items():
+                outfile[name].attrs[attr_name] = attr_value
+
         del data
 
     outfile.close()

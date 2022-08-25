@@ -197,10 +197,11 @@ class ResultSet:
 
     def get_metadata(self):
         """
-        Return a list of (name, size, units) for all arrays in the result set
+        Return a list of (name, size, units, description) for all arrays in the result set
         """
         names = sorted(self.result_arrays.keys())
         sizes = [self.result_arrays[n][0].shape[1:] for n in names]
         units = [self.result_arrays[n][0].units for n in names]
-        
-        return list(zip(names, sizes, units))
+        descr = [self.result_arrays[n][1] for n in names]
+
+        return list(zip(names, sizes, units, descr))
