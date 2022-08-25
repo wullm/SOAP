@@ -318,7 +318,7 @@ class SWIFTCellGrid:
 
         # Make a communicator containing I/O ranks only
         colour = 0 if comm_rank < max_ranks_reading else MPI.UNDEFINED
-        comm_io = MPI.COMM_WORLD.Split(colour, comm_rank)
+        comm_io = comm.Split(colour, comm_rank)
         if comm_io != MPI.COMM_NULL:
             comm_io_size = comm_io.Get_size()
             comm_io_rank = comm_io.Get_rank()
