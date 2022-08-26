@@ -26,6 +26,8 @@ def get_halo_props_args(comm):
         parser = ThrowingArgumentParser(description='Compute halo properties in SWIFT snapshots.')
         parser.add_argument('swift_filename',
                             help='Format string to generate snapshot filenames. Use %%(file_nr)d for the file number and %%(snap_nr)04d for the snapshot.')
+        parser.add_argument('scratch_dir',
+                            help='Directory for temporary output. Can use %%(snap_nr)04d for the snapshot number.')
         parser.add_argument('vr_basename',
                             help='Format string to generate base name of the VELOCIraptor files, excluding trailing .properties[.N] etc. Use %%(snap_nr)04d for the snapshot.')
         parser.add_argument('output_file', help='Format string to generate name of the output file. Use %%(snap_nr)04d for the snapshot.')

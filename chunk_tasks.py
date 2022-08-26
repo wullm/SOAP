@@ -4,6 +4,7 @@ import time
 import numpy as np
 from mpi4py import MPI
 import unyt
+import h5py
 
 import task_queue
 import shared_mesh
@@ -13,7 +14,7 @@ from dataset_names import mass_dataset, ptypes_for_so_masses
 from halo_tasks import process_halos
 from mask_cells import mask_cells
 import memory_use
-import domain_decomposition
+import result_set
 
 # Will label messages with time since run start
 time_start = time.time()
@@ -71,12 +72,10 @@ class ChunkTaskList:
     """
     Stores a list of ChunkTasks to be executed.
     """
-    def __init__(self, cellgrid, so_cat, nr_chunks, halo_prop_list):
+    def __init__(self, cellgrid, so_cat, halo_prop_list):
 
         # Assign the input halos to chunk tasks
-        task_id = domain_decomposition.peano_decomposition(cellgrid.boxsize,
-                                                           so_cat.halo_arrays["cofp"],
-                                                           nr_chunks)
+        task_id = so_cat.halo_arrays["task_id"]
 
         # Sort the halos by task ID
         idx = np.argsort(task_id)
@@ -87,6 +86,7 @@ class ChunkTaskList:
 
         # Find groups of halos with the same task ID
         unique_ids, offsets, counts = np.unique(task_id, return_index=True, return_counts=True)
+        nr_chunks = len(counts)
 
         # Create the task list
         tasks = []
@@ -131,13 +131,16 @@ class ChunkTask:
         self.shared = False
         self.chunk_nr = chunk_nr
         self.nr_chunks = nr_chunks
-        
-    def __call__(self, cellgrid, comm, inter_node_rank, timings, max_ranks_reading):
+
+    def __call__(self, cellgrid, comm, inter_node_rank, timings, max_ranks_reading,
+                 scratch_file_format):
 
         comm_rank = comm.Get_rank()
         comm_size = comm.Get_size()
 
-        result_set_list = []
+        # Create object to store the results for this chunk
+        nr_halos = len(self.halo_arrays["ID"].full)
+        results = result_set.ResultSet(initial_size=max(1, nr_halos//comm_size))
         
         # Unpack arrays we need
         centre = self.halo_arrays["cofp"]
@@ -160,6 +163,30 @@ class ChunkTask:
             comm.barrier()
             t1_mask = time.time()
             message("identified %d cells to read in %.2fs" % (nr_cells, t1_mask-t0_mask))
+
+            nr_halos = len(self.halo_arrays["ID"].full)
+            nr_increased = 0
+            if comm_rank == 0:
+                if np.any(mask==False):
+                    # Given the cell mask, find the radius in which we're guaranteed to have all of the
+                    # particles for each cell
+                    cell_complete_radius = cellgrid.complete_radius_from_mask(mask)
+
+                    # Calculate which cell each local halo is in
+                    halo_cell_index = (centre.full / cellgrid.cell_size[None,:]).to(unyt.dimensionless).value.astype(np.int32)
+
+                    # Where we have all particles in a larger radius than the halo's read_radius
+                    # (due to reading cells to process other halos) increase the read_radius
+                    halo_complete_radius = cell_complete_radius[halo_cell_index[:,0], halo_cell_index[:,1], halo_cell_index[:,2]]
+                    to_update = halo_complete_radius > read_radius.full
+                    nr_increased = np.sum(to_update)
+                    read_radius.full[to_update] = halo_complete_radius[to_update]
+                else:
+                    # We're reading the entire box in one chunk, so we have all of the particles.
+                    read_radius.full[...] = cellgrid.boxsize.to(read_radius.full.units)
+            read_radius.sync()
+            comm.barrier()
+            message(f"increased maximum search radius for {nr_increased} of {nr_halos} halos")
 
             # Get the cosmology info from the input snapshot
             critical_density = cellgrid.critical_density
@@ -258,20 +285,15 @@ class ChunkTask:
 
             # Calculate the halo properties
             t0_halos = time.time()
-            nr_halos = len(self.halo_arrays["ID"].full)
-            result_set, total_time, task_time, nr_left, nr_done = process_halos(comm, cellgrid.snap_unit_registry, data, mesh,
-                                                                            self.halo_prop_list, critical_density,
-                                                                            mean_density, boxsize, self.halo_arrays)
+            total_time, task_time, nr_left, nr_done = process_halos(comm, cellgrid.snap_unit_registry, data, mesh,
+                                                                    self.halo_prop_list, critical_density,
+                                                                    mean_density, boxsize, self.halo_arrays, results)
             t1_halos = time.time()
             task_time_all_iterations += task_time
             dead_time_fraction = 1.0-comm.allreduce(task_time)/comm.allreduce(total_time)
             message("processing %d of %d halos on %d ranks took %.1fs (dead time frac.=%.2f)" % (nr_done, nr_halos, comm_size,
                                                                                                  t1_halos-t0_halos,
                                                                                                  dead_time_fraction))
-            # If we processed at least one halo, add it to the list of ResultSets for this chunk
-            if len(result_set) > 0:
-                result_set_list.append(result_set)
-
             # Free the shared particle data
             for ptype in data:
                 for name in data[ptype]:
@@ -294,10 +316,21 @@ class ChunkTask:
             for name in sorted(self.halo_arrays):
                 self.halo_arrays[name].free()
 
+        # MPI ranks with results write the output file in collective mode
+        colour = 0 if len(results) > 0 else 1
+        comm_have_results = comm.Split(colour, comm_rank)
+        if len(results) > 0:
+            filename = scratch_file_format % {"file_nr" : self.chunk_nr}
+            with h5py.File(filename, "w", driver="mpio", comm=comm_have_results) as outfile:
+                results.collective_write(outfile, comm_have_results)
+        comm_have_results.Free()
+
         # Store time taken for this task
         timings.append(task_time_all_iterations)
 
-        return result_set_list
+        # Return the names, dimensions and units of the quantities we computed
+        # so that we can check they're consistent between chunks
+        return results.get_metadata()
 
     @classmethod
     def bcast(cls, comm, instance):

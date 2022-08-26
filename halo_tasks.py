@@ -134,6 +134,10 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
             current_radius = min(current_radius*SEARCH_RADIUS_FACTOR, input_halo["read_radius"])
             current_radius = max(current_radius, required_radius)
 
+    # In case we're not doing any calculations with a target density
+    if target_density is None:
+        target_density = density*0.0
+
     # Add the halo index to the result set
     halo_result["VR/position"]      = (input_halo["cofp"], "Centre of potential of the halo in the input catalogue")
     halo_result["VR/index"]         = (input_halo["index"],         "Index of this halo in the input catalogue")
@@ -149,7 +153,8 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
 
 
 def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
-                  critical_density, mean_density, boxsize, halo_arrays):
+                  critical_density, mean_density, boxsize, halo_arrays,
+                  results):
     """
     This uses all of the MPI ranks on one compute node to compute halo properties
     for a single "chunk" of the simulation.
@@ -191,9 +196,6 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
         next_task.full[0] = 0
     next_task.sync()
 
-    # Make a ResultSet to store the output
-    all_results = result_set.ResultSet()
-
     # Start the clock
     comm.barrier()
     t0_all = time.time()
@@ -202,7 +204,6 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
     nr_halos_left = comm.allreduce(np.sum(halo_arrays["done"].local==0))
 
     # Loop until all halos are done
-    result_arrays = {}
     nr_halos = len(halo_arrays["index"].full)
     nr_done_this_rank = 0
     nr_halos_this_rank_guess = int(nr_halos_left / comm.Get_size() * 1.5)
@@ -231,12 +232,12 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
                     input_halo[name] = halo_arrays[name].full[task_to_do,...].copy()
 
                 # Fetch the results for this particular halo
-                results = process_single_halo(mesh, unit_registry, data, halo_prop_list,
-                                              critical_density, mean_density,
-                                              boxsize, input_halo, target_density)
-                if results is not None:
+                halo_result = process_single_halo(mesh, unit_registry, data, halo_prop_list,
+                                                  critical_density, mean_density,
+                                                  boxsize, input_halo, target_density)
+                if halo_result is not None:
                     # Store results and flag this halo as done
-                    all_results.append(results)
+                    results.append(halo_result)
                     nr_done_this_rank += 1
                     halo_arrays["done"].full[task_to_do] = 1
                 else:
@@ -256,9 +257,6 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
             # We ran out of halos to do
             break
 
-    # Resize output arrays, since they may have been allocated larger than needed
-    all_results.trim()
-
     # Free the shared task counter
     next_task.free()
 
@@ -270,4 +268,4 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
     comm.barrier()
     t1_all = time.time()
     
-    return all_results, t1_all-t0_all, task_time, nr_halos_left, comm.allreduce(nr_done_this_rank)
+    return t1_all-t0_all, task_time, nr_halos_left, comm.allreduce(nr_done_this_rank)

@@ -7,6 +7,7 @@ import h5py
 import time
 from mpi4py import MPI
 import unyt
+import scipy.spatial
 
 import swift_units
 import task_queue
@@ -373,7 +374,9 @@ class SWIFTCellGrid:
                     kk = k % self.dimension[2]
                     mask[ii, jj, kk] = True
 
-    def read_masked_cells_to_shared_memory(self, property_names, mask, comm, max_ranks_reading):
+    def read_masked_cells_to_shared_memory(
+        self, property_names, mask, comm, max_ranks_reading
+    ):
         """
         Read in the specified properties for the cells with mask=True
         """
@@ -383,7 +386,7 @@ class SWIFTCellGrid:
 
         # Make a communicator containing I/O ranks only
         colour = 0 if comm_rank < max_ranks_reading else MPI.UNDEFINED
-        comm_io = MPI.COMM_WORLD.Split(colour, comm_rank)
+        comm_io = comm.Split(colour, comm_rank)
         if comm_io != MPI.COMM_NULL:
             comm_io_size = comm_io.Get_size()
             comm_io_rank = comm_io.Get_rank()
@@ -505,8 +508,14 @@ class SWIFTCellGrid:
         # Execute the tasks
         if comm_io != MPI.COMM_NULL:
             cache = DatasetCache()
-            task_queue.execute_tasks(tasks, args=(data, cache), comm_all=comm_io, comm_master=comm_io,
-                                     comm_workers=MPI.COMM_SELF, queue_per_rank=True)
+            task_queue.execute_tasks(
+                tasks,
+                args=(data, cache),
+                comm_all=comm_io,
+                comm_master=comm_io,
+                comm_workers=MPI.COMM_SELF,
+                queue_per_rank=True,
+            )
             cache.close()
 
         # Create empty arrays for particle types which exist in the reference snapshot but not this one
@@ -570,3 +579,46 @@ class SWIFTCellGrid:
             units.attrs[name] = [
                 value,
             ]
+
+    def complete_radius_from_mask(self, mask):
+        """
+        Given a mask of selected cells, for each selected cell compute
+        a radius within which we are guaranteed to have read all particles
+        around any halo that could exist in the cell.
+
+        Here we assume that cells can contribute particles up to half a cell
+        outside their own volume, so the furthest a particle can be from the
+        centre of its parent cell is equal to the cell diagonal. In the worst
+        case we can have a halo at the corner of its parent cell nearest to
+        a cell which has not been read. Then the radius within which we have
+        all particles is limited to the distance between the cell centres
+        minus 1.5 times the cell diagonal.
+
+        This is used to handle the case where we didn't ask for a large enough
+        radius around a halo: it may be that we still have enough particles in
+        memory due to reading cells needed for adjacent halos.
+        """
+
+        # All types use the same grid, so just use cell arrays for the first type
+        ptype = list(self.cell.keys())[0]
+        cell_centre = self.cell[ptype]["centre"]
+        cell_diagonal = np.sqrt(np.sum(self.cell_size.value ** 2))
+
+        # Output array
+        cell_complete_radius = np.zeros(self.dimension)
+
+        # Make tree with the centers of the cells we did not read
+        centre_not_read = cell_centre[mask == False, :]
+        tree = scipy.spatial.cKDTree(centre_not_read, boxsize=self.boxsize.value)
+
+        # For each cell, find the nearest cell we didn't read
+        distance, index = tree.query(cell_centre, 1)
+        cell_complete_radius[:, :, :] = distance.reshape(mask.shape)
+
+        # Get a limit on the radius within which halos in the cell have all particles
+        cell_complete_radius -= 1.5 * cell_diagonal
+        cell_complete_radius[cell_complete_radius < 0.0] = 0.0
+
+        # Return the result in suitable units
+        comoving_length_unit = self.get_unit("snap_length") * self.a_unit
+        return unyt.unyt_array(cell_complete_radius, units=comoving_length_unit)
