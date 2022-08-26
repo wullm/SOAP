@@ -2,8 +2,10 @@
 
 # Initialize mpi4py with thread support
 import mpi4py
-mpi4py.rc.threads=True
+
+mpi4py.rc.threads = True
 from mpi4py import MPI
+
 comm_world = MPI.COMM_WORLD
 comm_world_rank = comm_world.Get_rank()
 comm_world_size = comm_world.Get_size()
@@ -43,7 +45,7 @@ def split_comm_world():
 
     # Communicator containing first rank on each node only:
     # other ranks will have comm_inter_node=MPI_COMM_NULL.
-    colour = 0 if comm_intra_node_rank==0 else MPI.UNDEFINED
+    colour = 0 if comm_intra_node_rank == 0 else MPI.UNDEFINED
     key = MPI.COMM_WORLD.Get_rank()
     comm_inter_node = MPI.COMM_WORLD.Split(colour, key)
     return comm_intra_node, comm_inter_node
@@ -62,7 +64,7 @@ def sub_snapnum(filename, snapnum):
     without substituting the file number.
     """
     filename = filename.replace("%(file_nr)", "%%(file_nr)")
-    return filename % {"snap_nr" : snapnum}
+    return filename % {"snap_nr": snapnum}
 
 
 def compute_halo_properties():
@@ -71,8 +73,9 @@ def compute_halo_properties():
     args = command_line_args.get_halo_props_args(comm_world)
 
     # Enable profiling, if requested
-    if args.profile == 2 or (args.profile==1 and comm_world_rank==0):
+    if args.profile == 2 or (args.profile == 1 and comm_world_rank == 0):
         import cProfile, pstats, io
+
         pr = cProfile.Profile()
         pr.enable()
 
@@ -90,20 +93,30 @@ def compute_halo_properties():
     # Report number of ranks, compute nodes etc
     if comm_world_rank == 0:
         print("Starting halo properties calculation on %d MPI ranks" % comm_world_size)
-        print("Can process %d chunks in parallel using %d ranks per chunk" % (inter_node_size, intra_node_size))
-        print("Number of MPI ranks per node reading snapshots: %d" % args.max_ranks_reading)
+        print(
+            "Can process %d chunks in parallel using %d ranks per chunk"
+            % (inter_node_size, intra_node_size)
+        )
+        print(
+            "Number of MPI ranks per node reading snapshots: %d"
+            % args.max_ranks_reading
+        )
 
     # Open the snapshot and read SWIFT cell structure, units etc
     if comm_world_rank == 0:
         swift_filename = sub_snapnum(args.swift_filename, args.snapshot_nr)
-        extra_input    = sub_snapnum(args.extra_input, args.snapshot_nr)
+        extra_input = sub_snapnum(args.extra_input, args.snapshot_nr)
         if args.reference_snapshot is not None:
-            swift_filename_ref = sub_snapnum(args.swift_filename, args.reference_snapshot)
-            extra_input_ref    = sub_snapnum(args.extra_input, args.reference_snapshot)
+            swift_filename_ref = sub_snapnum(
+                args.swift_filename, args.reference_snapshot
+            )
+            extra_input_ref = sub_snapnum(args.extra_input, args.reference_snapshot)
         else:
             swift_filename_ref = None
             extra_input_ref = None
-        cellgrid = swift_cells.SWIFTCellGrid(swift_filename, extra_input, swift_filename_ref, extra_input_ref)
+        cellgrid = swift_cells.SWIFTCellGrid(
+            swift_filename, extra_input, swift_filename_ref, extra_input_ref
+        )
         parsec_cgs = cellgrid.constants["parsec"]
         solar_mass_cgs = cellgrid.constants["solar_mass"]
         a = cellgrid.a
@@ -112,47 +125,71 @@ def compute_halo_properties():
         parsec_cgs = None
         solar_mass_cgs = None
         a = None
-    cellgrid, parsec_cgs, solar_mass_cgs, a = comm_world.bcast((cellgrid, parsec_cgs, solar_mass_cgs, a))
+    cellgrid, parsec_cgs, solar_mass_cgs, a = comm_world.bcast(
+        (cellgrid, parsec_cgs, solar_mass_cgs, a)
+    )
 
-    recently_heated_gas_filter = exclusive_sphere_properties.RecentlyHeatedGasFilter(cellgrid, 15.*unyt.Myr, 0., 0.)
+    recently_heated_gas_filter = exclusive_sphere_properties.RecentlyHeatedGasFilter(
+        cellgrid, 15.0 * unyt.Myr, 0.0, 0.0
+    )
 
     # Get the full list of property calculations we can do
     halo_prop_list = [
-        subhalo_properties.SubhaloProperties(cellgrid, recently_heated_gas_filter, bound_only=True),
-        subhalo_properties.SubhaloProperties(cellgrid, recently_heated_gas_filter, bound_only=False),
-        SO_properties.SOProperties(cellgrid, 50., "mean"),
-        SO_properties.SOProperties(cellgrid, 100., "mean"),
-        SO_properties.SOProperties(cellgrid, 200., "mean"),
-        SO_properties.SOProperties(cellgrid, 500., "mean"),
-        SO_properties.SOProperties(cellgrid, 2500., "mean"),
-        SO_properties.SOProperties(cellgrid, 50., "crit"),
-        SO_properties.SOProperties(cellgrid, 100., "crit"),
-        SO_properties.SOProperties(cellgrid, 200., "crit"),
-        SO_properties.SOProperties(cellgrid, 500., "crit"),
-        SO_properties.SOProperties(cellgrid, 2500., "crit"),
-        SO_properties.SOProperties(cellgrid, 10., "physical"),
-        SO_properties.SOProperties(cellgrid, 30., "physical"),
-        SO_properties.SOProperties(cellgrid, 50., "physical"),
-        SO_properties.SOProperties(cellgrid, 100., "physical"),
-        SO_properties.SOProperties(cellgrid, 300., "physical"),
-        SO_properties.SOProperties(cellgrid, 500., "physical"),
-        SO_properties.SOProperties(cellgrid, 1000., "physical"),
-        SO_properties.SOProperties(cellgrid, 3000., "physical"),
-        SO_properties.SOProperties(cellgrid, 0., "BN98"),
-        SO_properties.RadiusMultipleSOProperties(cellgrid, 500., 5., type="mean"),
-        SO_properties.RadiusMultipleSOProperties(cellgrid, 500., 5., type="crit"),
-        projected_aperture_properties.ProjectedApertureProperties(cellgrid, 10.),
-        projected_aperture_properties.ProjectedApertureProperties(cellgrid, 30.),
-        projected_aperture_properties.ProjectedApertureProperties(cellgrid, 50.),
-        projected_aperture_properties.ProjectedApertureProperties(cellgrid, 100.),
-        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 10., recently_heated_gas_filter),
-        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 30., recently_heated_gas_filter),
-        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 50., recently_heated_gas_filter),
-        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 100., recently_heated_gas_filter),
-        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 300., recently_heated_gas_filter),
-        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 500., recently_heated_gas_filter),
-        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 1000., recently_heated_gas_filter),
-        exclusive_sphere_properties.ExclusiveSphereProperties(cellgrid, 3000., recently_heated_gas_filter),
+        subhalo_properties.SubhaloProperties(
+            cellgrid, recently_heated_gas_filter, bound_only=True
+        ),
+        subhalo_properties.SubhaloProperties(
+            cellgrid, recently_heated_gas_filter, bound_only=False
+        ),
+        SO_properties.SOProperties(cellgrid, 50.0, "mean"),
+        SO_properties.SOProperties(cellgrid, 100.0, "mean"),
+        SO_properties.SOProperties(cellgrid, 200.0, "mean"),
+        SO_properties.SOProperties(cellgrid, 500.0, "mean"),
+        SO_properties.SOProperties(cellgrid, 2500.0, "mean"),
+        SO_properties.SOProperties(cellgrid, 50.0, "crit"),
+        SO_properties.SOProperties(cellgrid, 100.0, "crit"),
+        SO_properties.SOProperties(cellgrid, 200.0, "crit"),
+        SO_properties.SOProperties(cellgrid, 500.0, "crit"),
+        SO_properties.SOProperties(cellgrid, 2500.0, "crit"),
+        SO_properties.SOProperties(cellgrid, 10.0, "physical"),
+        SO_properties.SOProperties(cellgrid, 30.0, "physical"),
+        SO_properties.SOProperties(cellgrid, 50.0, "physical"),
+        SO_properties.SOProperties(cellgrid, 100.0, "physical"),
+        SO_properties.SOProperties(cellgrid, 300.0, "physical"),
+        SO_properties.SOProperties(cellgrid, 500.0, "physical"),
+        SO_properties.SOProperties(cellgrid, 1000.0, "physical"),
+        SO_properties.SOProperties(cellgrid, 3000.0, "physical"),
+        SO_properties.SOProperties(cellgrid, 0.0, "BN98"),
+        SO_properties.RadiusMultipleSOProperties(cellgrid, 500.0, 5.0, type="mean"),
+        SO_properties.RadiusMultipleSOProperties(cellgrid, 500.0, 5.0, type="crit"),
+        projected_aperture_properties.ProjectedApertureProperties(cellgrid, 10.0),
+        projected_aperture_properties.ProjectedApertureProperties(cellgrid, 30.0),
+        projected_aperture_properties.ProjectedApertureProperties(cellgrid, 50.0),
+        projected_aperture_properties.ProjectedApertureProperties(cellgrid, 100.0),
+        exclusive_sphere_properties.ExclusiveSphereProperties(
+            cellgrid, 10.0, recently_heated_gas_filter
+        ),
+        exclusive_sphere_properties.ExclusiveSphereProperties(
+            cellgrid, 30.0, recently_heated_gas_filter
+        ),
+        exclusive_sphere_properties.ExclusiveSphereProperties(
+            cellgrid, 50.0, recently_heated_gas_filter
+        ),
+        exclusive_sphere_properties.ExclusiveSphereProperties(
+            cellgrid, 100.0, recently_heated_gas_filter
+        ),
+        exclusive_sphere_properties.ExclusiveSphereProperties(
+            cellgrid, 300.0, recently_heated_gas_filter
+        ),
+        exclusive_sphere_properties.ExclusiveSphereProperties(
+            cellgrid, 500.0, recently_heated_gas_filter
+        ),
+        exclusive_sphere_properties.ExclusiveSphereProperties(
+            cellgrid, 1000.0, recently_heated_gas_filter
+        ),
+        exclusive_sphere_properties.ExclusiveSphereProperties(
+            cellgrid, 3000.0, recently_heated_gas_filter
+        ),
     ]
 
     # Determine which calculations we're doing this time
@@ -188,15 +225,24 @@ def compute_halo_properties():
     # Read in the halo catalogue:
     # All ranks read the file(s) in then gather to rank 0. Also computes search radius for each halo.
     vr_basename = sub_snapnum(args.vr_basename, args.snapshot_nr)
-    so_cat = halo_centres.SOCatalogue(comm_world, vr_basename, cellgrid.a_unit,
-                                      cellgrid.snap_unit_registry, cellgrid.boxsize,
-                                      args.max_halos[0], args.centrals_only,
-                                      args.halo_ids, halo_prop_list, args.chunks)
+    so_cat = halo_centres.SOCatalogue(
+        comm_world,
+        vr_basename,
+        cellgrid.a_unit,
+        cellgrid.snap_unit_registry,
+        cellgrid.boxsize,
+        args.max_halos[0],
+        args.centrals_only,
+        args.halo_ids,
+        halo_prop_list,
+        args.chunks,
+    )
 
     # Generate the chunk task list
     if comm_world_rank == 0:
-        task_list = chunk_tasks.ChunkTaskList(cellgrid, so_cat,
-                                              halo_prop_list=halo_prop_list)
+        task_list = chunk_tasks.ChunkTaskList(
+            cellgrid, so_cat, halo_prop_list=halo_prop_list
+        )
         tasks = task_list.tasks
         nr_chunks = len(tasks)
     else:
@@ -208,18 +254,25 @@ def compute_halo_properties():
     comm_world.barrier()
     t1 = time.time()
     if comm_world_rank == 0:
-        print("Reading %d VR halos and setting up %d chunk(s) took %.1fs" % (so_cat.nr_halos, len(tasks), t1-t0))
+        print(
+            "Reading %d VR halos and setting up %d chunk(s) took %.1fs"
+            % (so_cat.nr_halos, len(tasks), t1 - t0)
+        )
 
     # We no longer need the VR catalogue, since halo centres etc are stored in the chunk tasks
     del so_cat
 
     # Make a format string to generate the name of the file each chunk task will write to
-    scratch_file_format = args.scratch_dir+f"/snapshot_{args.snapshot_nr:04d}/"+"chunk_%(file_nr)d.hdf5"
+    scratch_file_format = (
+        args.scratch_dir
+        + f"/snapshot_{args.snapshot_nr:04d}/"
+        + "chunk_%(file_nr)d.hdf5"
+    )
 
     # Ensure that the directories which will contain the scratch files exist
     if comm_world_rank == 0:
         for file_nr in range(nr_chunks):
-            scratch_file_name = scratch_file_format % {"file_nr" : file_nr}
+            scratch_file_name = scratch_file_format % {"file_nr": file_nr}
             scratch_file_dir = os.path.dirname(scratch_file_name)
             try:
                 os.makedirs(scratch_file_dir)
@@ -231,17 +284,32 @@ def compute_halo_properties():
     # For each chunk it returns a list with (name, size, units, description) for each
     # quantity that was calculated.
     timings = []
-    task_args=(cellgrid, comm_intra_node, inter_node_rank, timings, args.max_ranks_reading, scratch_file_format)
-    metadata = task_queue.execute_tasks(tasks, args=task_args, comm_all=comm_world, comm_master=comm_inter_node,
-                                        comm_workers=comm_intra_node, task_type=chunk_tasks.ChunkTask)
-    
+    task_args = (
+        cellgrid,
+        comm_intra_node,
+        inter_node_rank,
+        timings,
+        args.max_ranks_reading,
+        scratch_file_format,
+    )
+    metadata = task_queue.execute_tasks(
+        tasks,
+        args=task_args,
+        comm_all=comm_world,
+        comm_master=comm_inter_node,
+        comm_workers=comm_intra_node,
+        task_type=chunk_tasks.ChunkTask,
+    )
+
     # Discard empty metadata dicts from chunks where this rank processed no halos
     metadata = [md for md in metadata if len(md) > 0]
 
     # Sanity check: every chunk should return quantities with the same names, dimensions and units
     all_metadata = comm_world.gather(metadata)
     if comm_world_rank == 0:
-        all_metadata = [item for sublist in all_metadata for item in sublist] # Flatten list of lists
+        all_metadata = [
+            item for sublist in all_metadata for item in sublist
+        ]  # Flatten list of lists
         ref_metadata = all_metadata[0]
         for md in all_metadata:
             if md != ref_metadata:
@@ -259,19 +327,23 @@ def compute_halo_properties():
         cellgrid.write_metadata(outfile.create_group("SWIFT"))
         params = outfile.create_group("Parameters")
         params.attrs["swift_filename"] = args.swift_filename
-        params.attrs["vr_basename"]    = args.vr_basename
-        params.attrs["snapshot_nr"]    = args.snapshot_nr
-        params.attrs["centrals_only"]  = 0 if args.centrals_only==False else 1
+        params.attrs["vr_basename"] = args.vr_basename
+        params.attrs["snapshot_nr"] = args.snapshot_nr
+        params.attrs["centrals_only"] = 0 if args.centrals_only == False else 1
         calc_names = sorted([hp.name for hp in halo_prop_list])
         params.attrs["calculations"] = calc_names
-        params.attrs["halo_ids"] = args.halo_ids if args.halo_ids is not None else np.ndarray(0, dtype=int)
+        params.attrs["halo_ids"] = (
+            args.halo_ids if args.halo_ids is not None else np.ndarray(0, dtype=int)
+        )
         outfile.close()
 
     comm_world.barrier()
     t0_reorder = time.time()
 
     # Open the per-chunk scratch files
-    scratch_file = phdf5.MultiFile(scratch_file_format, file_idx=range(nr_chunks), comm=comm_world)
+    scratch_file = phdf5.MultiFile(
+        scratch_file_format, file_idx=range(nr_chunks), comm=comm_world
+    )
 
     # Read the VR halo IDs from the scratch files and make a sorting index to put them in order
     vr_id = scratch_file.read(("VR/ID",))["VR/ID"]
@@ -283,7 +355,7 @@ def compute_halo_properties():
 
     # Loop over halo properties, a few at a time
     total_nr_props = len(ref_metadata)
-    props_per_iteration = min(total_nr_props, 100) # TODO: how to choose this number?
+    props_per_iteration = min(total_nr_props, 100)  # TODO: how to choose this number?
     for i1 in range(0, total_nr_props, props_per_iteration):
         i2 = min(i1 + props_per_iteration, total_nr_props)
 
@@ -312,13 +384,16 @@ def compute_halo_properties():
     comm_world.barrier()
     t1_reorder = time.time()
     if comm_world_rank == 0:
-        print("Sorting %d halo properties took %.1fs" % (total_nr_props, t1_reorder-t0_reorder))
+        print(
+            "Sorting %d halo properties took %.1fs"
+            % (total_nr_props, t1_reorder - t0_reorder)
+        )
 
     # Delete scratch files
     comm_world.barrier()
     if comm_world_rank == 0:
         for file_nr in range(nr_chunks):
-            os.remove(scratch_file_format % {"file_nr" : file_nr})
+            os.remove(scratch_file_format % {"file_nr": file_nr})
         print("Deleted scratch files.")
     comm_world.barrier()
 
@@ -332,10 +407,10 @@ def compute_halo_properties():
     else:
         task_time_local = 0.0
     task_time_total = comm_world.allreduce(task_time_local)
-    task_time_fraction = task_time_total / (comm_world_size*(t1-t0))
+    task_time_fraction = task_time_total / (comm_world_size * (t1 - t0))
 
     # Save profiling results for each MPI rank
-    if args.profile == 2 or (args.profile==1 and comm_world_rank==0):
+    if args.profile == 2 or (args.profile == 1 and comm_world_rank == 0):
         pr.disable()
         # Save profile so it can be loaded back into python for analysis
         pr.dump_stats("./profile.%d.dat" % comm_world_rank)
@@ -346,10 +421,13 @@ def compute_halo_properties():
         ps.print_stats()
         with open("./profile.%d.txt" % comm_world_rank, "w") as profile_file:
             profile_file.write(s.getvalue())
-    
+
     if comm_world_rank == 0:
-        print("Fraction of time spent calculating halo properties = %.2f" % task_time_fraction)
-        print("Total elapsed time: %.1f seconds" % (t1-t0))
+        print(
+            "Fraction of time spent calculating halo properties = %.2f"
+            % task_time_fraction
+        )
+        print("Total elapsed time: %.1f seconds" % (t1 - t0))
         print("Done.")
 
 
@@ -365,7 +443,13 @@ if __name__ == "__main__":
         comm_world.Abort()
     except Exception as e:
         # Uncaught exception. Print stack trace and exit.
-        sys.stderr.write("\n\n*** EXCEPTION ***\n"+str(e)+" on rank "+str(comm_world_rank)+"\n\n")
+        sys.stderr.write(
+            "\n\n*** EXCEPTION ***\n"
+            + str(e)
+            + " on rank "
+            + str(comm_world_rank)
+            + "\n\n"
+        )
         traceback.print_exc(file=sys.stderr)
         sys.stderr.write("\n\n")
         sys.stderr.flush()
