@@ -71,6 +71,9 @@ Bryan \& Norman (1998), and \verb+YxR_XXX_ZZZ+ for multiples of some other radiu
 The latter can only be computed after the corresponding density multiple SO radius has been computed. This is 
 achieved by ordering the calculations.
 
+\paragraph{Some properties are directly copied from the original VR catalogue.} These are stored in a
+separate group, \verb+VR+.
+
 \paragraph{The table below summarises} the different halo types.
 
 \begin{longtable}{llcp{6cm}}
@@ -80,6 +83,7 @@ ES & \verb+ExclusiveSphere/XXXkpc+ & \ding{53} & 30, 50, 100, 300, 500, 1000, 30
 IS & \verb+InclusiveSphere/XXXkpc+ & \ding{51} & 30, 50, 100, 300, 500, 1000, 3000 kpc \\
 EP & \verb+ProjectedAperture/XXXkpc/projP+ & \ding{53} & 10, 30, 50, 100 kpc \\
 SO & \verb+SO/XXX+ & \ding{51} & 200 mean, (50, 100, 200, 500, 1000, 2500) crit, 5$\times{}$500 crit \\
+- & \verb+VR/+ & - & Directly copied from VR output \\
 \end{longtable}
 
 \section{Property categories}
@@ -141,7 +145,9 @@ The table below lists all the properties that are computed by SOAP. This table i
 SOAP from the source code, so that all names, types, units, categories and descriptions match what is actually 
 used and output by SOAP. For each quantity, the table indicates for which halo types the property is computed. 
 Superscript numbers refer to more detailed explanations for some of the properties and match the numbers in 
-the next section.
+the next section. The properties at the end of the table that are categorised as `VR' correspond to properties 
+that are directly copied from the VR catalogue and are only listed for completeness. These do not belong to 
+any type.
 
 \input{table}
 

@@ -6,7 +6,7 @@ import unyt
 
 class PropertyTable:
 
-    categories = ["basic", "general", "gas", "dm", "star", "baryon"]
+    categories = ["basic", "general", "gas", "dm", "star", "baryon", "VR"]
     explanation = {
         "footnote_MBH.tex": ["BHmaxM"],
         "footnote_com.tex": ["com", "vcom"],
@@ -64,6 +64,14 @@ class PropertyTable:
         "footnote_dopplerB.tex": ["DopplerB"],
     }
 
+    compression_description = {
+        "FMantissa9": "$1.36693{\\rm{}e}10 \\rightarrow{} 1.367{\\rm{}e}10$",
+        "DScale5": "10 pc accurate",
+        "DScale1": "0.1 km/s accurate",
+        "Nbit40": "Store less bits",
+        "None": "no compression",
+    }
+
     # List of properties that get computed
     # For each property, we have the following columns:
     #  - name: Name of the property within calculate() and in the output file
@@ -97,7 +105,7 @@ class PropertyTable:
             "dimensionless",
             "ID of most massive black hole.",
             "basic",
-            "FMantissa9",
+            "Nbit40",
         ),
         "BHmaxM": (
             "MostMassiveBlackHoleMass",
@@ -493,7 +501,7 @@ class PropertyTable:
             "dimensionless",
             "Number of black hole particles.",
             "basic",
-            "FMantissa9",
+            "None",
         ),
         "Ndm": (
             "NumberOfDarkMatterParticles",
@@ -502,7 +510,7 @@ class PropertyTable:
             "dimensionless",
             "Number of dark matter particles.",
             "basic",
-            "FMantissa9",
+            "None",
         ),
         "Ngas": (
             "NumberOfGasParticles",
@@ -511,7 +519,7 @@ class PropertyTable:
             "dimensionless",
             "Number of gas particles.",
             "basic",
-            "FMantissa9",
+            "None",
         ),
         "Nnu": (
             "NumberOfNeutrinoParticles",
@@ -520,7 +528,7 @@ class PropertyTable:
             "dimensionless",
             "Number of neutrino particles.",
             "basic",
-            "FMantissa9",
+            "None",
         ),
         "Nstar": (
             "NumberOfStarParticles",
@@ -529,7 +537,7 @@ class PropertyTable:
             "dimensionless",
             "Number of star particles.",
             "basic",
-            "FMantissa9",
+            "None",
         ),
         "ProjectedBaryonAxisLengths": (
             "ProjectedBaryonAxisLengths",
@@ -688,10 +696,10 @@ class PropertyTable:
             "CentreOfMass",
             3,
             np.float32,
-            "kpc",
+            "Mpc",
             "Centre of mass.",
             "basic",
-            "FMantissa9",
+            "DScale5",
         ),
         "com_gas": (
             "GasCentreOfMass",
@@ -700,7 +708,7 @@ class PropertyTable:
             "Mpc",
             "Centre of mass of gas.",
             "gas",
-            "FMantissa9",
+            "DScale5",
         ),
         "com_star": (
             "StellarCentreOfMass",
@@ -709,7 +717,7 @@ class PropertyTable:
             "Mpc",
             "Centre of mass of stars.",
             "star",
-            "FMantissa9",
+            "DScale5",
         ),
         "compY": (
             "ComptonY",
@@ -826,7 +834,7 @@ class PropertyTable:
             "km/s",
             "Centre of mass velocity.",
             "basic",
-            "FMantissa9",
+            "DScale1",
         ),
         "vcom_gas": (
             "GasCentreOfMassVelocity",
@@ -835,7 +843,7 @@ class PropertyTable:
             "km/s",
             "Centre of mass velocity of gas.",
             "gas",
-            "FMantissa9",
+            "DScale1",
         ),
         "vcom_star": (
             "StellarCentreOfMassVelocity",
@@ -844,7 +852,7 @@ class PropertyTable:
             "km/s",
             "Centre of mass velocity of stars.",
             "star",
-            "FMantissa9",
+            "DScale1",
         ),
         "veldisp_matrix_dm": (
             "DarkMatterVelocityDispersionMatrix",
@@ -872,6 +880,69 @@ class PropertyTable:
             "Mass-weighted velocity dispersion of the stars. Measured relative to the stellar centre of mass velocity. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
             "star",
             "FMantissa9",
+        ),
+        "VRID": (
+            "ID",
+            1,
+            np.uint64,
+            "dimensionless",
+            "ID assigned to this halo by VR.",
+            "VR",
+            "None",
+        ),
+        "VRindex": (
+            "Index",
+            1,
+            np.int64,
+            "dimensionless",
+            "Index of this halo in the original VR output.",
+            "VR",
+            "None",
+        ),
+        "VRHostHaloID": (
+            "HostHaloID",
+            1,
+            np.int64,
+            "dimensionless",
+            "VR/ID of the top level parent of this halo. -1 for field halos.",
+            "VR",
+            "None",
+        ),
+        "VRParentHaloID": (
+            "ParentHaloID",
+            1,
+            np.int64,
+            "dimensionless",
+            "VR/ID of the direct parent of this halo. -1 for field halos.",
+            "VR",
+            "None",
+        ),
+        "VRNumSubStruct": (
+            "NumberOfSubstructures",
+            1,
+            np.uint64,
+            "dimensionless",
+            "Number of sub-structures within this halo.",
+            "VR",
+            "None",
+        ),
+        "VRStructureType": (
+            "StructureType",
+            1,
+            np.int32,
+            "dimensionless",
+            "Structure type identified by VR. Field halos are 10, higher numbers are for satellites.",
+            "VR",
+            "None",
+        ),
+        "VRposition": (
+            "CentreOfPotential",
+            3,
+            np.float64,
+            "Mpc",
+            "Centre of potential, as identified by VR. Used as reference for all relative positions.",
+            "VR",
+            "DScale5",
         ),
     }
 
@@ -958,6 +1029,7 @@ class PropertyTable:
                     "units": prop_units,
                     "description": prop_description,
                     "category": prop_cat,
+                    "compression": prop_comp,
                     "types": [halo_type],
                     "raw": props[i],
                 }
@@ -1001,9 +1073,9 @@ class PropertyTable:
 \\begin{document}"""
 
         tablestr = """\\begin{landscape}
-\\begin{longtable}{llllllllll}
-Name & Shape & Type & Units & SH & ES & IS & EP & SO & Category \\\\
-\\multicolumn{10}{l}{\\rule{30pt}{0pt}Description}\\\\
+\\begin{longtable}{lllllllllll}
+Name & Shape & Type & Units & SH & ES & IS & EP & SO & Category & Compression\\\\
+\\multicolumn{11}{l}{\\rule{30pt}{0pt}Description}\\\\
 \\hline{}\\endhead{}"""
         prev_cat = None
         for prop_name in prop_names:
@@ -1014,6 +1086,7 @@ Name & Shape & Type & Units & SH & ES & IS & EP & SO & Category \\\\
             prop_dtype = prop["dtype"]
             prop_units = f'${prop["units"]}$' if prop["units"] != "" else "(no unit)"
             prop_cat = prop["category"]
+            prop_comp = self.compression_description[prop["compression"]]
             prop_description = prop["description"].format(
                 label="satisfying a spherical overdensity criterion."
             )
@@ -1051,6 +1124,7 @@ Name & Shape & Type & Units & SH & ES & IS & EP & SO & Category \\\\
                             prop_projected,
                             prop_SO,
                             prop_cat,
+                            prop_comp,
                         ]
                     ]
                 )
