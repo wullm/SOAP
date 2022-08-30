@@ -899,7 +899,7 @@ class PropertyTable:
             "VR",
             "None",
         ),
-        "VRHostHaloID": (
+        "VRhostHaloID": (
             "HostHaloID",
             1,
             np.int64,
@@ -908,7 +908,7 @@ class PropertyTable:
             "VR",
             "None",
         ),
-        "VRParentHaloID": (
+        "VRParent_halo_ID": (
             "ParentHaloID",
             1,
             np.int64,
@@ -917,7 +917,7 @@ class PropertyTable:
             "VR",
             "None",
         ),
-        "VRNumSubStruct": (
+        "VRnumSubStruct": (
             "NumberOfSubstructures",
             1,
             np.uint64,
@@ -926,7 +926,7 @@ class PropertyTable:
             "VR",
             "None",
         ),
-        "VRStructureType": (
+        "VRStructuretype": (
             "StructureType",
             1,
             np.int32,
@@ -935,7 +935,7 @@ class PropertyTable:
             "VR",
             "None",
         ),
-        "VRposition": (
+        "VRcofp": (
             "CentreOfPotential",
             3,
             np.float64,
@@ -945,6 +945,12 @@ class PropertyTable:
             "DScale5",
         ),
     }
+
+    # we should really use removeprefix("VR") instead of [2:], but that only
+    # exists since Python 3.9
+    vr_properties = [
+        vrname[2:] for vrname in full_property_list.keys() if vrname.startswith("VR")
+    ]
 
     def get_footnotes(self, name):
         footnotes = []

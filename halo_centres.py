@@ -59,16 +59,16 @@ class SOCatalogue:
         # belong to the group. But we want to compute spherical overdensity
         # quantities about the potential minimum.
         datasets = ("Xcminpot", "Ycminpot", "Zcminpot", "Xc", "Yc", "Zc",
-                    "R_size", "Structuretype", "ID", "npart")
+                    "R_size", "Structuretype", "ID", "npart", "hostHaloID", "numSubStruct")
 
         # Check for single file VR output - will prefer filename without
         # extension if both are present
-        vr_basename += ".properties"
+        vr_basename_props = f"{vr_basename}.properties"
         if comm_rank == 0:
-            if os.path.exists(vr_basename):
-                filenames = vr_basename
+            if os.path.exists(vr_basename_props):
+                filenames = vr_basename_props
             else:
-                filenames = vr_basename+".%(file_nr)d"
+                filenames = vr_basename_props+".%(file_nr)d"
         else:
             filenames = None
         filenames = comm.bcast(filenames)
@@ -76,6 +76,17 @@ class SOCatalogue:
         # Read in positions and radius of each halo, distributed over all MPI ranks
         mf = phdf5.MultiFile(filenames, file_nr_dataset="Num_of_files")
         local_halo = mf.read(datasets)
+
+        vr_basename_groups = f"{vr_basename}.catalog_groups"
+        if comm_rank == 0:
+            if os.path.exists(vr_basename_groups):
+                group_filenames = vr_basename_groups
+            else:
+                group_filenames = vr_basename_groups+".%(file_nr)d"
+        else:
+            group_filenames = None
+        mf = phdf5.MultiFile(group_filenames, file_nr_dataset="Num_of_files")
+        local_halo.update(mf.read(["Parent_halo_ID"]))
 
         # Compute array index of each halo
         nr_local = local_halo["ID"].shape[0]
@@ -120,7 +131,7 @@ class SOCatalogue:
             if name in ("cofm", "cofp", "R_size"):
                 conv_fac = length_conversion
                 units = swift_cmpc
-            elif name in ("Structuretype", "ID", "index", "npart"):
+            elif name in ("Structuretype", "ID", "index", "npart", "hostHaloID", "numSubStruct", "Parent_halo_ID"):
                 conv_fac = None
                 units = unyt.dimensionless
             else:
