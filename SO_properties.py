@@ -395,7 +395,7 @@ class SOProperties(HaloProperty):
         # all variables are defined with physical units and an appropriate dtype
         # we need to use the custom unit registry so that everything can be converted
         # back to snapshot units in the end
-        for name, _, shape, dtype, unit, _, _ in self.property_list:
+        for name, _, shape, dtype, unit, _, _, _ in self.property_list:
             if shape > 1:
                 val = [0] * shape
             else:
@@ -404,7 +404,7 @@ class SOProperties(HaloProperty):
 
         # SOs only exist for central galaxies
         if input_halo["Structuretype"] != 10:
-            for name, outputname, _, _, _, description, _ in self.property_list:
+            for name, outputname, _, _, _, description, _, _ in self.property_list:
                 halo_result.update(
                     {
                         f"SO/{self.SO_name}/{outputname}": (
@@ -865,7 +865,7 @@ class SOProperties(HaloProperty):
 
         # Return value should be a dict containing unyt_arrays and descriptions.
         # The dict keys will be used as HDF5 dataset names in the output.
-        for name, outputname, _, _, _, description, _ in self.property_list:
+        for name, outputname, _, _, _, description, _, _ in self.property_list:
             halo_result.update(
                 {
                     f"SO/{self.SO_name}/{outputname}": (
@@ -1044,6 +1044,7 @@ def test_SO_properties():
                 size,
                 dtype,
                 unit_string,
+                _,
                 _,
                 _,
             ) in prop_calc.property_list:

@@ -191,7 +191,7 @@ class SubhaloProperties(HaloProperty):
         # all variables are defined with physical units and an appropriate dtype
         # we need to use the custom unit registry so that everything can be converted
         # back to snapshot units in the end
-        for name, _, shape, dtype, unit, _, _ in self.property_list:
+        for name, _, shape, dtype, unit, _, _, _ in self.property_list:
             if shape > 1:
                 val = [0] * shape
             else:
@@ -428,7 +428,7 @@ class SubhaloProperties(HaloProperty):
             prefix = "BoundSubhaloProperties"
         else:
             prefix = "FOFSubhaloProperties"
-        for name, outputname, _, _, _, description, _ in self.property_list:
+        for name, outputname, _, _, _, description, _, _ in self.property_list:
             halo_result.update(
                 {
                     f"{prefix}/{outputname}": (
@@ -492,6 +492,7 @@ def test_subhalo_properties():
                 size,
                 dtype,
                 unit_string,
+                _,
                 _,
                 _,
             ) in prop_calc.property_list:
