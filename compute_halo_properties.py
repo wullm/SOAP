@@ -36,6 +36,7 @@ import aperture_properties
 import result_set
 import projected_aperture_properties
 from recently_heated_gas_filter import RecentlyHeatedGasFilter
+from stellar_age_calculator import StellarAgeCalculator
 
 
 def split_comm_world():
@@ -133,14 +134,21 @@ def compute_halo_properties():
     recently_heated_gas_filter = RecentlyHeatedGasFilter(
         cellgrid, 15.0 * unyt.Myr, 0.0, 0.0
     )
+    stellar_age_calculator = StellarAgeCalculator(cellgrid)
 
     # Get the full list of property calculations we can do
     halo_prop_list = [
         subhalo_properties.SubhaloProperties(
-            cellgrid, recently_heated_gas_filter, bound_only=True
+            cellgrid,
+            recently_heated_gas_filter,
+            stellar_age_calculator,
+            bound_only=True,
         ),
         subhalo_properties.SubhaloProperties(
-            cellgrid, recently_heated_gas_filter, bound_only=False
+            cellgrid,
+            recently_heated_gas_filter,
+            stellar_age_calculator,
+            bound_only=False,
         ),
         SO_properties.SOProperties(cellgrid, recently_heated_gas_filter, 200.0, "mean"),
         SO_properties.SOProperties(cellgrid, recently_heated_gas_filter, 50.0, "crit"),
@@ -158,56 +166,56 @@ def compute_halo_properties():
             cellgrid, recently_heated_gas_filter, 500.0, 5.0, type="crit"
         ),
         aperture_properties.InclusiveSphereProperties(
-            cellgrid, 10.0, recently_heated_gas_filter
+            cellgrid, 10.0, recently_heated_gas_filter, stellar_age_calculator
         ),
         aperture_properties.InclusiveSphereProperties(
-            cellgrid, 30.0, recently_heated_gas_filter
+            cellgrid, 30.0, recently_heated_gas_filter, stellar_age_calculator
         ),
         aperture_properties.InclusiveSphereProperties(
-            cellgrid, 50.0, recently_heated_gas_filter
+            cellgrid, 50.0, recently_heated_gas_filter, stellar_age_calculator
         ),
         aperture_properties.InclusiveSphereProperties(
-            cellgrid, 100.0, recently_heated_gas_filter
+            cellgrid, 100.0, recently_heated_gas_filter, stellar_age_calculator
         ),
         aperture_properties.InclusiveSphereProperties(
-            cellgrid, 300.0, recently_heated_gas_filter
+            cellgrid, 300.0, recently_heated_gas_filter, stellar_age_calculator
         ),
         aperture_properties.InclusiveSphereProperties(
-            cellgrid, 500.0, recently_heated_gas_filter
+            cellgrid, 500.0, recently_heated_gas_filter, stellar_age_calculator
         ),
         aperture_properties.InclusiveSphereProperties(
-            cellgrid, 1000.0, recently_heated_gas_filter
+            cellgrid, 1000.0, recently_heated_gas_filter, stellar_age_calculator
         ),
         aperture_properties.InclusiveSphereProperties(
-            cellgrid, 3000.0, recently_heated_gas_filter
+            cellgrid, 3000.0, recently_heated_gas_filter, stellar_age_calculator
         ),
         projected_aperture_properties.ProjectedApertureProperties(cellgrid, 10.0),
         projected_aperture_properties.ProjectedApertureProperties(cellgrid, 30.0),
         projected_aperture_properties.ProjectedApertureProperties(cellgrid, 50.0),
         projected_aperture_properties.ProjectedApertureProperties(cellgrid, 100.0),
         aperture_properties.ExclusiveSphereProperties(
-            cellgrid, 10.0, recently_heated_gas_filter
+            cellgrid, 10.0, recently_heated_gas_filter, stellar_age_calculator
         ),
         aperture_properties.ExclusiveSphereProperties(
-            cellgrid, 30.0, recently_heated_gas_filter
+            cellgrid, 30.0, recently_heated_gas_filter, stellar_age_calculator
         ),
         aperture_properties.ExclusiveSphereProperties(
-            cellgrid, 50.0, recently_heated_gas_filter
+            cellgrid, 50.0, recently_heated_gas_filter, stellar_age_calculator
         ),
         aperture_properties.ExclusiveSphereProperties(
-            cellgrid, 100.0, recently_heated_gas_filter
+            cellgrid, 100.0, recently_heated_gas_filter, stellar_age_calculator
         ),
         aperture_properties.ExclusiveSphereProperties(
-            cellgrid, 300.0, recently_heated_gas_filter
+            cellgrid, 300.0, recently_heated_gas_filter, stellar_age_calculator
         ),
         aperture_properties.ExclusiveSphereProperties(
-            cellgrid, 500.0, recently_heated_gas_filter
+            cellgrid, 500.0, recently_heated_gas_filter, stellar_age_calculator
         ),
         aperture_properties.ExclusiveSphereProperties(
-            cellgrid, 1000.0, recently_heated_gas_filter
+            cellgrid, 1000.0, recently_heated_gas_filter, stellar_age_calculator
         ),
         aperture_properties.ExclusiveSphereProperties(
-            cellgrid, 3000.0, recently_heated_gas_filter
+            cellgrid, 3000.0, recently_heated_gas_filter, stellar_age_calculator
         ),
     ]
 

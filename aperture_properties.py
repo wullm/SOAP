@@ -14,11 +14,14 @@ from kinematic_properties import (
     get_axis_lengths,
 )
 from recently_heated_gas_filter import RecentlyHeatedGasFilter
+from stellar_age_calculator import StellarAgeCalculator
 from property_table import PropertyTable
 
 # index of elements O and Fe in the SmoothedElementMassFractions dataset
 indexO = 4
 indexFe = 8
+
+rbandindex = 2
 
 
 class ApertureProperties(HaloProperty):
@@ -44,6 +47,7 @@ class ApertureProperties(HaloProperty):
         ],
         "PartType1": ["Coordinates", "GroupNr_bound", "Masses", "Velocities"],
         "PartType4": [
+            "BirthScaleFactors",
             "Coordinates",
             "GroupNr_bound",
             "InitialMasses",
@@ -133,7 +137,12 @@ class ApertureProperties(HaloProperty):
     ]
 
     def __init__(
-        self, cellgrid, physical_radius_kpc, recently_heated_gas_filter, inclusive=False
+        self,
+        cellgrid,
+        physical_radius_kpc,
+        recently_heated_gas_filter,
+        stellar_age_calculator,
+        inclusive=False,
     ):
         """
         Construct an ApertureProperties object with the given physical
@@ -144,6 +153,7 @@ class ApertureProperties(HaloProperty):
         super().__init__(cellgrid)
 
         self.filter = recently_heated_gas_filter
+        self.stellar_ages = stellar_age_calculator
 
         # no density criterion for these properties
         self.mean_density_multiple = None
@@ -280,9 +290,10 @@ class ApertureProperties(HaloProperty):
             aperture_sphere["Mstar_init"] += data["PartType4"]["InitialMasses"][
                 star_mask_all
             ][star_mask_ap].sum()
-            aperture_sphere["StellarLuminosity"] += data["PartType4"]["Luminosities"][
-                star_mask_all
-            ][star_mask_ap].sum(axis=0)
+            luminosities = data["PartType4"]["Luminosities"][star_mask_all][
+                star_mask_ap
+            ]
+            aperture_sphere["StellarLuminosity"] += luminosities.sum(axis=0)
             aperture_sphere["Mstarmetal"] += (
                 mass_star
                 * data["PartType4"]["MetalMassFractions"][star_mask_all][star_mask_ap]
@@ -301,6 +312,16 @@ class ApertureProperties(HaloProperty):
                 ][:, indexFe]
             )
             aperture_sphere["MstarFe"] += MstarFe.sum()
+            birth_a = data["PartType4"]["BirthScaleFactors"][star_mask_all][
+                star_mask_ap
+            ]
+            stellar_ages = self.stellar_ages.stellar_age(birth_a)
+            aperture_sphere["stellar_age_mw"] += (
+                (mass_star / aperture_sphere["Mstar"]) * stellar_ages
+            ).sum()
+            Lr = luminosities[:, rbandindex]
+            Lrtot = Lr.sum()
+            aperture_sphere["stellar_age_lw"] += ((Lr / Lrtot) * stellar_ages).sum()
         aperture_sphere["Mbh_dynamical"] = mass[type == "PartType5"].sum()
         if aperture_sphere["Nbh"] > 0:
             if self.inclusive:
@@ -560,16 +581,36 @@ class ApertureProperties(HaloProperty):
 
 
 class ExclusiveSphereProperties(ApertureProperties):
-    def __init__(self, cellgrid, physical_radius_kpc, recently_heated_gas_filter):
+    def __init__(
+        self,
+        cellgrid,
+        physical_radius_kpc,
+        recently_heated_gas_filter,
+        stellar_age_calculator,
+    ):
         super().__init__(
-            cellgrid, physical_radius_kpc, recently_heated_gas_filter, False
+            cellgrid,
+            physical_radius_kpc,
+            recently_heated_gas_filter,
+            stellar_age_calculator,
+            False,
         )
 
 
 class InclusiveSphereProperties(ApertureProperties):
-    def __init__(self, cellgrid, physical_radius_kpc, recently_heated_gas_filter):
+    def __init__(
+        self,
+        cellgrid,
+        physical_radius_kpc,
+        recently_heated_gas_filter,
+        stellar_age_calculator,
+    ):
         super().__init__(
-            cellgrid, physical_radius_kpc, recently_heated_gas_filter, True
+            cellgrid,
+            physical_radius_kpc,
+            recently_heated_gas_filter,
+            stellar_age_calculator,
+            True,
         )
 
 
@@ -588,9 +629,14 @@ def test_aperture_properties():
     # initialise the DummyHaloGenerator with a random seed
     dummy_halos = DummyHaloGenerator(3256)
     filter = RecentlyHeatedGasFilter(dummy_halos.get_cell_grid())
+    stellar_age_calculator = StellarAgeCalculator(dummy_halos.get_cell_grid())
 
-    pc_exclusive = ExclusiveSphereProperties(dummy_halos.get_cell_grid(), 50.0, filter)
-    pc_inclusive = InclusiveSphereProperties(dummy_halos.get_cell_grid(), 50.0, filter)
+    pc_exclusive = ExclusiveSphereProperties(
+        dummy_halos.get_cell_grid(), 50.0, filter, stellar_age_calculator
+    )
+    pc_inclusive = InclusiveSphereProperties(
+        dummy_halos.get_cell_grid(), 50.0, filter, stellar_age_calculator
+    )
 
     # generate 100 random halos
     for i in range(100):

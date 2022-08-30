@@ -14,7 +14,10 @@ from kinematic_properties import (
     get_velocity_dispersion_matrix,
 )
 from recently_heated_gas_filter import RecentlyHeatedGasFilter
+from stellar_age_calculator import StellarAgeCalculator
 from property_table import PropertyTable
+
+rbandindex = 2
 
 
 class SubhaloProperties(HaloProperty):
@@ -81,11 +84,18 @@ class SubhaloProperties(HaloProperty):
         ]
     ]
 
-    def __init__(self, cellgrid, recently_heated_gas_filter, bound_only=True):
+    def __init__(
+        self,
+        cellgrid,
+        recently_heated_gas_filter,
+        stellar_age_calculator,
+        bound_only=True,
+    ):
         super().__init__(cellgrid)
 
         self.bound_only = bound_only
         self.filter = recently_heated_gas_filter
+        self.stellar_ages = stellar_age_calculator
 
         # This specifies how large a sphere is read in:
         self.mean_density_multiple = None
@@ -120,6 +130,7 @@ class SubhaloProperties(HaloProperty):
             ],
             "PartType1": ["Coordinates", "Masses", "Velocities", self.grnr],
             "PartType4": [
+                "BirthScaleFactors",
                 "Coordinates",
                 "InitialMasses",
                 "Luminosities",
@@ -245,12 +256,19 @@ class SubhaloProperties(HaloProperty):
             subhalo["Mstar_init"] += data["PartType4"]["InitialMasses"][
                 star_mask_all
             ].sum()
-            subhalo["StellarLuminosity"] += data["PartType4"]["Luminosities"][
-                star_mask_all
-            ].sum(axis=0)
+            luminosities = data["PartType4"]["Luminosities"][star_mask_all]
+            subhalo["StellarLuminosity"] += luminosities.sum(axis=0)
             subhalo["Mstarmetal"] += (
                 mass_star * data["PartType4"]["MetalMassFractions"][star_mask_all]
             ).sum()
+            birth_a = data["PartType4"]["BirthScaleFactors"][star_mask_all]
+            stellar_ages = self.stellar_ages.stellar_age(birth_a)
+            subhalo["stellar_age_mw"] += (
+                (mass_star / subhalo["Mstar"]) * stellar_ages
+            ).sum()
+            Lr = luminosities[:, rbandindex]
+            Lrtot = Lr.sum()
+            subhalo["stellar_age_lw"] += ((Lr / Lrtot) * stellar_ages).sum()
 
         if subhalo["Nbh"] > 0:
             bh_mask_all = data["PartType5"][self.grnr] == index
@@ -454,12 +472,18 @@ def test_subhalo_properties():
     dummy_halos = DummyHaloGenerator(16902)
 
     recently_heated_gas_filter = RecentlyHeatedGasFilter(dummy_halos.get_cell_grid())
+    stellar_age_calculator = StellarAgeCalculator(dummy_halos.get_cell_grid())
 
     property_calculator_bound = SubhaloProperties(
-        dummy_halos.get_cell_grid(), recently_heated_gas_filter
+        dummy_halos.get_cell_grid(),
+        recently_heated_gas_filter,
+        stellar_age_calculator,
     )
     property_calculator_both = SubhaloProperties(
-        dummy_halos.get_cell_grid(), recently_heated_gas_filter, False
+        dummy_halos.get_cell_grid(),
+        recently_heated_gas_filter,
+        stellar_age_calculator,
+        False,
     )
 
     # generate 100 random halos

@@ -429,6 +429,12 @@ class DummyHaloGenerator:
         Nstar = int(star_mask.sum())
         if Nstar > 0:
             data["PartType4"] = {}
+            data["PartType4"]["BirthScaleFactors"] = unyt.unyt_array(
+                1.0 / 1.1 + 0.01 * np.random.random(Nstar),
+                dtype=np.float32,
+                units=unyt.dimensionless,
+                registry=reg,
+            )
             data["PartType4"]["Coordinates"] = coords[star_mask]
             data["PartType4"]["GroupNr_all"] = groupnr_all[star_mask]
             data["PartType4"]["GroupNr_bound"] = groupnr_bound[star_mask]
