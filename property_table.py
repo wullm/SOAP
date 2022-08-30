@@ -726,6 +726,22 @@ class PropertyTable:
             "Mass-weighted velocity dispersion of the stars. Measured relative to the stellar centre of mass velocity. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
             "star",
         ),
+        "stellar_age_mw": (
+            "MassWeightedMeanStellarAge",
+            1,
+            np.float32,
+            "Myr",
+            "Mass weighted mean stellar age.",
+            "star",
+        ),
+        "stellar_age_lw": (
+            "LuminosityWeightedMeanStellarAge",
+            1,
+            np.float32,
+            "Myr",
+            "Luminosity weighted mean stellar age. The weight is the r band luminosity.",
+            "star",
+        ),
     }
 
     def get_footnotes(self, name):

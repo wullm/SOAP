@@ -76,6 +76,8 @@ class SubhaloProperties(HaloProperty):
             "veldisp_matrix_star",
             "DtoTgas",
             "DtoTstar",
+            "stellar_age_mw",
+            "stellar_age_lw",
         ]
     ]
 

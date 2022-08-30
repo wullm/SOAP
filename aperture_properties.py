@@ -127,6 +127,8 @@ class ApertureProperties(HaloProperty):
             "DtoTstar",
             "MstarO",
             "MstarFe",
+            "stellar_age_mw",
+            "stellar_age_lw",
         ]
     ]
 
