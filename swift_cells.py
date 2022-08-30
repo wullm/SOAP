@@ -472,36 +472,39 @@ class SWIFTCellGrid:
                     tasks[rank].append(all_tasks.popleft())
             assert len(all_tasks) == 0
 
-        # Allocate MPI shared memory for the particle data
+        # Allocate MPI shared memory for the particle data for types which exist
+        # in this snapshot. Note that these allocations could have zero size if
+        # there are no particles of a type in the masked cells.
         data = {}
         for ptype in reads_for_type:
-            data[ptype] = {}
-            for name in property_names[ptype]:
+            if ptype in self.ptypes:
+                data[ptype] = {}
+                for name in property_names[ptype]:
 
-                # Get metadata for array to allocate in memory
-                if name in self.snap_metadata[ptype]:
-                    units, dtype, shape = self.snap_metadata[ptype][name]
-                elif (
-                    self.extra_metadata is not None
-                    and name in self.extra_metadata[ptype]
-                ):
-                    units, dtype, shape = self.extra_metadata[ptype][name]
-                else:
-                    raise Exception(
-                        "Can't find required dataset %s in input file(s)!" % name
+                    # Get metadata for array to allocate in memory
+                    if name in self.snap_metadata[ptype]:
+                        units, dtype, shape = self.snap_metadata[ptype][name]
+                    elif (
+                        self.extra_metadata is not None
+                        and name in self.extra_metadata[ptype]
+                    ):
+                        units, dtype, shape = self.extra_metadata[ptype][name]
+                    else:
+                        raise Exception(
+                            "Can't find required dataset %s in input file(s)!" % name
+                        )
+
+                    # Determine size of local array section
+                    nr_local = nr_parts[ptype] // comm_size
+                    if comm_rank < (nr_parts[ptype] % comm_size):
+                        nr_local += 1
+                    # Find global and local shape of the array
+                    global_shape = (nr_parts[ptype],) + shape
+                    local_shape = (nr_local,) + shape
+                    # Allocate storage
+                    data[ptype][name] = shared_array.SharedArray(
+                        local_shape, dtype, comm, units
                     )
-
-                # Determine size of local array section
-                nr_local = nr_parts[ptype] // comm_size
-                if comm_rank < (nr_parts[ptype] % comm_size):
-                    nr_local += 1
-                # Find global and local shape of the array
-                global_shape = (nr_parts[ptype],) + shape
-                local_shape = (nr_local,) + shape
-                # Allocate storage
-                data[ptype][name] = shared_array.SharedArray(
-                    local_shape, dtype, comm, units
-                )
 
         comm.barrier()
 
@@ -521,6 +524,7 @@ class SWIFTCellGrid:
         # Create empty arrays for particle types which exist in the reference snapshot but not this one
         for ptype in property_names:
             if ptype in self.ptypes_ref:
+                data[ptype] = {}
                 for name, (units, dtype, shape) in self.snap_metadata_ref[
                     ptype
                 ].items():
