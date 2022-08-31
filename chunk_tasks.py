@@ -188,6 +188,11 @@ class ChunkTask:
             comm.barrier()
             message(f"increased maximum search radius for {nr_increased} of {nr_halos} halos")
 
+            # Sanity check:
+            # Increasing the read radii should not cause more cells to need to be read in
+            mask_check = mask_cells(comm, cellgrid, centre.full, read_radius.full, done.full)
+            assert np.all(mask==mask_check)
+
             # Get the cosmology info from the input snapshot
             critical_density = cellgrid.critical_density
             mean_density = cellgrid.mean_density
