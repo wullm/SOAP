@@ -137,18 +137,22 @@ def compute_halo_properties():
     stellar_age_calculator = StellarAgeCalculator(cellgrid)
 
     # Get the full list of property calculations we can do
+    # Note that the order matters: we need to do the FOFSubhaloProperties first,
+    # since quantities are filtered based on the particle numbers in there
+    # Similarly, SO 5xR500_crit can only be done after SO 500_crit for obvious
+    # reasons
     halo_prop_list = [
         subhalo_properties.SubhaloProperties(
             cellgrid,
             recently_heated_gas_filter,
             stellar_age_calculator,
-            bound_only=True,
+            bound_only=False,
         ),
         subhalo_properties.SubhaloProperties(
             cellgrid,
             recently_heated_gas_filter,
             stellar_age_calculator,
-            bound_only=False,
+            bound_only=True,
         ),
         SO_properties.SOProperties(cellgrid, recently_heated_gas_filter, 200.0, "mean"),
         SO_properties.SOProperties(cellgrid, recently_heated_gas_filter, 50.0, "crit"),

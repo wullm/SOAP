@@ -20,6 +20,577 @@ from property_table import PropertyTable
 rbandindex = 2
 
 
+def set_halo_property(property_dict, property_name, part_data):
+    property_info = PropertyTable.full_property_list[property_name]
+    dtype = property_info[2]
+    units = property_info[3]
+    property_value = getattr(part_data, property_name)
+    if property_value is not None:
+        if units == "dimensionless":
+            property_dict[property_name] = unyt.unyt_array(
+                property_value.astype(dtype), dtype=dtype, units=units
+            )
+        else:
+            property_dict[property_name] += property_value
+
+
+def lazy_property(fn):
+    attr_name = "_lazy_" + fn.__name__
+
+    @property
+    def _lazy_property(self):
+        if not hasattr(self, attr_name):
+            setattr(self, attr_name, fn(self))
+        return getattr(self, attr_name)
+
+    return _lazy_property
+
+
+class SubhaloParticleData:
+    def __init__(
+        self,
+        input_halo,
+        search_radius,
+        data,
+        types_present,
+        grnr,
+        stellar_age_calculator,
+        recently_heated_gas_filter,
+    ):
+        self.input_halo = input_halo
+        self.search_radius = search_radius
+        self.data = data
+        self.types_present = types_present
+        self.grnr = grnr
+        self.stellar_age_calculator = stellar_age_calculator
+        self.recently_heated_gas_filter = recently_heated_gas_filter
+        self.compute_basics()
+
+    def compute_basics(self):
+        self.centre = self.input_halo["cofp"]
+        self.index = self.input_halo["index"]
+
+        mass = []
+        position = []
+        radius = []
+        velocity = []
+        types = []
+        for ptype in self.types_present:
+            grnr = self.data[ptype][self.grnr]
+            in_halo = grnr == self.index
+            mass.append(self.data[ptype][mass_dataset(ptype)][in_halo])
+            pos = self.data[ptype]["Coordinates"][in_halo, :] - self.centre[None, :]
+            position.append(pos)
+            r = np.sqrt(pos[:, 0] ** 2 + pos[:, 1] ** 2 + pos[:, 2] ** 2)
+            radius.append(r)
+            velocity.append(self.data[ptype]["Velocities"][in_halo, :])
+            typearr = np.zeros(r.shape, dtype="U9")
+            typearr[:] = ptype
+            types.append(typearr)
+
+        self.mass = unyt.array.uconcatenate(mass)
+        self.position = unyt.array.uconcatenate(position)
+        self.radius = unyt.array.uconcatenate(radius)
+        self.velocity = unyt.array.uconcatenate(velocity)
+        self.types = np.concatenate(types)
+
+    @lazy_property
+    def gas_mask_sh(self):
+        return self.types == "PartType0"
+
+    @lazy_property
+    def dm_mask_sh(self):
+        return self.types == "PartType1"
+
+    @lazy_property
+    def star_mask_sh(self):
+        return self.types == "PartType4"
+
+    @lazy_property
+    def bh_mask_sh(self):
+        return self.types == "PartType5"
+
+    @lazy_property
+    def baryons_mask_sh(self):
+        return (self.types == "PartType0") | (self.types == "PartType4")
+
+    @lazy_property
+    def Ngas(self):
+        return self.gas_mask_sh.sum()
+
+    @lazy_property
+    def Ndm(self):
+        return self.dm_mask_sh.sum()
+
+    @lazy_property
+    def Nstar(self):
+        return self.star_mask_sh.sum()
+
+    @lazy_property
+    def Nbh(self):
+        return self.bh_mask_sh.sum()
+
+    @lazy_property
+    def mass_gas(self):
+        return self.mass[self.gas_mask_sh]
+
+    @lazy_property
+    def mass_dm(self):
+        return self.mass[self.dm_mask_sh]
+
+    @lazy_property
+    def mass_star(self):
+        return self.mass[self.star_mask_sh]
+
+    @lazy_property
+    def mass_baryons(self):
+        return self.mass[self.baryons_mask_sh]
+
+    @lazy_property
+    def pos_gas(self):
+        return self.position[self.gas_mask_sh]
+
+    @lazy_property
+    def pos_dm(self):
+        return self.position[self.dm_mask_sh]
+
+    @lazy_property
+    def pos_star(self):
+        return self.position[self.star_mask_sh]
+
+    @lazy_property
+    def pos_baryons(self):
+        return self.position[self.baryons_mask_sh]
+
+    @lazy_property
+    def vel_gas(self):
+        return self.velocity[self.gas_mask_sh]
+
+    @lazy_property
+    def vel_dm(self):
+        return self.velocity[self.dm_mask_sh]
+
+    @lazy_property
+    def vel_star(self):
+        return self.velocity[self.star_mask_sh]
+
+    @lazy_property
+    def vel_baryons(self):
+        return self.velocity[self.baryons_mask_sh]
+
+    @lazy_property
+    def Mtot(self):
+        return self.mass.sum()
+
+    @lazy_property
+    def Mgas(self):
+        return self.mass_gas.sum()
+
+    @lazy_property
+    def Mdm(self):
+        return self.mass_dm.sum()
+
+    @lazy_property
+    def Mstar(self):
+        return self.mass_star.sum()
+
+    @lazy_property
+    def Mbh_dynamical(self):
+        return self.mass[self.bh_mask_sh].sum()
+
+    @lazy_property
+    def star_mask_all(self):
+        return self.data["PartType4"][self.grnr] == self.index
+
+    @lazy_property
+    def mass_star_init(self):
+        return self.data["PartType4"]["InitialMasses"][self.star_mask_all]
+
+    @lazy_property
+    def Mstar_init(self):
+        return self.mass_star_init.sum()
+
+    @lazy_property
+    def stellar_luminosities(self):
+        return self.data["PartType4"]["Luminosities"][self.star_mask_all]
+
+    @lazy_property
+    def StellarLuminosity(self):
+        return self.stellar_luminosities.sum(axis=0)
+
+    @lazy_property
+    def Mstarmetal(self):
+        return (
+            self.mass_star
+            * self.data["PartType4"]["MetalMassFractions"][self.star_mask_all]
+        ).sum()
+
+    @lazy_property
+    def stellar_ages(self):
+        birth_a = self.data["PartType4"]["BirthScaleFactors"][self.star_mask_all]
+        return self.stellar_age_calculator.stellar_age(birth_a)
+
+    @lazy_property
+    def stellar_age_mw(self):
+        return ((self.mass_star / self.Mstar) * self.stellar_ages).sum()
+
+    @lazy_property
+    def stellar_age_lw(self):
+        Lr = self.stellar_luminosities[:, rbandindex]
+        Lrtot = Lr.sum()
+        return ((Lr / Lrtot) * self.stellar_ages).sum()
+
+    @lazy_property
+    def bh_mask_all(self):
+        return self.data["PartType5"][self.grnr] == self.index
+
+    @lazy_property
+    def Mbh_subgrid(self):
+        return self.data["PartType5"]["SubgridMasses"][self.bh_mask_all].sum()
+
+    @lazy_property
+    def agn_eventa(self):
+        return self.data["PartType5"]["LastAGNFeedbackScaleFactors"][self.bh_mask_all]
+
+    @lazy_property
+    def BHlasteventa(self):
+        return np.max(self.agn_eventa)
+
+    @lazy_property
+    def iBHmax(self):
+        return np.argmax(self.data["PartType5"]["SubgridMasses"][self.bh_mask_all])
+
+    @lazy_property
+    def BHmaxM(self):
+        return self.data["PartType5"]["SubgridMasses"][self.bh_mask_all][self.iBHmax]
+
+    @lazy_property
+    def BHmaxID(self):
+        return self.data["PartType5"]["ParticleIDs"][self.bh_mask_all][self.iBHmax]
+
+    @lazy_property
+    def BHmaxpos(self):
+        return self.data["PartType5"]["Coordinates"][self.bh_mask_all][self.iBHmax]
+
+    @lazy_property
+    def BHmaxvel(self):
+        return self.data["PartType5"]["Velocities"][self.bh_mask_all][self.iBHmax]
+
+    @lazy_property
+    def BHmaxAR(self):
+        return self.data["PartType5"]["AccretionRates"][self.bh_mask_all][self.iBHmax]
+
+    @lazy_property
+    def BHmaxlasteventa(self):
+        return self.agn_eventa[self.iBHmax]
+
+    @lazy_property
+    def total_mass_fraction(self):
+        return self.mass / self.Mtot
+
+    @lazy_property
+    def com(self):
+        return (self.total_mass_fraction[:, None] * self.position).sum(
+            axis=0
+        ) + self.centre
+
+    @lazy_property
+    def vcom(self):
+        return (self.total_mass_fraction[:, None] * self.velocity).sum(axis=0)
+
+    @lazy_property
+    def R_vmax(self):
+        if not hasattr(self, "r_vmax"):
+            self.r_vmax, self.vmax = get_vmax(self.mass, self.radius)
+        return self.r_vmax
+
+    @lazy_property
+    def Vmax(self):
+        if not hasattr(self, "vmax"):
+            self.r_vmax, self.vmax = get_vmax(self.mass, self.radius)
+        return self.vmax
+
+    @lazy_property
+    def spin_parameter(self):
+        if self.R_vmax > 0 and self.Vmax > 0:
+            mask_r_vmax = self.radius <= self.R_vmax
+            vrel = self.velocity[mask_r_vmax, :] - self.vcom[None, :]
+            Ltot = unyt.array.unorm(
+                (
+                    self.mass[mask_r_vmax, None]
+                    * unyt.array.ucross(self.position[mask_r_vmax, :], vrel)
+                ).sum(axis=0)
+            )
+            M_r_vmax = self.mass[mask_r_vmax].sum()
+            if M_r_vmax > 0:
+                return Ltot / (np.sqrt(2.0) * M_r_vmax * self.Vmax * self.R_vmax)
+        return None
+
+    @lazy_property
+    def TotalAxisLengths(self):
+        return get_axis_lengths(self.mass, self.position)
+
+    @lazy_property
+    def gas_mass_fraction(self):
+        return self.mass_gas / self.Mgas
+
+    @lazy_property
+    def vcom_gas(self):
+        return (self.gas_mass_fraction[:, None] * self.vel_gas).sum(axis=0)
+
+    def compute_Lgas_props(self):
+        (
+            self.internal_Lgas,
+            self.internal_kappa_gas,
+            self.internal_Mcountrot_gas,
+        ) = get_angular_momentum_and_kappa_corot(
+            self.mass_gas,
+            self.pos_gas,
+            self.vel_gas,
+            ref_velocity=self.vcom_gas,
+            do_counterrot_mass=True,
+        )
+
+    @lazy_property
+    def Lgas(self):
+        if not hasattr(self, "internal_Lgas"):
+            self.compute_Lgas_props()
+        return self.internal_Lgas
+
+    @lazy_property
+    def kappa_corot_gas(self):
+        if not hasattr(self, "internal_kappa_gas"):
+            self.compute_Lgas_props()
+        return self.internal_kappa_gas
+
+    @lazy_property
+    def DtoTgas(self):
+        if not hasattr(self, "internal_Mcountrot_gas"):
+            self.compute_Lgas_props()
+        return 1.0 - 2.0 * self.internal_Mcountrot_gas / self.Mgas
+
+    @lazy_property
+    def GasAxisLengths(self):
+        return get_axis_lengths(self.mass_gas, self.pos_gas)
+
+    @lazy_property
+    def veldisp_matrix_gas(self):
+        return get_velocity_dispersion_matrix(
+            self.gas_mass_fraction, self.vel_gas, self.vcom_gas
+        )
+
+    @lazy_property
+    def dm_mass_fraction(self):
+        return self.mass_dm / self.Mdm
+
+    @lazy_property
+    def vcom_dm(self):
+        return (self.dm_mass_fraction[:, None] * self.vel_dm).sum(axis=0)
+
+    @lazy_property
+    def Ldm(self):
+        return get_angular_momentum(
+            self.mass_dm, self.pos_dm, self.vel_dm, ref_velocity=self.vcom_dm
+        )
+
+    @lazy_property
+    def DMAxisLengths(self):
+        return get_axis_lengths(self.mass_dm, self.pos_dm)
+
+    @lazy_property
+    def veldisp_matrix_dm(self):
+        return get_velocity_dispersion_matrix(
+            self.dm_mass_fraction, self.vel_dm, self.vcom_dm
+        )
+
+    @lazy_property
+    def star_mass_fraction(self):
+        return self.mass_star / self.Mstar
+
+    @lazy_property
+    def vcom_star(self):
+        return (self.star_mass_fraction[:, None] * self.vel_star).sum(axis=0)
+
+    def compute_Lstar_props(self):
+        (
+            self.internal_Lstar,
+            self.internal_kappa_star,
+            self.internal_Mcountrot_star,
+        ) = get_angular_momentum_and_kappa_corot(
+            self.mass_star,
+            self.pos_star,
+            self.vel_star,
+            ref_velocity=self.vcom_star,
+            do_counterrot_mass=True,
+        )
+
+    @lazy_property
+    def Lstar(self):
+        if not hasattr(self, "internal_Lstar"):
+            self.compute_Lstar_props()
+        return self.internal_Lstar
+
+    @lazy_property
+    def kappa_corot_star(self):
+        if not hasattr(self, "internal_kappa_star"):
+            self.compute_Lstar_props()
+        return self.internal_kappa_star
+
+    @lazy_property
+    def DtoTstar(self):
+        if not hasattr(self, "internal_Mcountrot_star"):
+            self.compute_Lstar_props()
+        return 1.0 - 2.0 * self.internal_Mcountrot_star / self.Mstar
+
+    @lazy_property
+    def StellarAxisLengths(self):
+        return get_axis_lengths(self.mass_star, self.pos_star)
+
+    @lazy_property
+    def veldisp_matrix_star(self):
+        return get_velocity_dispersion_matrix(
+            self.star_mass_fraction, self.vel_star, self.vcom_star
+        )
+
+    @lazy_property
+    def baryon_mass_fraction(self):
+        return self.mass_baryons / (self.Mgas + self.Mstar)
+
+    @lazy_property
+    def vcom_bar(self):
+        return (self.baryon_mass_fraction[:, None] * self.vel_baryons).sum(axis=0)
+
+    def compute_Lbar_props(self):
+        (
+            self.internal_Lbar,
+            self.internal_kappa_bar,
+        ) = get_angular_momentum_and_kappa_corot(
+            self.mass_baryons,
+            self.pos_baryons,
+            self.vel_baryons,
+            ref_velocity=self.vcom_bar,
+        )
+
+    @lazy_property
+    def Lbaryons(self):
+        if not hasattr(self, "internal_Lbar"):
+            self.compute_Lbar_props()
+        return self.internal_Lbar
+
+    @lazy_property
+    def kappa_corot_baryons(self):
+        if not hasattr(self, "internal_kappa_bar"):
+            self.compute_Lbar_props()
+        return self.internal_kappa_bar
+
+    @lazy_property
+    def BaryonAxisLengths(self):
+        return get_axis_lengths(self.mass_baryons, self.pos_baryons)
+
+    @lazy_property
+    def gas_mask_all(self):
+        return self.data["PartType0"][self.grnr] == self.index
+
+    @lazy_property
+    def SFR(self):
+        all_SFR = self.data["PartType0"]["StarFormationRates"][self.gas_mask_all]
+        return all_SFR[all_SFR > 0.0].sum()
+
+    @lazy_property
+    def Mgasmetal(self):
+        return (
+            self.mass_gas
+            * self.data["PartType0"]["MetalMassFractions"][self.gas_mask_all]
+        ).sum()
+
+    @lazy_property
+    def gas_temp(self):
+        return self.data["PartType0"]["Temperatures"][self.gas_mask_all]
+
+    @lazy_property
+    def last_agn_gas(self):
+        return self.data["PartType0"]["LastAGNFeedbackScaleFactors"][self.gas_mask_all]
+
+    @lazy_property
+    def gas_no_agn(self):
+        return ~self.recently_heated_gas_filter.is_recently_heated(
+            self.last_agn_gas, self.gas_temp
+        )
+
+    @lazy_property
+    def gas_no_cool(self):
+        return self.gas_temp >= 1.0e5 * unyt.K
+
+    @lazy_property
+    def Tgas(self):
+        return (self.gas_mass_fraction * self.gas_temp).sum()
+
+    @lazy_property
+    def Tgas_no_cool(self):
+        if np.any(self.gas_no_cool):
+            mass_gas_no_cool = self.mass_gas[self.gas_no_cool]
+            Mgas_no_cool = mass_gas_no_cool.sum()
+            if Mgas_no_cool > 0:
+                return (
+                    (mass_gas_no_cool / Mgas_no_cool) * self.gas_temp[self.gas_no_cool]
+                ).sum()
+        return None
+
+    @lazy_property
+    def Tgas_no_agn(self):
+        if np.any(self.gas_no_agn):
+            mass_gas_no_agn = self.mass_gas[self.gas_no_agn]
+            Mgas_no_agn = mass_gas_no_agn.sum()
+            if Mgas_no_agn > 0:
+                return (
+                    (mass_gas_no_agn / Mgas_no_agn) * self.gas_temp[self.gas_no_agn]
+                ).sum()
+        return None
+
+    @lazy_property
+    def Tgas_no_cool_no_agn(self):
+        no_cool_no_agn = self.gas_no_agn & self.gas_no_cool
+        if np.any(no_cool_no_agn):
+            mass_gas_no_cool_no_agn = self.mass_gas[no_cool_no_agn]
+            Mgas_no_cool_no_agn = mass_gas_no_cool_no_agn.sum()
+            if Mgas_no_cool_no_agn > 0:
+                return (
+                    (mass_gas_no_cool_no_agn / Mgas_no_cool_no_agn)
+                    * self.gas_temp[no_cool_no_agn]
+                ).sum()
+        return None
+
+    @lazy_property
+    def HalfMassRadiusTot(self):
+        return get_half_mass_radius(self.radius, self.mass, self.Mtot)
+
+    @lazy_property
+    def HalfMassRadiusGas(self):
+        return get_half_mass_radius(
+            self.radius[self.gas_mask_sh], self.mass_gas, self.Mgas
+        )
+
+    @lazy_property
+    def HalfMassRadiusDM(self):
+        return get_half_mass_radius(
+            self.radius[self.dm_mask_sh], self.mass_dm, self.Mdm
+        )
+
+    @lazy_property
+    def HalfMassRadiusStar(self):
+        return get_half_mass_radius(
+            self.radius[self.star_mask_sh], self.mass_star, self.Mstar
+        )
+
+    @lazy_property
+    def HalfMassRadiusBaryon(self):
+        return get_half_mass_radius(
+            self.radius[self.gas_mask_sh | self.star_mask_sh],
+            self.mass[self.gas_mask_sh | self.star_mask_sh],
+            self.Mgas + self.Mstar,
+        )
+
+
 class SubhaloProperties(HaloProperty):
 
     # get the properties we want from the table
@@ -166,35 +737,17 @@ class SubhaloProperties(HaloProperty):
         Input particle data arrays are unyt_arrays.
         """
 
-        # Look up centre and array index of this halo in VR catalogue
-        centre = input_halo["cofp"]
-        index = input_halo["index"]
-
         types_present = [type for type in self.particle_properties if type in data]
 
-        mass = []
-        position = []
-        radius = []
-        velocity = []
-        types = []
-        for ptype in types_present:
-            grnr = data[ptype][self.grnr]
-            in_halo = grnr == index
-            mass.append(data[ptype][mass_dataset(ptype)][in_halo])
-            pos = data[ptype]["Coordinates"][in_halo, :] - centre[None, :]
-            position.append(pos)
-            r = np.sqrt(pos[:, 0] ** 2 + pos[:, 1] ** 2 + pos[:, 2] ** 2)
-            radius.append(r)
-            velocity.append(data[ptype]["Velocities"][in_halo, :])
-            typearr = np.zeros(r.shape, dtype="U9")
-            typearr[:] = ptype
-            types.append(typearr)
-
-        mass = unyt.array.uconcatenate(mass)
-        position = unyt.array.uconcatenate(position)
-        radius = unyt.array.uconcatenate(radius)
-        velocity = unyt.array.uconcatenate(velocity)
-        types = np.concatenate(types)
+        part_props = SubhaloParticleData(
+            input_halo,
+            search_radius,
+            data,
+            types_present,
+            self.grnr,
+            self.stellar_ages,
+            self.filter,
+        )
 
         subhalo = {}
         # declare all the variables we will compute
@@ -208,238 +761,82 @@ class SubhaloProperties(HaloProperty):
             else:
                 val = 0
             subhalo[name] = unyt.unyt_array(
-                val, dtype=dtype, units=unit, registry=mass.units.registry
+                val, dtype=dtype, units=unit, registry=part_props.mass.units.registry
             )
 
-        gas_mask_sh = types == "PartType0"
-        dm_mask_sh = types == "PartType1"
-        star_mask_sh = types == "PartType4"
-        bh_mask_sh = types == "PartType5"
-        baryons_mask_sh = (types == "PartType0") | (types == "PartType4")
+        set_halo_property(subhalo, "Ngas", part_props)
+        set_halo_property(subhalo, "Ndm", part_props)
+        set_halo_property(subhalo, "Nstar", part_props)
+        set_halo_property(subhalo, "Nbh", part_props)
 
-        subhalo["Ngas"] = (
-            gas_mask_sh.sum(dtype=subhalo["Ngas"].dtype) * subhalo["Ngas"].units
-        )
-        subhalo["Ndm"] = (
-            dm_mask_sh.sum(dtype=subhalo["Ndm"].dtype) * subhalo["Ndm"].units
-        )
-        subhalo["Nstar"] = (
-            star_mask_sh.sum(dtype=subhalo["Nstar"].dtype) * subhalo["Nstar"].units
-        )
-        subhalo["Nbh"] = (
-            bh_mask_sh.sum(dtype=subhalo["Nbh"].dtype) * subhalo["Nbh"].units
-        )
+        set_halo_property(subhalo, "Mtot", part_props)
+        set_halo_property(subhalo, "Mgas", part_props)
+        set_halo_property(subhalo, "Mdm", part_props)
+        set_halo_property(subhalo, "Mstar", part_props)
+        set_halo_property(subhalo, "Mbh_dynamical", part_props)
 
-        mass_gas = mass[gas_mask_sh]
-        mass_dm = mass[dm_mask_sh]
-        mass_star = mass[star_mask_sh]
-        mass_baryons = mass[baryons_mask_sh]
+        if part_props.Nstar > 0:
+            set_halo_property(subhalo, "Mstar_init", part_props)
+            set_halo_property(subhalo, "StellarLuminosity", part_props)
+            set_halo_property(subhalo, "Mstarmetal", part_props)
+            set_halo_property(subhalo, "stellar_age_mw", part_props)
+            set_halo_property(subhalo, "stellar_age_lw", part_props)
 
-        pos_gas = position[gas_mask_sh]
-        pos_dm = position[dm_mask_sh]
-        pos_star = position[star_mask_sh]
-        pos_baryons = position[baryons_mask_sh]
+        if part_props.Nbh > 0:
+            set_halo_property(subhalo, "Mbh_subgrid", part_props)
+            set_halo_property(subhalo, "BHlasteventa", part_props)
+            set_halo_property(subhalo, "BHmaxM", part_props)
+            set_halo_property(subhalo, "BHmaxID", part_props)
+            set_halo_property(subhalo, "BHmaxpos", part_props)
+            set_halo_property(subhalo, "BHmaxvel", part_props)
+            set_halo_property(subhalo, "BHmaxAR", part_props)
+            set_halo_property(subhalo, "BHmaxlasteventa", part_props)
 
-        vel_gas = velocity[gas_mask_sh]
-        vel_dm = velocity[dm_mask_sh]
-        vel_star = velocity[star_mask_sh]
-        vel_baryons = velocity[baryons_mask_sh]
+        if part_props.Mtot > 0:
+            set_halo_property(subhalo, "com", part_props)
+            set_halo_property(subhalo, "vcom", part_props)
+            set_halo_property(subhalo, "R_vmax", part_props)
+            set_halo_property(subhalo, "Vmax", part_props)
+            set_halo_property(subhalo, "spin_parameter", part_props)
+            set_halo_property(subhalo, "TotalAxisLengths", part_props)
 
-        subhalo["Mtot"] += mass.sum()
-        subhalo["Mgas"] += mass_gas.sum()
-        subhalo["Mdm"] = mass_dm.sum()
-        subhalo["Mstar"] += mass_star.sum()
-        subhalo["Mbh_dynamical"] += mass[bh_mask_sh].sum()
+        if part_props.Mgas > 0:
+            set_halo_property(subhalo, "Lgas", part_props)
+            set_halo_property(subhalo, "kappa_corot_gas", part_props)
+            set_halo_property(subhalo, "DtoTgas", part_props)
+            set_halo_property(subhalo, "GasAxisLengths", part_props)
+            set_halo_property(subhalo, "veldisp_matrix_gas", part_props)
 
-        if subhalo["Nstar"] > 0:
-            star_mask_all = data["PartType4"][self.grnr] == index
-            subhalo["Mstar_init"] += data["PartType4"]["InitialMasses"][
-                star_mask_all
-            ].sum()
-            luminosities = data["PartType4"]["Luminosities"][star_mask_all]
-            subhalo["StellarLuminosity"] += luminosities.sum(axis=0)
-            subhalo["Mstarmetal"] += (
-                mass_star * data["PartType4"]["MetalMassFractions"][star_mask_all]
-            ).sum()
-            birth_a = data["PartType4"]["BirthScaleFactors"][star_mask_all]
-            stellar_ages = self.stellar_ages.stellar_age(birth_a)
-            subhalo["stellar_age_mw"] += (
-                (mass_star / subhalo["Mstar"]) * stellar_ages
-            ).sum()
-            Lr = luminosities[:, rbandindex]
-            Lrtot = Lr.sum()
-            subhalo["stellar_age_lw"] += ((Lr / Lrtot) * stellar_ages).sum()
+        if part_props.Mdm > 0:
+            set_halo_property(subhalo, "Ldm", part_props)
+            set_halo_property(subhalo, "DMAxisLengths", part_props)
+            set_halo_property(subhalo, "veldisp_matrix_dm", part_props)
 
-        if subhalo["Nbh"] > 0:
-            bh_mask_all = data["PartType5"][self.grnr] == index
-            subhalo["Mbh_subgrid"] += data["PartType5"]["SubgridMasses"][
-                bh_mask_all
-            ].sum()
+        if part_props.Mstar > 0:
+            set_halo_property(subhalo, "Lstar", part_props)
+            set_halo_property(subhalo, "kappa_corot_star", part_props)
+            set_halo_property(subhalo, "DtoTstar", part_props)
+            set_halo_property(subhalo, "StellarAxisLengths", part_props)
+            set_halo_property(subhalo, "veldisp_matrix_star", part_props)
 
-            agn_eventa = data["PartType5"]["LastAGNFeedbackScaleFactors"][bh_mask_all]
+        if part_props.Mgas + part_props.Mstar > 0:
+            set_halo_property(subhalo, "Lbaryons", part_props)
+            set_halo_property(subhalo, "kappa_corot_baryons", part_props)
+            set_halo_property(subhalo, "BaryonAxisLengths", part_props)
 
-            subhalo["BHlasteventa"] += np.max(agn_eventa)
+        if part_props.Ngas > 0:
+            set_halo_property(subhalo, "SFR", part_props)
+            set_halo_property(subhalo, "Mgasmetal", part_props)
+            set_halo_property(subhalo, "Tgas", part_props)
+            set_halo_property(subhalo, "Tgas_no_cool", part_props)
+            set_halo_property(subhalo, "Tgas_no_agn", part_props)
+            set_halo_property(subhalo, "Tgas_no_cool_no_agn", part_props)
 
-            iBHmax = np.argmax(data["PartType5"]["SubgridMasses"][bh_mask_all])
-            subhalo["BHmaxM"] += data["PartType5"]["SubgridMasses"][bh_mask_all][iBHmax]
-            subhalo["BHmaxID"] = (
-                data["PartType5"]["ParticleIDs"][bh_mask_all][iBHmax].astype(
-                    subhalo["BHmaxID"].dtype
-                )
-                * subhalo["BHmaxID"].units
-            )
-            subhalo["BHmaxpos"] += data["PartType5"]["Coordinates"][bh_mask_all][iBHmax]
-            subhalo["BHmaxvel"] += data["PartType5"]["Velocities"][bh_mask_all][iBHmax]
-            subhalo["BHmaxAR"] += data["PartType5"]["AccretionRates"][bh_mask_all][
-                iBHmax
-            ]
-            subhalo["BHmaxlasteventa"] += agn_eventa[iBHmax]
-
-        if subhalo["Mtot"] > 0.0 * subhalo["Mtot"].units:
-            mfrac = mass / subhalo["Mtot"]
-            subhalo["com"] += (mfrac[:, None] * position).sum(axis=0)
-            subhalo["com"] += centre
-            subhalo["vcom"] += (mfrac[:, None] * velocity).sum(axis=0)
-            r_vmax, vmax = get_vmax(mass, radius)
-            subhalo["R_vmax"] += r_vmax
-            subhalo["Vmax"] += vmax
-            if r_vmax > 0.0 * r_vmax.units and vmax > 0.0 * vmax.units:
-                mask_r_vmax = radius <= r_vmax
-                vrel = velocity[mask_r_vmax, :] - subhalo["vcom"][None, :]
-                Ltot = unyt.array.unorm(
-                    (
-                        mass[mask_r_vmax, None]
-                        * unyt.array.ucross(position[mask_r_vmax, :], vrel)
-                    ).sum(axis=0)
-                )
-                M_r_vmax = mass[mask_r_vmax].sum()
-                if M_r_vmax > 0.0 * M_r_vmax.units:
-                    subhalo["spin_parameter"] += Ltot / (
-                        np.sqrt(2.0) * M_r_vmax * vmax * r_vmax
-                    )
-            subhalo["TotalAxisLengths"] += get_axis_lengths(mass, position)
-
-        if subhalo["Mgas"] > 0.0 * subhalo["Mgas"].units:
-            frac_mgas = mass_gas / subhalo["Mgas"]
-            vcom_gas = (frac_mgas[:, None] * vel_gas).sum(axis=0)
-            Lgas, kappa, Mcountrot = get_angular_momentum_and_kappa_corot(
-                mass_gas,
-                pos_gas,
-                vel_gas,
-                ref_velocity=vcom_gas,
-                do_counterrot_mass=True,
-            )
-            subhalo["Lgas"] += Lgas
-            subhalo["kappa_corot_gas"] += kappa
-            subhalo["DtoTgas"] += 1.0 - 2.0 * Mcountrot / subhalo["Mgas"]
-            subhalo["GasAxisLengths"] += get_axis_lengths(mass_gas, pos_gas)
-            subhalo["veldisp_matrix_gas"] += get_velocity_dispersion_matrix(
-                frac_mgas, vel_gas, vcom_gas
-            )
-
-        if subhalo["Mdm"] > 0.0 * subhalo["Mdm"].units:
-            frac_mdm = mass_dm / subhalo["Mdm"]
-            vcom_dm = (frac_mdm[:, None] * vel_dm).sum(axis=0)
-            subhalo["Ldm"] += get_angular_momentum(
-                mass_dm, pos_dm, vel_dm, ref_velocity=vcom_dm
-            )
-            subhalo["DMAxisLengths"] += get_axis_lengths(mass_dm, pos_dm)
-            subhalo["veldisp_matrix_dm"] += get_velocity_dispersion_matrix(
-                frac_mdm, vel_dm, vcom_dm
-            )
-
-        if subhalo["Mstar"] > 0.0 * subhalo["Mstar"].units:
-            frac_mstar = mass_star / subhalo["Mstar"]
-            vcom_star = (frac_mstar[:, None] * vel_star).sum(axis=0)
-            Lstar, kappa, Mcountrot = get_angular_momentum_and_kappa_corot(
-                mass_star,
-                pos_star,
-                vel_star,
-                ref_velocity=vcom_star,
-                do_counterrot_mass=True,
-            )
-            subhalo["Lstar"] += Lstar
-            subhalo["kappa_corot_star"] += kappa
-            subhalo["DtoTstar"] += 1.0 - 2.0 * Mcountrot / subhalo["Mstar"]
-            subhalo["StellarAxisLengths"] += get_axis_lengths(mass_star, pos_star)
-            subhalo["veldisp_matrix_star"] += get_velocity_dispersion_matrix(
-                frac_mstar, vel_star, vcom_star
-            )
-
-        if subhalo["Mgas"] + subhalo["Mstar"] > 0.0 * subhalo["Mgas"].units:
-            frac_mbar = mass_baryons / (subhalo["Mgas"] + subhalo["Mstar"])
-            vcom_bar = (frac_mbar[:, None] * vel_baryons).sum(axis=0)
-            Lbar, kappa = get_angular_momentum_and_kappa_corot(
-                mass_baryons, pos_baryons, vel_baryons, ref_velocity=vcom_bar
-            )
-            subhalo["Lbaryons"] += Lbar
-            subhalo["kappa_corot_baryons"] += kappa
-            subhalo["BaryonAxisLengths"] += get_axis_lengths(mass_baryons, pos_baryons)
-
-        if subhalo["Ngas"] > 0:
-            gas_mask_all = data["PartType0"][self.grnr] == index
-            SFR = data["PartType0"]["StarFormationRates"][gas_mask_all]
-            # negative values of SFR are not SFR at all!
-            is_SFR = SFR > 0.0
-            subhalo["SFR"] += SFR[is_SFR].sum()
-            Mgasmetal = mass_gas * data["PartType0"]["MetalMassFractions"][gas_mask_all]
-            subhalo["Mgasmetal"] += Mgasmetal.sum()
-            gas_temp = data["PartType0"]["Temperatures"][gas_mask_all]
-            last_agn_gas = data["PartType0"]["LastAGNFeedbackScaleFactors"][
-                gas_mask_all
-            ]
-            no_agn = ~self.filter.is_recently_heated(last_agn_gas, gas_temp)
-            no_cool = gas_temp >= 1.0e5 * unyt.K
-            subhalo["Tgas"] += ((mass_gas / subhalo["Mgas"]) * gas_temp).sum()
-            if np.any(no_cool):
-                mass_gas_no_cool = mass_gas[no_cool]
-                Mgas_no_cool = mass_gas_no_cool.sum()
-                if Mgas_no_cool > 0.0 * Mgas_no_cool.units:
-                    subhalo["Tgas_no_cool"] += (
-                        (mass_gas_no_cool / Mgas_no_cool) * gas_temp[no_cool]
-                    ).sum()
-            if np.any(no_agn):
-                mass_gas_no_agn = mass_gas[no_agn]
-                Mgas_no_agn = mass_gas_no_agn.sum()
-                if Mgas_no_agn > 0.0 * Mgas_no_agn.units:
-                    subhalo["Tgas_no_agn"] += (
-                        (mass_gas_no_agn / Mgas_no_agn) * gas_temp[no_agn]
-                    ).sum()
-            no_cool_no_agn = no_agn & no_cool
-            if np.any(no_cool_no_agn):
-                mass_gas_no_cool_no_agn = mass_gas[no_cool_no_agn]
-                Mgas_no_cool_no_agn = mass_gas_no_cool_no_agn.sum()
-                if Mgas_no_cool_no_agn > 0.0 * Mgas_no_cool_no_agn.units:
-                    subhalo["Tgas_no_cool_no_agn"] += (
-                        (mass_gas_no_cool_no_agn / Mgas_no_cool_no_agn)
-                        * gas_temp[no_cool_no_agn]
-                    ).sum()
-
-        for name, r, m, M in zip(
-            [
-                "HalfMassRadiusTot",
-                "HalfMassRadiusGas",
-                "HalfMassRadiusDM",
-                "HalfMassRadiusStar",
-                "HalfMassRadiusBaryon",
-            ],
-            [
-                radius,
-                radius[gas_mask_sh],
-                radius[dm_mask_sh],
-                radius[star_mask_sh],
-                radius[gas_mask_sh | star_mask_sh],
-            ],
-            [mass, mass_gas, mass_dm, mass_star, mass[gas_mask_sh | star_mask_sh]],
-            [
-                subhalo["Mtot"],
-                subhalo["Mgas"],
-                subhalo["Mdm"],
-                subhalo["Mstar"],
-                subhalo["Mgas"] + subhalo["Mstar"],
-            ],
-        ):
-            subhalo[name] += get_half_mass_radius(r, m, M)
+        set_halo_property(subhalo, "HalfMassRadiusTot", part_props)
+        set_halo_property(subhalo, "HalfMassRadiusGas", part_props)
+        set_halo_property(subhalo, "HalfMassRadiusDM", part_props)
+        set_halo_property(subhalo, "HalfMassRadiusStar", part_props)
+        set_halo_property(subhalo, "HalfMassRadiusBaryon", part_props)
 
         # Add these properties to the output
         if self.bound_only:
