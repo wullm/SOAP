@@ -85,6 +85,7 @@ class SOCatalogue:
                 group_filenames = vr_basename_groups+".%(file_nr)d"
         else:
             group_filenames = None
+        group_filenames = comm.bcast(group_filenames)
         mf = phdf5.MultiFile(group_filenames, file_nr_dataset="Num_of_files")
         local_halo.update(mf.read(["Parent_halo_ID"]))
 
