@@ -200,26 +200,38 @@ class SubhaloParticleData:
 
     @lazy_property
     def star_mask_all(self):
+        if self.Nstar == 0:
+            return None
         return self.data["PartType4"][self.grnr] == self.index
 
     @lazy_property
     def mass_star_init(self):
+        if self.Nstar == 0:
+            return None
         return self.data["PartType4"]["InitialMasses"][self.star_mask_all]
 
     @lazy_property
     def Mstar_init(self):
+        if self.Nstar == 0:
+            return None
         return self.mass_star_init.sum()
 
     @lazy_property
     def stellar_luminosities(self):
+        if self.Nstar == 0:
+            return None
         return self.data["PartType4"]["Luminosities"][self.star_mask_all]
 
     @lazy_property
     def StellarLuminosity(self):
+        if self.Nstar == 0:
+            return None
         return self.stellar_luminosities.sum(axis=0)
 
     @lazy_property
     def Mstarmetal(self):
+        if self.Nstar == 0:
+            return None
         return (
             self.mass_star
             * self.data["PartType4"]["MetalMassFractions"][self.star_mask_all]
@@ -227,91 +239,131 @@ class SubhaloParticleData:
 
     @lazy_property
     def stellar_ages(self):
+        if self.Nstar == 0:
+            return None
         birth_a = self.data["PartType4"]["BirthScaleFactors"][self.star_mask_all]
         return self.stellar_age_calculator.stellar_age(birth_a)
 
     @lazy_property
     def stellar_age_mw(self):
+        if self.Nstar == 0:
+            return None
         return ((self.mass_star / self.Mstar) * self.stellar_ages).sum()
 
     @lazy_property
     def stellar_age_lw(self):
+        if self.Nstar == 0:
+            return None
         Lr = self.stellar_luminosities[:, rbandindex]
         Lrtot = Lr.sum()
         return ((Lr / Lrtot) * self.stellar_ages).sum()
 
     @lazy_property
     def bh_mask_all(self):
+        if self.Nbh == 0:
+            return None
         return self.data["PartType5"][self.grnr] == self.index
 
     @lazy_property
     def Mbh_subgrid(self):
+        if self.Nbh == 0:
+            return None
         return self.data["PartType5"]["SubgridMasses"][self.bh_mask_all].sum()
 
     @lazy_property
     def agn_eventa(self):
+        if self.Nbh == 0:
+            return None
         return self.data["PartType5"]["LastAGNFeedbackScaleFactors"][self.bh_mask_all]
 
     @lazy_property
     def BHlasteventa(self):
+        if self.Nbh == 0:
+            return None
         return np.max(self.agn_eventa)
 
     @lazy_property
     def iBHmax(self):
+        if self.Nbh == 0:
+            return None
         return np.argmax(self.data["PartType5"]["SubgridMasses"][self.bh_mask_all])
 
     @lazy_property
     def BHmaxM(self):
+        if self.Nbh == 0:
+            return None
         return self.data["PartType5"]["SubgridMasses"][self.bh_mask_all][self.iBHmax]
 
     @lazy_property
     def BHmaxID(self):
+        if self.Nbh == 0:
+            return None
         return self.data["PartType5"]["ParticleIDs"][self.bh_mask_all][self.iBHmax]
 
     @lazy_property
     def BHmaxpos(self):
+        if self.Nbh == 0:
+            return None
         return self.data["PartType5"]["Coordinates"][self.bh_mask_all][self.iBHmax]
 
     @lazy_property
     def BHmaxvel(self):
+        if self.Nbh == 0:
+            return None
         return self.data["PartType5"]["Velocities"][self.bh_mask_all][self.iBHmax]
 
     @lazy_property
     def BHmaxAR(self):
+        if self.Nbh == 0:
+            return None
         return self.data["PartType5"]["AccretionRates"][self.bh_mask_all][self.iBHmax]
 
     @lazy_property
     def BHmaxlasteventa(self):
+        if self.Nbh == 0:
+            return None
         return self.agn_eventa[self.iBHmax]
 
     @lazy_property
     def total_mass_fraction(self):
+        if self.Mtot == 0:
+            return None
         return self.mass / self.Mtot
 
     @lazy_property
     def com(self):
+        if self.Mtot == 0:
+            return None
         return (self.total_mass_fraction[:, None] * self.position).sum(
             axis=0
         ) + self.centre
 
     @lazy_property
     def vcom(self):
+        if self.Mtot == 0:
+            return None
         return (self.total_mass_fraction[:, None] * self.velocity).sum(axis=0)
 
     @lazy_property
     def R_vmax(self):
+        if self.Mtot == 0:
+            return None
         if not hasattr(self, "r_vmax"):
             self.r_vmax, self.vmax = get_vmax(self.mass, self.radius)
         return self.r_vmax
 
     @lazy_property
     def Vmax(self):
+        if self.Mtot == 0:
+            return None
         if not hasattr(self, "vmax"):
             self.r_vmax, self.vmax = get_vmax(self.mass, self.radius)
         return self.vmax
 
     @lazy_property
     def spin_parameter(self):
+        if self.Mtot == 0:
+            return None
         if self.R_vmax > 0 and self.Vmax > 0:
             mask_r_vmax = self.radius <= self.R_vmax
             vrel = self.velocity[mask_r_vmax, :] - self.vcom[None, :]
@@ -332,10 +384,14 @@ class SubhaloParticleData:
 
     @lazy_property
     def gas_mass_fraction(self):
+        if self.Mgas == 0:
+            return None
         return self.mass_gas / self.Mgas
 
     @lazy_property
     def vcom_gas(self):
+        if self.Mgas == 0:
+            return None
         return (self.gas_mass_fraction[:, None] * self.vel_gas).sum(axis=0)
 
     def compute_Lgas_props(self):
@@ -353,18 +409,24 @@ class SubhaloParticleData:
 
     @lazy_property
     def Lgas(self):
+        if self.Mgas == 0:
+            return None
         if not hasattr(self, "internal_Lgas"):
             self.compute_Lgas_props()
         return self.internal_Lgas
 
     @lazy_property
     def kappa_corot_gas(self):
+        if self.Mgas == 0:
+            return None
         if not hasattr(self, "internal_kappa_gas"):
             self.compute_Lgas_props()
         return self.internal_kappa_gas
 
     @lazy_property
     def DtoTgas(self):
+        if self.Mgas == 0:
+            return None
         if not hasattr(self, "internal_Mcountrot_gas"):
             self.compute_Lgas_props()
         return 1.0 - 2.0 * self.internal_Mcountrot_gas / self.Mgas
@@ -375,20 +437,28 @@ class SubhaloParticleData:
 
     @lazy_property
     def veldisp_matrix_gas(self):
+        if self.Mgas == 0:
+            return None
         return get_velocity_dispersion_matrix(
             self.gas_mass_fraction, self.vel_gas, self.vcom_gas
         )
 
     @lazy_property
     def dm_mass_fraction(self):
+        if self.Mdm == 0:
+            return None
         return self.mass_dm / self.Mdm
 
     @lazy_property
     def vcom_dm(self):
+        if self.Mdm == 0:
+            return None
         return (self.dm_mass_fraction[:, None] * self.vel_dm).sum(axis=0)
 
     @lazy_property
     def Ldm(self):
+        if self.Mdm == 0:
+            return None
         return get_angular_momentum(
             self.mass_dm, self.pos_dm, self.vel_dm, ref_velocity=self.vcom_dm
         )
@@ -399,16 +469,22 @@ class SubhaloParticleData:
 
     @lazy_property
     def veldisp_matrix_dm(self):
+        if self.Mdm == 0:
+            return None
         return get_velocity_dispersion_matrix(
             self.dm_mass_fraction, self.vel_dm, self.vcom_dm
         )
 
     @lazy_property
     def star_mass_fraction(self):
+        if self.Mstar == 0:
+            return None
         return self.mass_star / self.Mstar
 
     @lazy_property
     def vcom_star(self):
+        if self.Mstar == 0:
+            return None
         return (self.star_mass_fraction[:, None] * self.vel_star).sum(axis=0)
 
     def compute_Lstar_props(self):
@@ -426,18 +502,24 @@ class SubhaloParticleData:
 
     @lazy_property
     def Lstar(self):
+        if self.Mstar == 0:
+            return None
         if not hasattr(self, "internal_Lstar"):
             self.compute_Lstar_props()
         return self.internal_Lstar
 
     @lazy_property
     def kappa_corot_star(self):
+        if self.Mstar == 0:
+            return None
         if not hasattr(self, "internal_kappa_star"):
             self.compute_Lstar_props()
         return self.internal_kappa_star
 
     @lazy_property
     def DtoTstar(self):
+        if self.Mstar == 0:
+            return None
         if not hasattr(self, "internal_Mcountrot_star"):
             self.compute_Lstar_props()
         return 1.0 - 2.0 * self.internal_Mcountrot_star / self.Mstar
@@ -448,16 +530,26 @@ class SubhaloParticleData:
 
     @lazy_property
     def veldisp_matrix_star(self):
+        if self.Mstar == 0:
+            return None
         return get_velocity_dispersion_matrix(
             self.star_mass_fraction, self.vel_star, self.vcom_star
         )
 
     @lazy_property
+    def Mbaryon(self):
+        return self.Mgas + self.Mstar
+
+    @lazy_property
     def baryon_mass_fraction(self):
-        return self.mass_baryons / (self.Mgas + self.Mstar)
+        if self.Mbaryon == 0:
+            return None
+        return self.mass_baryons / self.Mbaryon
 
     @lazy_property
     def vcom_bar(self):
+        if self.Mbaryon == 0:
+            return None
         return (self.baryon_mass_fraction[:, None] * self.vel_baryons).sum(axis=0)
 
     def compute_Lbar_props(self):
@@ -473,12 +565,16 @@ class SubhaloParticleData:
 
     @lazy_property
     def Lbaryons(self):
+        if self.Mbaryon == 0:
+            return None
         if not hasattr(self, "internal_Lbar"):
             self.compute_Lbar_props()
         return self.internal_Lbar
 
     @lazy_property
     def kappa_corot_baryons(self):
+        if self.Mbaryon == 0:
+            return None
         if not hasattr(self, "internal_kappa_bar"):
             self.compute_Lbar_props()
         return self.internal_kappa_bar
@@ -493,11 +589,15 @@ class SubhaloParticleData:
 
     @lazy_property
     def SFR(self):
+        if self.Ngas == 0:
+            return None
         all_SFR = self.data["PartType0"]["StarFormationRates"][self.gas_mask_all]
         return all_SFR[all_SFR > 0.0].sum()
 
     @lazy_property
     def Mgasmetal(self):
+        if self.Ngas == 0:
+            return None
         return (
             self.mass_gas
             * self.data["PartType0"]["MetalMassFractions"][self.gas_mask_all]
@@ -505,28 +605,40 @@ class SubhaloParticleData:
 
     @lazy_property
     def gas_temp(self):
+        if self.Ngas == 0:
+            return None
         return self.data["PartType0"]["Temperatures"][self.gas_mask_all]
 
     @lazy_property
     def last_agn_gas(self):
+        if self.Ngas == 0:
+            return None
         return self.data["PartType0"]["LastAGNFeedbackScaleFactors"][self.gas_mask_all]
 
     @lazy_property
     def gas_no_agn(self):
+        if self.Ngas == 0:
+            return None
         return ~self.recently_heated_gas_filter.is_recently_heated(
             self.last_agn_gas, self.gas_temp
         )
 
     @lazy_property
     def gas_no_cool(self):
+        if self.Ngas == 0:
+            return None
         return self.gas_temp >= 1.0e5 * unyt.K
 
     @lazy_property
     def Tgas(self):
+        if self.Ngas == 0:
+            return None
         return (self.gas_mass_fraction * self.gas_temp).sum()
 
     @lazy_property
     def Tgas_no_cool(self):
+        if self.Ngas == 0:
+            return None
         if np.any(self.gas_no_cool):
             mass_gas_no_cool = self.mass_gas[self.gas_no_cool]
             Mgas_no_cool = mass_gas_no_cool.sum()
@@ -538,6 +650,8 @@ class SubhaloParticleData:
 
     @lazy_property
     def Tgas_no_agn(self):
+        if self.Ngas == 0:
+            return None
         if np.any(self.gas_no_agn):
             mass_gas_no_agn = self.mass_gas[self.gas_no_agn]
             Mgas_no_agn = mass_gas_no_agn.sum()
@@ -549,6 +663,8 @@ class SubhaloParticleData:
 
     @lazy_property
     def Tgas_no_cool_no_agn(self):
+        if self.Ngas == 0:
+            return None
         no_cool_no_agn = self.gas_no_agn & self.gas_no_cool
         if np.any(no_cool_no_agn):
             mass_gas_no_cool_no_agn = self.mass_gas[no_cool_no_agn]
@@ -763,80 +879,14 @@ class SubhaloProperties(HaloProperty):
             subhalo[name] = unyt.unyt_array(
                 val, dtype=dtype, units=unit, registry=part_props.mass.units.registry
             )
-
-        set_halo_property(subhalo, "Ngas", part_props)
-        set_halo_property(subhalo, "Ndm", part_props)
-        set_halo_property(subhalo, "Nstar", part_props)
-        set_halo_property(subhalo, "Nbh", part_props)
-
-        set_halo_property(subhalo, "Mtot", part_props)
-        set_halo_property(subhalo, "Mgas", part_props)
-        set_halo_property(subhalo, "Mdm", part_props)
-        set_halo_property(subhalo, "Mstar", part_props)
-        set_halo_property(subhalo, "Mbh_dynamical", part_props)
-
-        if part_props.Nstar > 0:
-            set_halo_property(subhalo, "Mstar_init", part_props)
-            set_halo_property(subhalo, "StellarLuminosity", part_props)
-            set_halo_property(subhalo, "Mstarmetal", part_props)
-            set_halo_property(subhalo, "stellar_age_mw", part_props)
-            set_halo_property(subhalo, "stellar_age_lw", part_props)
-
-        if part_props.Nbh > 0:
-            set_halo_property(subhalo, "Mbh_subgrid", part_props)
-            set_halo_property(subhalo, "BHlasteventa", part_props)
-            set_halo_property(subhalo, "BHmaxM", part_props)
-            set_halo_property(subhalo, "BHmaxID", part_props)
-            set_halo_property(subhalo, "BHmaxpos", part_props)
-            set_halo_property(subhalo, "BHmaxvel", part_props)
-            set_halo_property(subhalo, "BHmaxAR", part_props)
-            set_halo_property(subhalo, "BHmaxlasteventa", part_props)
-
-        if part_props.Mtot > 0:
-            set_halo_property(subhalo, "com", part_props)
-            set_halo_property(subhalo, "vcom", part_props)
-            set_halo_property(subhalo, "R_vmax", part_props)
-            set_halo_property(subhalo, "Vmax", part_props)
-            set_halo_property(subhalo, "spin_parameter", part_props)
-            set_halo_property(subhalo, "TotalAxisLengths", part_props)
-
-        if part_props.Mgas > 0:
-            set_halo_property(subhalo, "Lgas", part_props)
-            set_halo_property(subhalo, "kappa_corot_gas", part_props)
-            set_halo_property(subhalo, "DtoTgas", part_props)
-            set_halo_property(subhalo, "GasAxisLengths", part_props)
-            set_halo_property(subhalo, "veldisp_matrix_gas", part_props)
-
-        if part_props.Mdm > 0:
-            set_halo_property(subhalo, "Ldm", part_props)
-            set_halo_property(subhalo, "DMAxisLengths", part_props)
-            set_halo_property(subhalo, "veldisp_matrix_dm", part_props)
-
-        if part_props.Mstar > 0:
-            set_halo_property(subhalo, "Lstar", part_props)
-            set_halo_property(subhalo, "kappa_corot_star", part_props)
-            set_halo_property(subhalo, "DtoTstar", part_props)
-            set_halo_property(subhalo, "StellarAxisLengths", part_props)
-            set_halo_property(subhalo, "veldisp_matrix_star", part_props)
-
-        if part_props.Mgas + part_props.Mstar > 0:
-            set_halo_property(subhalo, "Lbaryons", part_props)
-            set_halo_property(subhalo, "kappa_corot_baryons", part_props)
-            set_halo_property(subhalo, "BaryonAxisLengths", part_props)
-
-        if part_props.Ngas > 0:
-            set_halo_property(subhalo, "SFR", part_props)
-            set_halo_property(subhalo, "Mgasmetal", part_props)
-            set_halo_property(subhalo, "Tgas", part_props)
-            set_halo_property(subhalo, "Tgas_no_cool", part_props)
-            set_halo_property(subhalo, "Tgas_no_agn", part_props)
-            set_halo_property(subhalo, "Tgas_no_cool_no_agn", part_props)
-
-        set_halo_property(subhalo, "HalfMassRadiusTot", part_props)
-        set_halo_property(subhalo, "HalfMassRadiusGas", part_props)
-        set_halo_property(subhalo, "HalfMassRadiusDM", part_props)
-        set_halo_property(subhalo, "HalfMassRadiusStar", part_props)
-        set_halo_property(subhalo, "HalfMassRadiusBaryon", part_props)
+            val = getattr(part_props, name)
+            if val is not None:
+                if unit == "dimensionless":
+                    subhalo[name] = unyt.unyt_array(
+                        val.astype(dtype), dtype=dtype, units=unit
+                    )
+                else:
+                    subhalo[name] += val
 
         # Add these properties to the output
         if self.bound_only:
