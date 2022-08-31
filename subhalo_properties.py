@@ -20,20 +20,6 @@ from property_table import PropertyTable
 rbandindex = 2
 
 
-def set_halo_property(property_dict, property_name, part_data):
-    property_info = PropertyTable.full_property_list[property_name]
-    dtype = property_info[2]
-    units = property_info[3]
-    property_value = getattr(part_data, property_name)
-    if property_value is not None:
-        if units == "dimensionless":
-            property_dict[property_name] = unyt.unyt_array(
-                property_value.astype(dtype), dtype=dtype, units=units
-            )
-        else:
-            property_dict[property_name] += property_value
-
-
 def lazy_property(fn):
     attr_name = "_lazy_" + fn.__name__
 
