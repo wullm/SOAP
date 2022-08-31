@@ -851,13 +851,41 @@ class SubhaloProperties(HaloProperty):
             self.filter,
         )
 
+        if not self.bound_only:
+            Ngas = part_props.Ngas
+            Ndm = part_props.Ndm
+            Nstar = part_props.Nstar
+            Nbh = part_props.Nbh
+        else:
+            Ngas = halo_result[
+                f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}"
+            ][0].value
+            Ndm = halo_result[
+                f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}"
+            ][0].value
+            Nstar = halo_result[
+                f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}"
+            ][0].value
+            Nbh = halo_result[
+                f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}"
+            ][0].value
+
+        do_calculation = {
+            "basic": True,
+            "general": Ngas + Ndm + Nstar + Nbh > 100,
+            "gas": Ngas > 50,
+            "dm": Ndm > 100,
+            "star": Nstar > 50,
+            "baryon": Ngas + Nstar > 100,
+        }
+
         subhalo = {}
         # declare all the variables we will compute
         # we set them to 0 in case a particular variable cannot be computed
         # all variables are defined with physical units and an appropriate dtype
         # we need to use the custom unit registry so that everything can be converted
         # back to snapshot units in the end
-        for name, _, shape, dtype, unit, _, _, _ in self.property_list:
+        for name, _, shape, dtype, unit, _, category, _ in self.property_list:
             if shape > 1:
                 val = [0] * shape
             else:
@@ -865,14 +893,15 @@ class SubhaloProperties(HaloProperty):
             subhalo[name] = unyt.unyt_array(
                 val, dtype=dtype, units=unit, registry=part_props.mass.units.registry
             )
-            val = getattr(part_props, name)
-            if val is not None:
-                if unit == "dimensionless":
-                    subhalo[name] = unyt.unyt_array(
-                        val.astype(dtype), dtype=dtype, units=unit
-                    )
-                else:
-                    subhalo[name] += val
+            if do_calculation[category]:
+                val = getattr(part_props, name)
+                if val is not None:
+                    if unit == "dimensionless":
+                        subhalo[name] = unyt.unyt_array(
+                            val.astype(dtype), dtype=dtype, units=unit
+                        )
+                    else:
+                        subhalo[name] += val
 
         # Add these properties to the output
         if self.bound_only:
@@ -927,8 +956,8 @@ def test_subhalo_properties():
 
         halo_result = {}
         for subhalo_name, prop_calc in [
-            ("BoundSubhaloProperties", property_calculator_bound),
             ("FOFSubhaloProperties", property_calculator_both),
+            ("BoundSubhaloProperties", property_calculator_bound),
         ]:
             input_data = {}
             for ptype in prop_calc.particle_properties:
