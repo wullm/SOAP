@@ -555,4 +555,11 @@ class DummyHaloGenerator:
 
         Mtot += nu_density * 4.0 * np.pi / 3.0 * rmax**3
 
-        return input_halo, data, rmax, Mtot, npart
+        particle_numbers = {
+            "PartType0": Ngas,
+            "PartType1": Ndm,
+            "PartType4": Nstar,
+            "PartType5": Nbh,
+        }
+
+        return input_halo, data, rmax, Mtot, npart, particle_numbers

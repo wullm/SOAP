@@ -947,7 +947,7 @@ def test_SO_properties():
     )
 
     for i in range(100):
-        input_halo, data, rmax, Mtot, Npart = dummy_halos.get_random_halo(
+        input_halo, data, rmax, Mtot, Npart, _ = dummy_halos.get_random_halo(
             [2, 10, 100, 1000, 10000], has_neutrinos=True
         )
         rho_ref = Mtot / (4.0 / 3.0 * np.pi * rmax**3)

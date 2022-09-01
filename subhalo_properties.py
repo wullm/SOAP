@@ -16,27 +16,15 @@ from kinematic_properties import (
 from recently_heated_gas_filter import RecentlyHeatedGasFilter
 from stellar_age_calculator import StellarAgeCalculator
 from property_table import PropertyTable
+from lazy_properties import lazy_property
 
 rbandindex = 2
-
-
-def lazy_property(fn):
-    attr_name = "_lazy_" + fn.__name__
-
-    @property
-    def _lazy_property(self):
-        if not hasattr(self, attr_name):
-            setattr(self, attr_name, fn(self))
-        return getattr(self, attr_name)
-
-    return _lazy_property
 
 
 class SubhaloParticleData:
     def __init__(
         self,
         input_halo,
-        search_radius,
         data,
         types_present,
         grnr,
@@ -44,7 +32,6 @@ class SubhaloParticleData:
         recently_heated_gas_filter,
     ):
         self.input_halo = input_halo
-        self.search_radius = search_radius
         self.data = data
         self.types_present = types_present
         self.grnr = grnr
@@ -843,7 +830,6 @@ class SubhaloProperties(HaloProperty):
 
         part_props = SubhaloParticleData(
             input_halo,
-            search_radius,
             data,
             types_present,
             self.grnr,
@@ -885,20 +871,24 @@ class SubhaloProperties(HaloProperty):
         # all variables are defined with physical units and an appropriate dtype
         # we need to use the custom unit registry so that everything can be converted
         # back to snapshot units in the end
+        registry = part_props.mass.units.registry
         for name, _, shape, dtype, unit, _, category, _ in self.property_list:
             if shape > 1:
                 val = [0] * shape
             else:
                 val = 0
             subhalo[name] = unyt.unyt_array(
-                val, dtype=dtype, units=unit, registry=part_props.mass.units.registry
+                val, dtype=dtype, units=unit, registry=registry
             )
             if do_calculation[category]:
                 val = getattr(part_props, name)
                 if val is not None:
                     if unit == "dimensionless":
                         subhalo[name] = unyt.unyt_array(
-                            val.astype(dtype), dtype=dtype, units=unit
+                            val.astype(dtype),
+                            dtype=dtype,
+                            units=unit,
+                            registry=registry,
                         )
                     else:
                         subhalo[name] += val
@@ -950,7 +940,7 @@ def test_subhalo_properties():
 
     # generate 100 random halos
     for i in range(100):
-        input_halo, data, _, _, _ = dummy_halos.get_random_halo(
+        input_halo, data, _, _, _, _ = dummy_halos.get_random_halo(
             [1, 10, 100, 1000, 10000]
         )
 

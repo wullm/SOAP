@@ -392,7 +392,7 @@ def test_projected_aperture_properties():
     property_calculator = DummyProjectedApertureProperties()
 
     for i in range(100):
-        input_halo, data, _, _, _ = dummy_halos.get_random_halo(
+        input_halo, data, _, _, _, _ = dummy_halos.get_random_halo(
             [1, 10, 100, 1000, 10000]
         )
 
