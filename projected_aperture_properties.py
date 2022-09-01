@@ -8,6 +8,435 @@ from dataset_names import mass_dataset
 from half_mass_radius import get_half_mass_radius
 from property_table import PropertyTable
 from kinematic_properties import get_projected_axis_lengths
+from lazy_properties import lazy_property
+
+
+def set_halo_property(prop_dict, name, part_props):
+    prop_info = PropertyTable.full_property_list[name]
+    dtype = prop_info[2]
+    units = prop_info[3]
+    val = getattr(part_props, name)
+    if val is not None:
+        if units == "dimensionless":
+            prop_dict[name] = unyt.unyt_array(
+                val.astype(dtype), dtype=dtype, units=units
+            )
+        else:
+            prop_dict[name] += val
+
+
+class ProjectedApertureParticleData:
+    def __init__(
+        self,
+        input_halo,
+        data,
+        types_present,
+        aperture_radius,
+    ):
+        self.input_halo = input_halo
+        self.data = data
+        self.types_present = types_present
+        self.aperture_radius = aperture_radius
+        self.compute_basics()
+
+    def compute_basics(self):
+        self.centre = self.input_halo["cofp"]
+        self.index = self.input_halo["index"]
+
+        mass = []
+        position = []
+        radius_projx = []
+        radius_projy = []
+        radius_projz = []
+        velocity = []
+        types = []
+        for ptype in self.types_present:
+            grnr = self.data[ptype]["GroupNr_bound"]
+            in_halo = grnr == self.index
+            mass.append(self.data[ptype][mass_dataset(ptype)][in_halo])
+            pos = self.data[ptype]["Coordinates"][in_halo, :] - self.centre[None, :]
+            position.append(pos)
+            rprojx = np.sqrt(pos[:, 1] ** 2 + pos[:, 2] ** 2)
+            radius_projx.append(rprojx)
+            rprojy = np.sqrt(pos[:, 0] ** 2 + pos[:, 2] ** 2)
+            radius_projy.append(rprojy)
+            rprojz = np.sqrt(pos[:, 0] ** 2 + pos[:, 1] ** 2)
+            radius_projz.append(rprojz)
+            velocity.append(self.data[ptype]["Velocities"][in_halo, :])
+            typearr = np.zeros(rprojx.shape, dtype="U9")
+            typearr[:] = ptype
+            types.append(typearr)
+
+        self.mass = unyt.array.uconcatenate(mass)
+        self.position = unyt.array.uconcatenate(position)
+        self.radius_projx = unyt.array.uconcatenate(radius_projx)
+        self.radius_projy = unyt.array.uconcatenate(radius_projy)
+        self.radius_projz = unyt.array.uconcatenate(radius_projz)
+        self.velocity = unyt.array.uconcatenate(velocity)
+        self.types = np.concatenate(types)
+
+        self.mask_projx = self.radius_projx <= self.aperture_radius
+        self.mask_projy = self.radius_projy <= self.aperture_radius
+        self.mask_projz = self.radius_projz <= self.aperture_radius
+
+
+class SingleProjectionProjectedApertureParticleData:
+    def __init__(self, part_props, projection):
+        self.data = part_props.data
+        self.index = part_props.index
+        self.centre = part_props.centre
+        self.types = part_props.types
+
+        self.iproj = {"projx": 0, "projy": 1, "projz": 2}[projection]
+        self.projmask = getattr(part_props, f"mask_{projection}")
+        self.projr = getattr(part_props, f"radius_{projection}")
+
+        self.proj_mass = part_props.mass[self.projmask]
+        self.proj_position = part_props.position[self.projmask]
+        self.proj_velocity = part_props.velocity[self.projmask]
+        self.proj_radius = self.projr[self.projmask]
+        self.proj_type = part_props.types[self.projmask]
+
+    @lazy_property
+    def gas_mask_ap(self):
+        return self.projmask[self.types == "PartType0"]
+
+    @lazy_property
+    def dm_mask_ap(self):
+        return self.projmask[self.types == "PartType1"]
+
+    @lazy_property
+    def star_mask_ap(self):
+        return self.projmask[self.types == "PartType4"]
+
+    @lazy_property
+    def bh_mask_ap(self):
+        return self.projmask[self.types == "PartType5"]
+
+    @lazy_property
+    def baryon_mask_ap(self):
+        return self.projmask[(self.types == "PartType0") | (self.types == "PartType4")]
+
+    @lazy_property
+    def Ngas(self):
+        return self.gas_mask_ap.sum()
+
+    @lazy_property
+    def Ndm(self):
+        return self.dm_mask_ap.sum()
+
+    @lazy_property
+    def Nstar(self):
+        return self.star_mask_ap.sum()
+
+    @lazy_property
+    def Nbh(self):
+        return self.bh_mask_ap.sum()
+
+    @lazy_property
+    def proj_mass_gas(self):
+        return self.proj_mass[self.proj_type == "PartType0"]
+
+    @lazy_property
+    def proj_mass_dm(self):
+        return self.proj_mass[self.proj_type == "PartType1"]
+
+    @lazy_property
+    def proj_mass_star(self):
+        return self.proj_mass[self.proj_type == "PartType4"]
+
+    @lazy_property
+    def proj_mass_baryons(self):
+        return self.proj_mass[
+            (self.proj_type == "PartType0") | (self.proj_type == "PartType4")
+        ]
+
+    @lazy_property
+    def proj_pos_gas(self):
+        return self.proj_position[self.proj_type == "PartType0"]
+
+    @lazy_property
+    def proj_pos_dm(self):
+        return self.proj_position[self.proj_type == "PartType1"]
+
+    @lazy_property
+    def proj_pos_star(self):
+        return self.proj_position[self.proj_type == "PartType4"]
+
+    @lazy_property
+    def proj_pos_baryons(self):
+        return self.proj_position[
+            (self.proj_type == "PartType0") | (self.proj_type == "PartType4")
+        ]
+
+    @lazy_property
+    def Mtot(self):
+        return self.proj_mass.sum()
+
+    @lazy_property
+    def Mgas(self):
+        return self.proj_mass_gas.sum()
+
+    @lazy_property
+    def Mdm(self):
+        return self.proj_mass_dm.sum()
+
+    @lazy_property
+    def Mstar(self):
+        return self.proj_mass_star.sum()
+
+    @lazy_property
+    def Mbh_dynamical(self):
+        return self.proj_mass[self.proj_type == "PartType5"].sum()
+
+    @lazy_property
+    def Mbaryons(self):
+        return self.proj_mass_baryons.sum()
+
+    @lazy_property
+    def star_mask_all(self):
+        if self.Nstar == 0:
+            return None
+        return self.data["PartType4"]["GroupNr_bound"] == self.index
+
+    @lazy_property
+    def Mstar_init(self):
+        if self.Nstar == 0:
+            return None
+        return self.data["PartType4"]["InitialMasses"][self.star_mask_all][
+            self.star_mask_ap
+        ].sum()
+
+    @lazy_property
+    def stellar_luminosities(self):
+        if self.Nstar == 0:
+            return None
+        return self.data["PartType4"]["Luminosities"][self.star_mask_all][
+            self.star_mask_ap
+        ]
+
+    @lazy_property
+    def StellarLuminosity(self):
+        if self.Nstar == 0:
+            return None
+        return self.stellar_luminosities.sum(axis=0)
+
+    @lazy_property
+    def bh_mask_all(self):
+        if self.Nbh == 0:
+            return None
+        return self.data["PartType5"]["GroupNr_bound"] == self.index
+
+    @lazy_property
+    def Mbh_subgrid(self):
+        if self.Nbh == 0:
+            return None
+        return self.data["PartType5"]["SubgridMasses"][self.bh_mask_all][
+            self.bh_mask_ap
+        ].sum()
+
+    @lazy_property
+    def agn_eventa(self):
+        if self.Nbh == 0:
+            return None
+        return self.data["PartType5"]["LastAGNFeedbackScaleFactors"][self.bh_mask_all][
+            self.bh_mask_ap
+        ]
+
+    @lazy_property
+    def BHlasteventa(self):
+        if self.Nbh == 0:
+            return None
+        return np.max(self.agn_eventa)
+
+    @lazy_property
+    def iBHmax(self):
+        if self.Nbh == 0:
+            return None
+        return np.argmax(
+            self.data["PartType5"]["SubgridMasses"][self.bh_mask_all][self.bh_mask_ap]
+        )
+
+    @lazy_property
+    def BHmaxM(self):
+        if self.Nbh == 0:
+            return None
+        return self.data["PartType5"]["SubgridMasses"][self.bh_mask_all][
+            self.bh_mask_ap
+        ][self.iBHmax]
+
+    @lazy_property
+    def BHmaxID(self):
+        if self.Nbh == 0:
+            return None
+        return self.data["PartType5"]["ParticleIDs"][self.bh_mask_all][self.bh_mask_ap][
+            self.iBHmax
+        ]
+
+    @lazy_property
+    def BHmaxpos(self):
+        if self.Nbh == 0:
+            return None
+        return self.data["PartType5"]["Coordinates"][self.bh_mask_all][self.bh_mask_ap][
+            self.iBHmax
+        ]
+
+    @lazy_property
+    def BHmaxvel(self):
+        if self.Nbh == 0:
+            return None
+        return self.data["PartType5"]["Velocities"][self.bh_mask_all][self.bh_mask_ap][
+            self.iBHmax
+        ]
+
+    @lazy_property
+    def BHmaxAR(self):
+        if self.Nbh == 0:
+            return None
+        return self.data["PartType5"]["AccretionRates"][self.bh_mask_all][
+            self.bh_mask_ap
+        ][self.iBHmax]
+
+    @lazy_property
+    def BHmaxlasteventa(self):
+        if self.Nbh == 0:
+            return None
+        return self.agn_eventa[self.iBHmax]
+
+    @lazy_property
+    def mass_fraction(self):
+        if self.Mtot == 0:
+            return None
+        return self.proj_mass / self.Mtot
+
+    @lazy_property
+    def com(self):
+        if self.Mtot == 0:
+            return None
+        return (self.mass_fraction[:, None] * self.proj_position).sum(
+            axis=0
+        ) + self.centre
+
+    @lazy_property
+    def vcom(self):
+        if self.Mtot == 0:
+            return None
+        return (self.mass_fraction[:, None] * self.proj_velocity).sum(axis=0)
+
+    @lazy_property
+    def gas_mass_fraction(self):
+        if self.Mgas == 0:
+            return None
+        return self.proj_mass_gas / self.Mgas
+
+    @lazy_property
+    def proj_veldisp_gas(self):
+        if self.Mgas == 0:
+            return None
+        proj_vgas = self.proj_velocity[self.proj_type == "PartType0", self.iproj]
+        vcom_gas = (self.gas_mass_fraction * proj_vgas).sum()
+        return np.sqrt(((proj_vgas - vcom_gas) ** 2).sum())
+
+    @lazy_property
+    def ProjectedGasAxisLengths(self):
+        return get_projected_axis_lengths(
+            self.proj_mass_gas, self.proj_pos_gas, self.iproj
+        )
+
+    @lazy_property
+    def dm_mass_fraction(self):
+        if self.Mdm == 0:
+            return None
+        return self.proj_mass_dm / self.Mdm
+
+    @lazy_property
+    def proj_veldisp_dm(self):
+        if self.Mdm == 0:
+            return None
+        proj_vdm = self.proj_velocity[self.proj_type == "PartType1", self.iproj]
+        vcom_dm = (self.dm_mass_fraction * proj_vdm).sum()
+        return np.sqrt(((proj_vdm - vcom_dm) ** 2).sum())
+
+    @lazy_property
+    def star_mass_fraction(self):
+        if self.Mstar == 0:
+            return None
+        return self.proj_mass_star / self.Mstar
+
+    @lazy_property
+    def proj_veldisp_star(self):
+        if self.Mstar == 0:
+            return None
+        proj_vstar = self.proj_velocity[self.proj_type == "PartType4", self.iproj]
+        vcom_star = (self.star_mass_fraction * proj_vstar).sum()
+        return np.sqrt(((proj_vstar - vcom_star) ** 2).sum())
+
+    @lazy_property
+    def ProjectedStellarAxisLengths(self):
+        return get_projected_axis_lengths(
+            self.proj_mass_star, self.proj_pos_star, self.iproj
+        )
+
+    @lazy_property
+    def ProjectedBaryonAxisLengths(self):
+        return get_projected_axis_lengths(
+            self.proj_mass_baryons, self.proj_pos_baryons, self.iproj
+        )
+
+    @lazy_property
+    def gas_mask_all(self):
+        if self.Ngas == 0:
+            return None
+        return self.data["PartType0"]["GroupNr_bound"] == self.index
+
+    @lazy_property
+    def gas_SFR(self):
+        if self.Ngas == 0:
+            return None
+        raw_SFR = self.data["PartType0"]["StarFormationRates"][self.gas_mask_all][
+            self.gas_mask_ap
+        ]
+        # Negative SFR are not SFR at all!
+        raw_SFR[raw_SFR < 0] = 0
+        return raw_SFR
+
+    @lazy_property
+    def SFR(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_SFR.sum()
+
+    @lazy_property
+    def HalfMassRadiusGas(self):
+        return get_half_mass_radius(
+            self.proj_radius[self.proj_type == "PartType0"],
+            self.proj_mass_gas,
+            self.Mgas,
+        )
+
+    @lazy_property
+    def HalfMassRadiusDM(self):
+        return get_half_mass_radius(
+            self.proj_radius[self.proj_type == "PartType1"], self.proj_mass_dm, self.Mdm
+        )
+
+    @lazy_property
+    def HalfMassRadiusStar(self):
+        return get_half_mass_radius(
+            self.proj_radius[self.proj_type == "PartType4"],
+            self.proj_mass_star,
+            self.Mstar,
+        )
+
+    @lazy_property
+    def HalfMassRadiusBaryon(self):
+        return get_half_mass_radius(
+            self.proj_radius[
+                (self.proj_type == "PartType0") | (self.proj_type == "PartType4")
+            ],
+            self.proj_mass_baryons,
+            self.Mbaryons,
+        )
 
 
 class ProjectedApertureProperties(HaloProperty):
@@ -113,54 +542,42 @@ class ProjectedApertureProperties(HaloProperty):
         Input particle data arrays are unyt_arrays.
         """
 
-        centre = input_halo["cofp"]
-        index = input_halo["index"]
-
         types_present = [type for type in self.particle_properties if type in data]
 
-        mass = []
-        position = []
-        radius_projx = []
-        radius_projy = []
-        radius_projz = []
-        velocity = []
-        types = []
-        for ptype in types_present:
-            grnr = data[ptype]["GroupNr_bound"]
-            in_halo = grnr == index
-            mass.append(data[ptype][mass_dataset(ptype)][in_halo])
-            pos = data[ptype]["Coordinates"][in_halo, :] - centre[None, :]
-            position.append(pos)
-            rprojx = np.sqrt(pos[:, 1] ** 2 + pos[:, 2] ** 2)
-            radius_projx.append(rprojx)
-            rprojy = np.sqrt(pos[:, 0] ** 2 + pos[:, 2] ** 2)
-            radius_projy.append(rprojy)
-            rprojz = np.sqrt(pos[:, 0] ** 2 + pos[:, 1] ** 2)
-            radius_projz.append(rprojz)
-            velocity.append(data[ptype]["Velocities"][in_halo, :])
-            typearr = np.zeros(rprojx.shape, dtype="U9")
-            typearr[:] = ptype
-            types.append(typearr)
+        part_props = ProjectedApertureParticleData(
+            input_halo,
+            data,
+            types_present,
+            self.physical_radius_mpc * unyt.Mpc,
+        )
 
-        mass = unyt.array.uconcatenate(mass)
-        position = unyt.array.uconcatenate(position)
-        radius_projx = unyt.array.uconcatenate(radius_projx)
-        radius_projy = unyt.array.uconcatenate(radius_projy)
-        radius_projz = unyt.array.uconcatenate(radius_projz)
-        velocity = unyt.array.uconcatenate(velocity)
-        types = np.concatenate(types)
+        Ngas = halo_result[
+            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}"
+        ][0].value
+        Ndm = halo_result[
+            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}"
+        ][0].value
+        Nstar = halo_result[
+            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}"
+        ][0].value
+        Nbh = halo_result[
+            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}"
+        ][0].value
 
-        mask_projx = radius_projx <= self.physical_radius_mpc * unyt.Mpc
-        mask_projy = radius_projy <= self.physical_radius_mpc * unyt.Mpc
-        mask_projz = radius_projz <= self.physical_radius_mpc * unyt.Mpc
+        do_calculation = {
+            "basic": True,
+            "general": Ngas + Ndm + Nstar + Nbh > 100,
+            "gas": Ngas > 50,
+            "dm": Ndm > 100,
+            "star": Nstar > 50,
+            "baryon": Ngas + Nstar > 100,
+        }
 
-        for iproj, (projname, projmask, projr) in enumerate(
-            zip(
-                ["projx", "projy", "projz"],
-                [mask_projx, mask_projy, mask_projz],
-                [radius_projx, radius_projy, radius_projz],
+        registry = part_props.mass.units.registry
+        for projname in ["projx", "projy", "projz"]:
+            proj_part_props = SingleProjectionProjectedApertureParticleData(
+                part_props, projname
             )
-        ):
 
             projected_aperture = {}
             # declare all the variables we will compute
@@ -168,192 +585,26 @@ class ProjectedApertureProperties(HaloProperty):
             # all variables are defined with physical units and an appropriate dtype
             # we need to use the custom unit registry so that everything can be converted
             # back to snapshot units in the end
-            for name, _, shape, dtype, unit, _, _, _ in self.property_list:
+            for name, _, shape, dtype, unit, _, category, _ in self.property_list:
                 if shape > 1:
                     val = [0] * shape
                 else:
                     val = 0
                 projected_aperture[name] = unyt.unyt_array(
-                    val, dtype=dtype, units=unit, registry=mass.units.registry
+                    val, dtype=dtype, units=unit, registry=registry
                 )
-
-            proj_mass = mass[projmask]
-            proj_position = position[projmask]
-            proj_velocity = velocity[projmask]
-            proj_radius = projr[projmask]
-            proj_type = types[projmask]
-
-            gas_mask_ap = projmask[types == "PartType0"]
-            star_mask_ap = projmask[types == "PartType4"]
-            bh_mask_ap = projmask[types == "PartType5"]
-
-            projected_aperture["Ngas"] = (
-                gas_mask_ap.sum(dtype=projected_aperture["Ngas"].dtype)
-                * projected_aperture["Ngas"].units
-            )
-            projected_aperture["Ndm"] = (
-                projmask[types == "PartType1"].sum(
-                    dtype=projected_aperture["Ndm"].dtype
-                )
-                * projected_aperture["Ndm"].units
-            )
-            projected_aperture["Nstar"] = (
-                star_mask_ap.sum(dtype=projected_aperture["Nstar"].dtype)
-                * projected_aperture["Nstar"].units
-            )
-            projected_aperture["Nbh"] = (
-                bh_mask_ap.sum(dtype=projected_aperture["Nbh"].dtype)
-                * projected_aperture["Nbh"].units
-            )
-
-            proj_mass_gas = proj_mass[proj_type == "PartType0"]
-            proj_mass_dm = proj_mass[proj_type == "PartType1"]
-            proj_mass_star = proj_mass[proj_type == "PartType4"]
-
-            projected_aperture["Mtot"] += proj_mass.sum()
-            projected_aperture["Mgas"] += proj_mass_gas.sum()
-            projected_aperture["Mdm"] += proj_mass_dm.sum()
-            projected_aperture["Mstar"] += proj_mass_star.sum()
-            if np.any(star_mask_ap):
-                star_mask_all = data["PartType4"]["GroupNr_bound"] == index
-                projected_aperture["Mstar_init"] += data["PartType4"]["InitialMasses"][
-                    star_mask_all
-                ][star_mask_ap].sum()
-                projected_aperture["StellarLuminosity"] += data["PartType4"][
-                    "Luminosities"
-                ][star_mask_all][star_mask_ap].sum(axis=0)
-
-            projected_aperture["Mbh_dynamical"] += proj_mass[
-                proj_type == "PartType5"
-            ].sum()
-            if np.any(bh_mask_ap):
-                bh_mask_all = data["PartType5"]["GroupNr_bound"] == index
-                bh_masses = data["PartType5"]["SubgridMasses"][bh_mask_all][bh_mask_ap]
-                projected_aperture["Mbh_subgrid"] += bh_masses.sum()
-                iBHmax = np.argmax(bh_masses)
-                projected_aperture["BHmaxM"] += bh_masses[iBHmax]
-                projected_aperture["BHmaxID"] = (
-                    data["PartType5"]["ParticleIDs"][bh_mask_all][bh_mask_ap][
-                        iBHmax
-                    ].astype(projected_aperture["BHmaxID"].dtype)
-                    * projected_aperture["BHmaxID"].units
-                )
-                agn_eventa = data["PartType5"]["LastAGNFeedbackScaleFactors"][
-                    bh_mask_all
-                ][bh_mask_ap]
-                projected_aperture["BHlasteventa"] += np.max(agn_eventa)
-                projected_aperture["BHmaxlasteventa"] += agn_eventa[iBHmax]
-                projected_aperture["BHmaxpos"] += data["PartType5"]["Coordinates"][
-                    bh_mask_all
-                ][bh_mask_ap][iBHmax]
-                projected_aperture["BHmaxvel"] += data["PartType5"]["Velocities"][
-                    bh_mask_all
-                ][bh_mask_ap][iBHmax]
-
-            if projected_aperture["Mtot"] > 0.0 * projected_aperture["Mtot"].units:
-                mass_frac = proj_mass / projected_aperture["Mtot"]
-                projected_aperture["com"] += (mass_frac[:, None] * proj_position).sum(
-                    axis=0
-                )
-                projected_aperture["com"] += centre
-                # perform the mass division before the multiplication to avoid
-                # numerical overflow
-                projected_aperture["vcom"] += (mass_frac[:, None] * proj_velocity).sum(
-                    axis=0
-                )
-
-            if np.any(gas_mask_ap):
-                gas_mask_all = data["PartType0"]["GroupNr_bound"] == index
-                proj_SFR = data["PartType0"]["StarFormationRates"][gas_mask_all][
-                    gas_mask_ap
-                ]
-                # Negative SFR are not SFR at all!
-                projected_aperture["SFR"] += proj_SFR[proj_SFR > 0.0].sum()
-
-            if projected_aperture["Mgas"] > 0.0 * projected_aperture["Mgas"].units:
-                frac_mgas = proj_mass_gas / projected_aperture["Mgas"]
-                proj_vgas = proj_velocity[proj_type == "PartType0", iproj]
-                vcom_gas = (frac_mgas * proj_vgas).sum()
-                projected_aperture["proj_veldisp_gas"] += np.sqrt(
-                    ((proj_vgas - vcom_gas) ** 2).sum()
-                )
-                projected_aperture[
-                    "ProjectedGasAxisLengths"
-                ] += get_projected_axis_lengths(
-                    proj_mass_gas, proj_position[proj_type == "PartType0"], iproj
-                )
-            if projected_aperture["Mdm"] > 0.0 * projected_aperture["Mdm"].units:
-                frac_mdm = proj_mass_dm / projected_aperture["Mdm"]
-                proj_vdm = proj_velocity[proj_type == "PartType1", iproj]
-                vcom_dm = (frac_mdm * proj_vdm).sum()
-                projected_aperture["proj_veldisp_dm"] += np.sqrt(
-                    ((proj_vdm - vcom_dm) ** 2).sum()
-                )
-            if projected_aperture["Mstar"] > 0.0 * projected_aperture["Mstar"].units:
-                frac_mstar = proj_mass_star / projected_aperture["Mstar"]
-                proj_vstar = proj_velocity[proj_type == "PartType4", iproj]
-                vcom_star = (frac_mstar * proj_vstar).sum()
-                projected_aperture["proj_veldisp_star"] += np.sqrt(
-                    ((proj_vstar - vcom_star) ** 2).sum()
-                )
-                projected_aperture[
-                    "ProjectedStellarAxisLengths"
-                ] += get_projected_axis_lengths(
-                    proj_mass_star, proj_position[proj_type == "PartType4"], iproj
-                )
-
-            if (
-                projected_aperture["Mgas"] + projected_aperture["Mstar"]
-                > 0.0 * projected_aperture["Mgas"].units
-            ):
-                proj_mass_baryon = proj_mass[
-                    (proj_type == "PartType0") | (proj_type == "PartType4")
-                ]
-                proj_pos_baryon = proj_position[
-                    (proj_type == "PartType0") | (proj_type == "PartType4")
-                ]
-                projected_aperture[
-                    "ProjectedBaryonAxisLengths"
-                ] += get_projected_axis_lengths(
-                    proj_mass_baryon, proj_pos_baryon, iproj
-                )
-
-            for name, r, m, M in zip(
-                [
-                    "HalfMassRadiusGas",
-                    "HalfMassRadiusDM",
-                    "HalfMassRadiusStar",
-                    "HalfMassRadiusBaryon",
-                ],
-                [
-                    proj_radius[proj_type == "PartType0"],
-                    proj_radius[proj_type == "PartType1"],
-                    proj_radius[proj_type == "PartType4"],
-                    proj_radius[
-                        (proj_type == "PartType0") | (proj_type == "PartType4")
-                    ],
-                ],
-                [
-                    proj_mass_gas,
-                    proj_mass_dm,
-                    proj_mass_star,
-                    proj_mass[(proj_type == "PartType0") | (proj_type == "PartType4")],
-                ],
-                [
-                    projected_aperture["Mgas"],
-                    projected_aperture["Mdm"],
-                    projected_aperture["Mstar"],
-                    projected_aperture["Mgas"] + projected_aperture["Mstar"],
-                ],
-            ):
-                projected_aperture[name] += get_half_mass_radius(r, m, M)
-                if projected_aperture[name] >= self.physical_radius_mpc * unyt.Mpc:
-                    raise RuntimeError(
-                        "Half mass radius larger than aperture"
-                        f" ({half_mass_radius} >="
-                        f" {self.physical_radius_mpc * unyt.Mpc}!"
-                        " This should not happen."
-                    )
+                if do_calculation[category]:
+                    val = getattr(proj_part_props, name)
+                    if val is not None:
+                        if unit == "dimensionless":
+                            projected_aperture[name] = unyt.unyt_array(
+                                val.astype(dtype),
+                                dtype=dtype,
+                                units=unit,
+                                registry=registry,
+                            )
+                        else:
+                            projected_aperture[name] += val
 
             prefix = (
                 f"ProjectedAperture/{self.physical_radius_mpc*1000.:.0f}kpc/{projname}"
@@ -364,15 +615,6 @@ class ProjectedApertureProperties(HaloProperty):
                 )
 
         return
-
-
-class DummyProjectedApertureProperties(ProjectedApertureProperties):
-    """
-    Minimal version of ProjectedApertureProperties, only used for testing.
-    """
-
-    def __init__(self):
-        self.physical_radius_mpc = 0.03
 
 
 def test_projected_aperture_properties():
@@ -389,12 +631,46 @@ def test_projected_aperture_properties():
 
     dummy_halos = DummyHaloGenerator(127)
 
-    property_calculator = DummyProjectedApertureProperties()
+    property_calculator = ProjectedApertureProperties(dummy_halos.get_cell_grid(), 30.0)
 
     for i in range(100):
-        input_halo, data, _, _, _, _ = dummy_halos.get_random_halo(
+        input_halo, data, _, _, _, particle_numbers = dummy_halos.get_random_halo(
             [1, 10, 100, 1000, 10000]
         )
+        halo_result_template = {
+            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}": (
+                unyt.unyt_array(
+                    particle_numbers["PartType0"],
+                    dtype=PropertyTable.full_property_list["Ngas"][2],
+                    units="dimensionless",
+                ),
+                "Dummy Ngas for filter",
+            ),
+            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}": (
+                unyt.unyt_array(
+                    particle_numbers["PartType1"],
+                    dtype=PropertyTable.full_property_list["Ndm"][2],
+                    units="dimensionless",
+                ),
+                "Dummy Ndm for filter",
+            ),
+            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}": (
+                unyt.unyt_array(
+                    particle_numbers["PartType4"],
+                    dtype=PropertyTable.full_property_list["Nstar"][2],
+                    units="dimensionless",
+                ),
+                "Dummy Nstar for filter",
+            ),
+            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}": (
+                unyt.unyt_array(
+                    particle_numbers["PartType5"],
+                    dtype=PropertyTable.full_property_list["Nbh"][2],
+                    units="dimensionless",
+                ),
+                "Dummy Nbh for filter",
+            ),
+        }
 
         input_data = {}
         for ptype in property_calculator.particle_properties:
@@ -404,7 +680,7 @@ def test_projected_aperture_properties():
                     input_data[ptype][dset] = data[ptype][dset]
         input_halo_copy = input_halo.copy()
         input_data_copy = input_data.copy()
-        halo_result = {}
+        halo_result = dict(halo_result_template)
         property_calculator.calculate(
             input_halo, 0.0 * unyt.kpc, input_data, halo_result
         )

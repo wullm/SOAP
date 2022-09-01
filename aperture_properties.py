@@ -25,20 +25,6 @@ indexFe = 8
 rbandindex = 2
 
 
-def set_halo_property(prop_dict, name, part_props):
-    prop_info = PropertyTable.full_property_list[name]
-    dtype = prop_info[2]
-    units = prop_info[3]
-    val = getattr(part_props, name)
-    if val is not None:
-        if units == "dimensionless":
-            prop_dict[name] = unyt.unyt_array(
-                val.astype(dtype), dtype=dtype, units=units
-            )
-        else:
-            prop_dict[name] += val
-
-
 class ApertureParticleData:
     def __init__(
         self,
