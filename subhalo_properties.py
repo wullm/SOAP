@@ -870,7 +870,12 @@ class SubhaloProperties(HaloProperty):
         # we need to use the custom unit registry so that everything can be converted
         # back to snapshot units in the end
         registry = part_props.mass.units.registry
-        for name, _, shape, dtype, unit, _, category, _ in self.property_list:
+        for prop in self.property_list:
+            name = prop[0]
+            shape = prop[2]
+            dtype = prop[3]
+            unit = prop[4]
+            category = prop[6]
             if shape > 1:
                 val = [0] * shape
             else:
@@ -896,7 +901,10 @@ class SubhaloProperties(HaloProperty):
             prefix = "BoundSubhaloProperties"
         else:
             prefix = "FOFSubhaloProperties"
-        for name, outputname, _, _, _, description, _, _ in self.property_list:
+        for prop in self.property_list:
+            name = prop[0]
+            outputname = prop[1]
+            description = prop[5]
             halo_result.update(
                 {
                     f"{prefix}/{outputname}": (
@@ -963,16 +971,11 @@ def test_subhalo_properties():
             assert input_data == input_data_copy
 
             # check that the calculation returns the correct values
-            for (
-                _,
-                outputname,
-                size,
-                dtype,
-                unit_string,
-                _,
-                _,
-                _,
-            ) in prop_calc.property_list:
+            for prop in prop_calc.property_list:
+                outputname = prop[1]
+                size = prop[2]
+                dtype = prop[3]
+                unit_string = prop[4]
                 full_name = f"{subhalo_name}/{outputname}"
                 assert full_name in halo_result
                 result = halo_result[full_name][0]

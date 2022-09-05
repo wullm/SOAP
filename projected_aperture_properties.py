@@ -560,7 +560,12 @@ class ProjectedApertureProperties(HaloProperty):
             # all variables are defined with physical units and an appropriate dtype
             # we need to use the custom unit registry so that everything can be converted
             # back to snapshot units in the end
-            for name, _, shape, dtype, unit, _, category, _ in self.property_list:
+            for prop in self.property_list:
+                name = prop[0]
+                shape = prop[2]
+                dtype = prop[3]
+                unit = prop[4]
+                category = prop[6]
                 if shape > 1:
                     val = [0] * shape
                 else:
@@ -584,7 +589,10 @@ class ProjectedApertureProperties(HaloProperty):
             prefix = (
                 f"ProjectedAperture/{self.physical_radius_mpc*1000.:.0f}kpc/{projname}"
             )
-            for name, outputname, _, _, _, description, _, _ in self.property_list:
+            for prop in self.property_list:
+                name = prop[0]
+                outputname = prop[1]
+                description = prop[5]
                 halo_result.update(
                     {f"{prefix}/{outputname}": (projected_aperture[name], description)}
                 )
@@ -666,16 +674,11 @@ def test_projected_aperture_properties():
         assert input_data == input_data_copy
 
         for proj in ["projx", "projy", "projz"]:
-            for (
-                _,
-                outputname,
-                size,
-                dtype,
-                unit_string,
-                _,
-                _,
-                _,
-            ) in property_calculator.property_list:
+            for prop in property_calculator.property_list:
+                outputname = prop[1]
+                size = prop[2]
+                dtype = prop[3]
+                unit_string = prop[4]
                 full_name = f"ProjectedAperture/30kpc/{proj}/{outputname}"
                 assert full_name in halo_result
                 result = halo_result[full_name][0]
