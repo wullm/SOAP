@@ -320,25 +320,10 @@ def compute_halo_properties():
         task_type=chunk_tasks.ChunkTask,
     )
 
-    # Discard empty metadata dicts from chunks where this rank processed no halos
-    metadata = [md for md in metadata if len(md) > 0]
-
-    # Sanity check: every chunk should return quantities with the same names, dimensions and units
-    all_metadata = comm_world.gather(metadata)
-    if comm_world_rank == 0:
-        all_metadata = [
-            item for sublist in all_metadata for item in sublist
-        ]  # Flatten list of lists
-        ref_metadata = all_metadata[0]
-        for md in all_metadata:
-            if md != ref_metadata:
-                raise RuntimeError("Chunk has returned inconsistent metadata!")
-    else:
-        ref_metadata = None
-
-    # Sync reference metadata between ranks (e.g. in case some ranks processed no chunks/halos at all)
-    ref_metadata = comm_world.bcast(ref_metadata)
-
+    # Check metadata for consistency between chunks. Sets ref_metadata on all ranks,
+    # including those that processed no halos.
+    ref_metadata = result_set.check_metadata(metadata, comm_inter_node, comm_world)
+    
     # First MPI rank creates the output file and writes some metadata in serial mode
     output_file = sub_snapnum(args.output_file, args.snapshot_nr)
     if comm_world.Get_rank() == 0:

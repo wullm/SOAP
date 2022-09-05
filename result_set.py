@@ -9,6 +9,8 @@ import virgo.mpi.parallel_sort as psort
 import create_groups
 import swift_units
 
+from mpi4py import MPI
+
 
 def concatenate(result_sets):
     """
@@ -195,13 +197,95 @@ class ResultSet:
                     outfile[name].attrs[attr_name] = attr_value
             outfile[name].attrs["Description"] = description
 
-    def get_metadata(self):
+    def get_metadata(self, comm):
         """
-        Return a list of (name, size, units, description) for all arrays in the result set
-        """
-        names = sorted(self.result_arrays.keys())
-        sizes = [self.result_arrays[n][0].shape[1:] for n in names]
-        units = [self.result_arrays[n][0].units for n in names]
-        descr = [self.result_arrays[n][1] for n in names]
+        Return a list of (name, size, units, description) for all arrays in
+        the result set. Also checks that all ranks have consistent metadata,
+        except for those ranks that processed zero halos.
 
-        return list(zip(names, sizes, units, descr))
+        Returns metadata for this chunk on first rank in comm.
+        Other ranks return None.
+
+        comm should be the intra node communicator for this node.
+        """
+
+        if len(self) > 0:
+            # Make a list of (names, sizes, units, descr) for properties computed
+            names = sorted(self.result_arrays.keys())
+            sizes = [self.result_arrays[n][0].shape[1:] for n in names]
+            units = [self.result_arrays[n][0].units for n in names]
+            descr = [self.result_arrays[n][1] for n in names]
+            my_metadata = list(zip(names, sizes, units, descr))
+        else:
+            # This rank processed zero halos
+            my_metadata = None
+
+        if comm.Get_rank() > 0:
+            # Ranks >0 send their metadata to rank 0
+            comm.send(my_metadata, 0)
+        else:
+            # Rank 0 receives and checks for consistency
+            ref_metadata = my_metadata
+            for other_rank in range(1, comm.Get_size()):
+                recv_metadata = comm.recv(source=other_rank)
+                if ref_metadata is None:
+                    ref_metadata = recv_metadata
+                elif recv_metadata is not None:
+                    if ref_metadata != recv_metadata:
+                        raise RuntimeError("MPI ranks within a chunk have inconsistent metadata!")
+
+        # First rank on the node returns the metadata
+        if comm.Get_rank() == 0:
+            assert ref_metadata is not None # All chunk tasks contain at least one halo
+            return ref_metadata
+        else:
+            return None
+
+
+def check_metadata(metadata, comm_inter_node, comm_world):
+    """
+    Check that the input metadata lists are consistent.
+    These take the form
+
+    metadata[chunk_nr] = [(name, size, units, description), ...]
+
+    but are only set on the first rank on each node. Other
+    ranks have metadata=None.
+    """
+
+    # Each compute node checks consistency of the zero or more chunks it processed
+    if comm_inter_node is not MPI.COMM_NULL:
+        # First rank on the node carries out the check
+        assert metadata is not None
+        for md in metadata:
+            if md != metadata[0]:
+                raise RuntimeError("Metadata is inconsistent between chunks within a node!")
+        # Just keep metadata for one chunk, since they're all the same
+        if len(metadata) > 0:
+            metadata = metadata[0]
+        else:
+            # This compute node was assigned no chunks
+            metadata = None
+
+    # Check consistency between nodes:
+    # Every MPI rank has either a (name, size, units, description) tuple, or None.
+    # Need to check that the non-None entries are all identical.
+    if comm_world.Get_rank() > 0:
+        # Everyone else sends to rank 0
+        comm_world.send(metadata, 0)
+        ref_metadata = None
+    else:
+        # Rank 0 in comm_world checks for consistency
+        ref_metadata = metadata
+        for other_rank in range(1, comm_world.Get_size()):
+            recv_metadata = comm_world.recv(source=other_rank)
+            if ref_metadata is None:
+                ref_metadata = recv_metadata
+            elif recv_metadata is not None:
+                if ref_metadata != recv_metadata:
+                    raise RuntimeError("Metadata is inconsistent between nodes!")
+
+    # Everyone gets a copy of the reference metadata
+    ref_metadata = comm_world.bcast(ref_metadata)
+    assert ref_metadata is not None
+    return ref_metadata
