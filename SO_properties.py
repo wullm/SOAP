@@ -16,21 +16,7 @@ from recently_heated_gas_filter import RecentlyHeatedGasFilter
 from property_table import PropertyTable
 from dataset_names import mass_dataset
 from lazy_properties import lazy_property
-
-
-def set_halo_property(prop_dict, name, part_props):
-    prop_info = PropertyTable.full_property_list[name]
-    dtype = prop_info[2]
-    units = prop_info[3]
-    val = getattr(part_props, name)
-    if val is not None:
-        if units == "dimensionless":
-            prop_dict[name] = unyt.unyt_array(
-                val.astype(dtype), dtype=dtype, units=units
-            )
-        else:
-            prop_dict[name] += val
-
+from category_filter import CategoryFilter
 
 # index of elements O and Fe in the SmoothedElementMassFractions dataset
 indexO = 4
@@ -827,7 +813,6 @@ class SOParticleData:
 
     @lazy_property
     def DopplerB(self):
-        return None
         if self.Ngas == 0:
             return None
         ne = self.data["PartType0"]["ElectronNumberDensities"][self.gas_selection]
@@ -1055,7 +1040,7 @@ class SOProperties(HaloProperty):
             "SubgridMasses",
             "Velocities",
         ],
-#        "PartType6": ["Coordinates", "Masses", "Weights"],
+        "PartType6": ["Coordinates", "Masses", "Weights"],
     }
 
     # get the properties we want from the table
@@ -1136,6 +1121,7 @@ class SOProperties(HaloProperty):
         self,
         cellgrid,
         recently_heated_gas_filter,
+        category_filter,
         SOval,
         type="mean",
     ):
@@ -1146,6 +1132,7 @@ class SOProperties(HaloProperty):
         self.type = type
 
         self.filter = recently_heated_gas_filter
+        self.category_filter = category_filter
 
         self.observer_position = cellgrid.observer_position
 
@@ -1269,27 +1256,7 @@ class SOProperties(HaloProperty):
 
             if SO_exists:
 
-                Ngas = halo_result[
-                    f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}"
-                ][0].value
-                Ndm = halo_result[
-                    f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}"
-                ][0].value
-                Nstar = halo_result[
-                    f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}"
-                ][0].value
-                Nbh = halo_result[
-                    f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}"
-                ][0].value
-
-                do_calculation = {
-                    "basic": True,
-                    "general": Ngas + Ndm + Nstar + Nbh > 100,
-                    "gas": Ngas > 50,
-                    "dm": Ndm > 100,
-                    "star": Nstar > 50,
-                    "baryon": Ngas + Nstar > 100,
-                }
+                do_calculation = self.category_filter.get_filters(halo_result)
 
                 for name, _, shape, dtype, unit, _, category, _ in self.property_list:
                     if do_calculation[category]:
@@ -1328,7 +1295,13 @@ class RadiusMultipleSOProperties(SOProperties):
     radius_name = PropertyTable.full_property_list["r"][0]
 
     def __init__(
-        self, cellgrid, recently_heated_gas_filter, SOval, multiple, type="mean"
+        self,
+        cellgrid,
+        recently_heated_gas_filter,
+        category_filter,
+        SOval,
+        multiple,
+        type="mean",
     ):
         if not type in ["mean", "crit"]:
             raise AttributeError(
@@ -1336,7 +1309,9 @@ class RadiusMultipleSOProperties(SOProperties):
             )
 
         # initialise the SOProperties object using a conservative physical radius estimate
-        super().__init__(cellgrid, recently_heated_gas_filter, 3000.0, "physical")
+        super().__init__(
+            cellgrid, recently_heated_gas_filter, category_filter, 3000.0, "physical"
+        )
 
         # overwrite the name, SO_name and label
         self.SO_name = f"{multiple:.0f}xR_{SOval:.0f}_{type}"
@@ -1371,21 +1346,22 @@ def test_SO_properties():
 
     dummy_halos = DummyHaloGenerator(4251)
     filter = RecentlyHeatedGasFilter(dummy_halos.get_cell_grid())
+    cat_filter = CategoryFilter()
 
     property_calculator_50kpc = SOProperties(
-        dummy_halos.get_cell_grid(), filter, 50.0, "physical"
+        dummy_halos.get_cell_grid(), filter, cat_filter, 50.0, "physical"
     )
     property_calculator_2500mean = SOProperties(
-        dummy_halos.get_cell_grid(), filter, 2500.0, "mean"
+        dummy_halos.get_cell_grid(), filter, cat_filter, 2500.0, "mean"
     )
     property_calculator_2500crit = SOProperties(
-        dummy_halos.get_cell_grid(), filter, 2500.0, "crit"
+        dummy_halos.get_cell_grid(), filter, cat_filter, 2500.0, "crit"
     )
     property_calculator_BN98 = SOProperties(
-        dummy_halos.get_cell_grid(), filter, 0.0, "BN98"
+        dummy_halos.get_cell_grid(), filter, cat_filter, 0.0, "BN98"
     )
     property_calculator_5x2500mean = RadiusMultipleSOProperties(
-        dummy_halos.get_cell_grid(), filter, 2500.0, 5.0, "mean"
+        dummy_halos.get_cell_grid(), filter, cat_filter, 2500.0, 5.0, "mean"
     )
 
     for i in range(100):

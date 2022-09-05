@@ -9,20 +9,7 @@ from half_mass_radius import get_half_mass_radius
 from property_table import PropertyTable
 from kinematic_properties import get_projected_axis_lengths
 from lazy_properties import lazy_property
-
-
-def set_halo_property(prop_dict, name, part_props):
-    prop_info = PropertyTable.full_property_list[name]
-    dtype = prop_info[2]
-    units = prop_info[3]
-    val = getattr(part_props, name)
-    if val is not None:
-        if units == "dimensionless":
-            prop_dict[name] = unyt.unyt_array(
-                val.astype(dtype), dtype=dtype, units=units
-            )
-        else:
-            prop_dict[name] += val
+from category_filter import CategoryFilter
 
 
 class ProjectedApertureParticleData:
@@ -522,7 +509,7 @@ class ProjectedApertureProperties(HaloProperty):
         ],
     }
 
-    def __init__(self, cellgrid, physical_radius_kpc):
+    def __init__(self, cellgrid, physical_radius_kpc, category_filter):
         super().__init__(cellgrid)
 
         # No density criterion
@@ -531,6 +518,8 @@ class ProjectedApertureProperties(HaloProperty):
 
         # Minimum physical radius to read in (pMpc)
         self.physical_radius_mpc = 0.001 * physical_radius_kpc
+
+        self.category_filter = category_filter
 
         self.name = f"projected_aperture_{physical_radius_kpc:.0f}kpc"
 
@@ -557,27 +546,7 @@ class ProjectedApertureProperties(HaloProperty):
             self.physical_radius_mpc * unyt.Mpc,
         )
 
-        Ngas = halo_result[
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}"
-        ][0].value
-        Ndm = halo_result[
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}"
-        ][0].value
-        Nstar = halo_result[
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}"
-        ][0].value
-        Nbh = halo_result[
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}"
-        ][0].value
-
-        do_calculation = {
-            "basic": True,
-            "general": Ngas + Ndm + Nstar + Nbh > 100,
-            "gas": Ngas > 50,
-            "dm": Ndm > 100,
-            "star": Nstar > 50,
-            "baryon": Ngas + Nstar > 100,
-        }
+        do_calculation = self.category_filter.get_filters(halo_result)
 
         registry = part_props.mass.units.registry
         for projname in ["projx", "projy", "projz"]:
@@ -637,7 +606,10 @@ def test_projected_aperture_properties():
 
     dummy_halos = DummyHaloGenerator(127)
 
-    property_calculator = ProjectedApertureProperties(dummy_halos.get_cell_grid(), 30.0)
+    category_filter = CategoryFilter()
+    property_calculator = ProjectedApertureProperties(
+        dummy_halos.get_cell_grid(), 30.0, category_filter
+    )
 
     for i in range(100):
         input_halo, data, _, _, _, particle_numbers = dummy_halos.get_random_halo(

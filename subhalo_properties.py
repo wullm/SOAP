@@ -17,6 +17,7 @@ from recently_heated_gas_filter import RecentlyHeatedGasFilter
 from stellar_age_calculator import StellarAgeCalculator
 from property_table import PropertyTable
 from lazy_properties import lazy_property
+from category_filter import CategoryFilter
 
 rbandindex = 2
 
@@ -759,6 +760,7 @@ class SubhaloProperties(HaloProperty):
         cellgrid,
         recently_heated_gas_filter,
         stellar_age_calculator,
+        category_filter,
         bound_only=True,
     ):
         super().__init__(cellgrid)
@@ -766,6 +768,7 @@ class SubhaloProperties(HaloProperty):
         self.bound_only = bound_only
         self.filter = recently_heated_gas_filter
         self.stellar_ages = stellar_age_calculator
+        self.category_filter = category_filter
 
         # This specifies how large a sphere is read in:
         self.mean_density_multiple = None
@@ -848,32 +851,17 @@ class SubhaloProperties(HaloProperty):
         )
 
         if not self.bound_only:
+            # this is the halo that we use for the filter particle numbers,
+            # so we have the get the numbers for the category filters manually
             Ngas = part_props.Ngas
             Ndm = part_props.Ndm
             Nstar = part_props.Nstar
             Nbh = part_props.Nbh
+            do_calculation = self.category_filter.get_filters_direct(
+                Ngas, Ndm, Nstar, Nbh
+            )
         else:
-            Ngas = halo_result[
-                f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}"
-            ][0].value
-            Ndm = halo_result[
-                f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}"
-            ][0].value
-            Nstar = halo_result[
-                f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}"
-            ][0].value
-            Nbh = halo_result[
-                f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}"
-            ][0].value
-
-        do_calculation = {
-            "basic": True,
-            "general": Ngas + Ndm + Nstar + Nbh > 100,
-            "gas": Ngas > 50,
-            "dm": Ndm > 100,
-            "star": Nstar > 50,
-            "baryon": Ngas + Nstar > 100,
-        }
+            do_calculation = self.category_filter.get_filters(halo_result)
 
         subhalo = {}
         # declare all the variables we will compute
@@ -932,6 +920,7 @@ def test_subhalo_properties():
 
     # initialise the DummyHaloGenerator with a random seed
     dummy_halos = DummyHaloGenerator(16902)
+    cat_filter = CategoryFilter()
 
     recently_heated_gas_filter = RecentlyHeatedGasFilter(dummy_halos.get_cell_grid())
     stellar_age_calculator = StellarAgeCalculator(dummy_halos.get_cell_grid())
@@ -940,11 +929,13 @@ def test_subhalo_properties():
         dummy_halos.get_cell_grid(),
         recently_heated_gas_filter,
         stellar_age_calculator,
+        cat_filter,
     )
     property_calculator_both = SubhaloProperties(
         dummy_halos.get_cell_grid(),
         recently_heated_gas_filter,
         stellar_age_calculator,
+        cat_filter,
         False,
     )
 

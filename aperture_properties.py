@@ -17,6 +17,7 @@ from recently_heated_gas_filter import RecentlyHeatedGasFilter
 from stellar_age_calculator import StellarAgeCalculator
 from property_table import PropertyTable
 from lazy_properties import lazy_property
+from category_filter import CategoryFilter
 
 # index of elements O and Fe in the SmoothedElementMassFractions dataset
 indexO = 4
@@ -907,6 +908,7 @@ class ApertureProperties(HaloProperty):
         physical_radius_kpc,
         recently_heated_gas_filter,
         stellar_age_calculator,
+        category_filter,
         inclusive=False,
     ):
         """
@@ -919,6 +921,7 @@ class ApertureProperties(HaloProperty):
 
         self.filter = recently_heated_gas_filter
         self.stellar_ages = stellar_age_calculator
+        self.category_filter = category_filter
 
         # no density criterion for these properties
         self.mean_density_multiple = None
@@ -960,27 +963,7 @@ class ApertureProperties(HaloProperty):
             self.filter,
         )
 
-        Ngas = halo_result[
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}"
-        ][0].value
-        Ndm = halo_result[
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}"
-        ][0].value
-        Nstar = halo_result[
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}"
-        ][0].value
-        Nbh = halo_result[
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}"
-        ][0].value
-
-        do_calculation = {
-            "basic": True,
-            "general": Ngas + Ndm + Nstar + Nbh > 100,
-            "gas": Ngas > 50,
-            "dm": Ndm > 100,
-            "star": Nstar > 50,
-            "baryon": Ngas + Nstar > 100,
-        }
+        do_calculation = self.category_filter.get_filters(halo_result)
 
         aperture_sphere = {}
         # declare all the variables we will compute
@@ -1034,12 +1017,14 @@ class ExclusiveSphereProperties(ApertureProperties):
         physical_radius_kpc,
         recently_heated_gas_filter,
         stellar_age_calculator,
+        category_filter,
     ):
         super().__init__(
             cellgrid,
             physical_radius_kpc,
             recently_heated_gas_filter,
             stellar_age_calculator,
+            category_filter,
             False,
         )
 
@@ -1051,12 +1036,14 @@ class InclusiveSphereProperties(ApertureProperties):
         physical_radius_kpc,
         recently_heated_gas_filter,
         stellar_age_calculator,
+        category_filter,
     ):
         super().__init__(
             cellgrid,
             physical_radius_kpc,
             recently_heated_gas_filter,
             stellar_age_calculator,
+            category_filter,
             True,
         )
 
@@ -1077,12 +1064,17 @@ def test_aperture_properties():
     dummy_halos = DummyHaloGenerator(3256)
     filter = RecentlyHeatedGasFilter(dummy_halos.get_cell_grid())
     stellar_age_calculator = StellarAgeCalculator(dummy_halos.get_cell_grid())
+    cat_filter = CategoryFilter()
 
     pc_exclusive = ExclusiveSphereProperties(
-        dummy_halos.get_cell_grid(), 50.0, filter, stellar_age_calculator
+        dummy_halos.get_cell_grid(),
+        50.0,
+        filter,
+        stellar_age_calculator,
+        cat_filter,
     )
     pc_inclusive = InclusiveSphereProperties(
-        dummy_halos.get_cell_grid(), 50.0, filter, stellar_age_calculator
+        dummy_halos.get_cell_grid(), 50.0, filter, stellar_age_calculator, cat_filter
     )
 
     # generate 100 random halos
