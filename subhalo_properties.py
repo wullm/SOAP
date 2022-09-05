@@ -353,6 +353,8 @@ class SubhaloParticleData:
 
     @lazy_property
     def TotalAxisLengths(self):
+        if self.Mtot == 0:
+            return None
         return get_axis_lengths(self.mass, self.position)
 
     @lazy_property
@@ -406,6 +408,8 @@ class SubhaloParticleData:
 
     @lazy_property
     def GasAxisLengths(self):
+        if self.Mgas == 0:
+            return None
         return get_axis_lengths(self.mass_gas, self.pos_gas)
 
     @lazy_property
@@ -438,6 +442,8 @@ class SubhaloParticleData:
 
     @lazy_property
     def DMAxisLengths(self):
+        if self.Mdm == 0:
+            return None
         return get_axis_lengths(self.mass_dm, self.pos_dm)
 
     @lazy_property
@@ -499,6 +505,8 @@ class SubhaloParticleData:
 
     @lazy_property
     def StellarAxisLengths(self):
+        if self.Mstar == 0:
+            return None
         return get_axis_lengths(self.mass_star, self.pos_star)
 
     @lazy_property
@@ -554,6 +562,8 @@ class SubhaloParticleData:
 
     @lazy_property
     def BaryonAxisLengths(self):
+        if self.Mbaryon == 0:
+            return None
         return get_axis_lengths(self.mass_baryons, self.pos_baryons)
 
     @lazy_property

@@ -339,6 +339,8 @@ class SingleProjectionProjectedApertureParticleData:
 
     @lazy_property
     def ProjectedGasAxisLengths(self):
+        if self.Mgas == 0:
+            return None
         return get_projected_axis_lengths(
             self.proj_mass_gas, self.proj_pos_gas, self.iproj
         )
@@ -373,12 +375,16 @@ class SingleProjectionProjectedApertureParticleData:
 
     @lazy_property
     def ProjectedStellarAxisLengths(self):
+        if self.Mstar == 0:
+            return None
         return get_projected_axis_lengths(
             self.proj_mass_star, self.proj_pos_star, self.iproj
         )
 
     @lazy_property
     def ProjectedBaryonAxisLengths(self):
+        if self.Mbaryons == 0:
+            return None
         return get_projected_axis_lengths(
             self.proj_mass_baryons, self.proj_pos_baryons, self.iproj
         )
