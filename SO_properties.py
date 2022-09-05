@@ -1213,6 +1213,8 @@ class SOProperties(HaloProperty):
 
         registry = input_halo["cofp"].units.registry
 
+        do_calculation = self.category_filter.get_filters(halo_result)
+
         SO = {}
         # declare all the variables we will compute
         # we set them to 0 in case a particular variable cannot be computed
@@ -1220,6 +1222,10 @@ class SOProperties(HaloProperty):
         # we need to use the custom unit registry so that everything can be converted
         # back to snapshot units in the end
         for prop in self.property_list:
+            # skip non-DMO properties in DMO run mode
+            is_dmo = prop[8]
+            if do_calculation["DMO"] and not is_dmo:
+                continue
             name = prop[0]
             shape = prop[2]
             dtype = prop[3]
@@ -1260,9 +1266,11 @@ class SOProperties(HaloProperty):
 
             if SO_exists:
 
-                do_calculation = self.category_filter.get_filters(halo_result)
-
                 for prop in self.property_list:
+                    # skip non-DMO properties in DMO run mode
+                    is_dmo = prop[8]
+                    if do_calculation["DMO"] and not is_dmo:
+                        continue
                     name = prop[0]
                     dtype = prop[3]
                     unit = prop[4]
@@ -1283,6 +1291,10 @@ class SOProperties(HaloProperty):
         # Return value should be a dict containing unyt_arrays and descriptions.
         # The dict keys will be used as HDF5 dataset names in the output.
         for prop in self.property_list:
+            # skip non-DMO properties in DMO run mode
+            is_dmo = prop[8]
+            if do_calculation["DMO"] and not is_dmo:
+                continue
             name = prop[0]
             outputname = prop[1]
             description = prop[5]

@@ -19,12 +19,14 @@ class CategoryFilter:
         Ndm=100,
         Nstar=50,
         Nbaryon=100,
+        dmo=False,
     ):
         self.Ngeneral = Ngeneral
         self.Ngas = Ngas
         self.Ndm = Ndm
         self.Nstar = Nstar
         self.Nbaryon = Nbaryon
+        self.dmo = dmo
 
     def get_filters_direct(self, Ngas, Ndm, Nstar, Nbh):
         return {
@@ -34,6 +36,7 @@ class CategoryFilter:
             "dm": Ndm > self.Ndm,
             "star": Nstar > self.Nstar,
             "baryon": Ngas + Nstar > self.Nbaryon,
+            "DMO": self.dmo,
         }
 
     def get_filters(self, halo_result):

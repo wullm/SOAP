@@ -561,6 +561,10 @@ class ProjectedApertureProperties(HaloProperty):
             # we need to use the custom unit registry so that everything can be converted
             # back to snapshot units in the end
             for prop in self.property_list:
+                # skip non-DMO properties in DMO run mode
+                is_dmo = prop[8]
+                if do_calculation["DMO"] and not is_dmo:
+                    continue
                 name = prop[0]
                 shape = prop[2]
                 dtype = prop[3]
@@ -590,6 +594,10 @@ class ProjectedApertureProperties(HaloProperty):
                 f"ProjectedAperture/{self.physical_radius_mpc*1000.:.0f}kpc/{projname}"
             )
             for prop in self.property_list:
+                # skip non-DMO properties in DMO run mode
+                is_dmo = prop[8]
+                if do_calculation["DMO"] and not is_dmo:
+                    continue
                 name = prop[0]
                 outputname = prop[1]
                 description = prop[5]

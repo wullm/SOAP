@@ -871,6 +871,10 @@ class SubhaloProperties(HaloProperty):
         # back to snapshot units in the end
         registry = part_props.mass.units.registry
         for prop in self.property_list:
+            # skip non-DMO properties in DMO run mode
+            is_dmo = prop[8]
+            if do_calculation["DMO"] and not is_dmo:
+                continue
             name = prop[0]
             shape = prop[2]
             dtype = prop[3]
@@ -902,6 +906,9 @@ class SubhaloProperties(HaloProperty):
         else:
             prefix = "FOFSubhaloProperties"
         for prop in self.property_list:
+            is_dmo = prop[8]
+            if do_calculation["DMO"] and not is_dmo:
+                continue
             name = prop[0]
             outputname = prop[1]
             description = prop[5]
