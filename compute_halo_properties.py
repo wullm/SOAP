@@ -137,7 +137,7 @@ def compute_halo_properties():
     )
     stellar_age_calculator = StellarAgeCalculator(cellgrid)
     category_filter = CategoryFilter(
-        Ngeneral=100, Ngas=50, Ndm=100, Nstar=50, Nbaryon=100, args.dmo
+        Ngeneral=100, Ngas=50, Ndm=100, Nstar=50, Nbaryon=100, dmo=args.dmo
     )
 
     # Get the full list of property calculations we can do
