@@ -40,16 +40,21 @@ class CategoryFilter:
         }
 
     def get_filters(self, halo_result):
-        Ngas = halo_result[
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}"
-        ][0].value
         Ndm = halo_result[
             f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}"
         ][0].value
-        Nstar = halo_result[
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}"
-        ][0].value
-        Nbh = halo_result[
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}"
-        ][0].value
+        if self.dmo:
+            Ngas = 0
+            Nstar = 0
+            Nbh = 0
+        else:
+            Ngas = halo_result[
+                f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}"
+            ][0].value
+            Nstar = halo_result[
+                f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}"
+            ][0].value
+            Nbh = halo_result[
+                f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}"
+            ][0].value
         return self.get_filters_direct(Ngas, Ndm, Nstar, Nbh)
