@@ -24,10 +24,25 @@ def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
     Combine the per-chunk output files into a single, sorted output
     """
 
-    # First MPI rank creates the output file and writes some metadata in serial mode
+    # Open the per-chunk scratch files
+    scratch_file = phdf5.MultiFile(
+        scratch_file_format, file_idx=range(nr_chunks), comm=comm_world
+    )
+
+    # Read the VR halo IDs from the scratch files and make a sorting index to put them in order
+    vr_id = scratch_file.read(("VR/ID",))["VR/ID"]
+    order = psort.parallel_sort(vr_id, return_index=True, comm=comm_world)
+    del vr_id
+
+    # Determine total number of halos
+    total_nr_halos = comm_world.allreduce(len(order))
+
+    # First MPI rank sets up the output file
     output_file = sub_snapnum(args.output_file, args.snapshot_nr)
     if comm_world.Get_rank() == 0:
+        # Create the file
         outfile = h5py.File(output_file, "w")
+        # Write parameters etc
         cellgrid.write_metadata(outfile.create_group("SWIFT"))
         params = outfile.create_group("Parameters")
         params.attrs["swift_filename"] = args.swift_filename
@@ -39,17 +54,17 @@ def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
         params.attrs["halo_ids"] = (
             args.halo_ids if args.halo_ids is not None else np.ndarray(0, dtype=int)
         )
+        # Create datasets for all halo properties
+        for name, size, unit, dtype, description in ref_metadata:
+            shape = (total_nr_halos,) + size
+            dataset = outfile.create_dataset(name, shape=shape, dtype=dtype, fillvalue=None)
+            # Add units and description
+            attrs = swift_units.attributes_from_units(unit)
+            attrs["Description"] = description
+            for attr_name, attr_value in attrs.items():
+                dataset.attrs[attr_name] = attr_value
         outfile.close()
-
-    # Open the per-chunk scratch files
-    scratch_file = phdf5.MultiFile(
-        scratch_file_format, file_idx=range(nr_chunks), comm=comm_world
-    )
-
-    # Read the VR halo IDs from the scratch files and make a sorting index to put them in order
-    vr_id = scratch_file.read(("VR/ID",))["VR/ID"]
-    order = psort.parallel_sort(vr_id, return_index=True, comm=comm_world)
-    del vr_id
+    comm_world.barrier()
 
     # Reopen the output file in parallel mode
     outfile = h5py.File(output_file, "r+", driver="mpio", comm=comm_world)
@@ -70,13 +85,7 @@ def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
 
         # Write these properties to the output file
         for name, size, unit, description in zip(names, sizes, units, descriptions):
-            # Write the data
-            phdf5.collective_write(outfile, name, data[name], comm=comm_world)
-            # Add units and description
-            attrs = swift_units.attributes_from_units(unit)
-            attrs["Description"] = description
-            for attr_name, attr_value in attrs.items():
-                outfile[name].attrs[attr_name] = attr_value
+            phdf5.collective_write(outfile, name, data[name], create_dataset=False, comm=comm_world)
 
         del data
 
