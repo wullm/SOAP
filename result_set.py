@@ -214,8 +214,9 @@ class ResultSet:
             names = sorted(self.result_arrays.keys())
             sizes = [self.result_arrays[n][0].shape[1:] for n in names]
             units = [self.result_arrays[n][0].units for n in names]
+            dtype = [self.result_arrays[n][0].dtype for n in names]
             descr = [self.result_arrays[n][1] for n in names]
-            my_metadata = list(zip(names, sizes, units, descr))
+            my_metadata = list(zip(names, sizes, units, dtype, descr))
         else:
             # This rank processed zero halos
             my_metadata = None

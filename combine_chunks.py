@@ -61,7 +61,7 @@ def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
         i2 = min(i1 + props_per_iteration, total_nr_props)
 
         # Find the properties to reorder on this iteration
-        names, sizes, units, descriptions = zip(*ref_metadata[i1:i2])
+        names, sizes, units, dtypes, descriptions = zip(*ref_metadata[i1:i2])
 
         # Read in and reorder the properties
         data = scratch_file.read(names)
