@@ -39,6 +39,7 @@ import projected_aperture_properties
 from recently_heated_gas_filter import RecentlyHeatedGasFilter
 from stellar_age_calculator import StellarAgeCalculator
 from category_filter import CategoryFilter
+from mpi_timer import MPITimer
 
 
 def split_comm_world():
@@ -424,17 +425,9 @@ def compute_halo_properties():
     ref_metadata = result_set.check_metadata(metadata, comm_inter_node, comm_world)
     
     # Combine chunks into a single output file
-    comm_world.barrier()
-    t0_reorder = time.time()
-    combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
-                   ref_metadata, nr_chunks, comm_world)
-    comm_world.barrier()
-    t1_reorder = time.time()
-    if comm_world_rank == 0:
-        print(
-            "Sorting %d halo properties took %.1fs"
-            % (len(ref_metadata), t1_reorder - t0_reorder)
-        )
+    with MPITimer("Sorting %d halo properties" % len(ref_metadata), comm_world):
+        combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
+                       ref_metadata, nr_chunks, comm_world)
 
     # Delete scratch files
     comm_world.barrier()
