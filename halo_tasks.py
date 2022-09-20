@@ -72,7 +72,7 @@ def process_single_halo(
         # Sanity checks on the radius
         assert current_radius <= input_halo["read_radius"]
         if current_radius > REPORT_RADIUS * swift_mpc:
-            print("Halo ID={input_halo['ID']} has large search radius {current_radius}")
+            print(f"Halo ID={input_halo['ID']} has large search radius {current_radius}")
 
         # Find the mass within the search radius
         mass_total = unyt.unyt_quantity(0.0, units=snap_mass)
