@@ -6,7 +6,7 @@ import unyt
 
 class PropertyTable:
 
-    categories = ["basic", "general", "gas", "dm", "star", "baryon"]
+    categories = ["basic", "general", "gas", "dm", "star", "baryon", "VR"]
     explanation = {
         "footnote_MBH.tex": ["BHmaxM"],
         "footnote_com.tex": ["com", "vcom"],
@@ -64,13 +64,25 @@ class PropertyTable:
         "footnote_dopplerB.tex": ["DopplerB"],
     }
 
+    compression_description = {
+        "FMantissa9": "$1.36693{\\rm{}e}10 \\rightarrow{} 1.367{\\rm{}e}10$",
+        "DScale5": "10 pc accurate",
+        "DScale1": "0.1 km/s accurate",
+        "Nbit40": "Store less bits",
+        "None": "no compression",
+    }
+
     # List of properties that get computed
+    # The key for each property is the name that is used internally in SOAP
     # For each property, we have the following columns:
-    #  - name: Name of the property within calculate() and in the output file
+    #  - name: Name of the property within the output file
     #  - shape: Shape of this property for a single halo (1: scalar, 3: vector...)
     #  - dtype: Data type that will be used. Should have enough precision to avoid over/underflow
     #  - unit: Units that will be used internally and for the output.
     #  - description: Description string that will be used to describe the property in the output.
+    #  - category: Category used to decide if this property should be calculated for a halo
+    #  - lossy compression filter: Lossy compression filter used in the output to reduce the file size
+    #  - DMO property: Should this property be calculated for a DMO run?
     full_property_list = {
         "BHlasteventa": (
             "BlackHolesLastEventScalefactor",
@@ -79,6 +91,8 @@ class PropertyTable:
             "dimensionless",
             "Scale-factor of last AGN event.",
             "general",
+            "FMantissa9",
+            False,
         ),
         "BHmaxAR": (
             "MostMassiveBlackHoleAccretionRate",
@@ -87,6 +101,8 @@ class PropertyTable:
             "Msun/yr",
             "Gas accretion rate of most massive black hole.",
             "general",
+            "FMantissa9",
+            False,
         ),
         "BHmaxID": (
             "MostMassiveBlackHoleID",
@@ -95,6 +111,8 @@ class PropertyTable:
             "dimensionless",
             "ID of most massive black hole.",
             "basic",
+            "Nbit40",
+            False,
         ),
         "BHmaxM": (
             "MostMassiveBlackHoleMass",
@@ -103,6 +121,8 @@ class PropertyTable:
             "Msun",
             "Mass of most massive black hole.",
             "basic",
+            "FMantissa9",
+            False,
         ),
         "BHmaxlasteventa": (
             "MostMassiveBlackHoleLastEventScalefactor",
@@ -111,6 +131,8 @@ class PropertyTable:
             "dimensionless",
             "Scale-factor of last AGN event for most massive black hole.",
             "general",
+            "FMantissa9",
+            False,
         ),
         "BHmaxpos": (
             "MostMassiveBlackHolePosition",
@@ -119,6 +141,8 @@ class PropertyTable:
             "kpc",
             "Position of most massive black hole.",
             "general",
+            "FMantissa9",
+            False,
         ),
         "BHmaxvel": (
             "MostMassiveBlackHoleVelocity",
@@ -127,6 +151,8 @@ class PropertyTable:
             "km/s",
             "Velocity of most massive black hole relative to the simulation volume.",
             "general",
+            "FMantissa9",
+            False,
         ),
         "BaryonAxisLengths": (
             "BaryonAxisLengths",
@@ -135,6 +161,8 @@ class PropertyTable:
             "kpc",
             "Axis lengths of the baryonic (gas and stars) mass distribution, computed from the 3D baryon inertia tensor, relative to the centre of potential.",
             "baryon",
+            "FMantissa9",
+            False,
         ),
         "DMAxisLengths": (
             "DarkMatterAxisLengths",
@@ -143,22 +171,8 @@ class PropertyTable:
             "kpc",
             "Axis lengths of the dark matter mass distribution, computed from the 3D DM inertia tensor, relative to the centre of potential.",
             "dm",
-        ),
-        "DtoTstar": (
-            "DiscToTotalStellarMassFraction",
-            1,
-            np.float32,
-            "dimensionless",
-            "Fraction of the total stellar mass that is co-rotating.",
-            "star",
-        ),
-        "DtoTgas": (
-            "DiscToTotalGasMassFraction",
-            1,
-            np.float32,
-            "dimensionless",
-            "Fraction of the total gas mass that is co-rotating.",
-            "gas",
+            "FMantissa9",
+            True,
         ),
         "DopplerB": (
             "DopplerB",
@@ -167,6 +181,28 @@ class PropertyTable:
             "dimensionless",
             "Kinetic Sunyaey-Zel'dovich effect, assuming a line of sight towards the position of the first lightcone observer.",
             "gas",
+            "FMantissa9",
+            False,
+        ),
+        "DtoTgas": (
+            "DiscToTotalGasMassFraction",
+            1,
+            np.float32,
+            "dimensionless",
+            "Fraction of the total gas mass that is co-rotating.",
+            "gas",
+            "FMantissa9",
+            False,
+        ),
+        "DtoTstar": (
+            "DiscToTotalStellarMassFraction",
+            1,
+            np.float32,
+            "dimensionless",
+            "Fraction of the total stellar mass that is co-rotating.",
+            "star",
+            "FMantissa9",
+            False,
         ),
         "Ekin_gas": (
             "KineticEnergyGas",
@@ -175,6 +211,8 @@ class PropertyTable:
             "erg",
             "Total kinetic energy of the gas, relative to the gas centre of mass velocity.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "Ekin_star": (
             "KineticEnergyStars",
@@ -183,6 +221,8 @@ class PropertyTable:
             "erg",
             "Total kinetic energy of the stars, relative to the stellar centre of mass velocity.",
             "star",
+            "FMantissa9",
+            False,
         ),
         "Etherm_gas": (
             "ThermalEnergyGas",
@@ -191,6 +231,8 @@ class PropertyTable:
             "erg",
             "Total thermal energy of the gas.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "GasAxisLengths": (
             "GasAxisLengths",
@@ -199,30 +241,8 @@ class PropertyTable:
             "kpc",
             "Axis lengths of the gas mass distribution, computed from the 3D gas inertia tensor, relative to the centre of potential.",
             "gas",
-        ),
-        "ProjectedGasAxisLengths": (
-            "ProjectedGasAxisLengths",
-            2,
-            np.float32,
-            "kpc",
-            "Axis lengths of the projected gas mass distribution, computed from the 2D gas inertia tensor, relative to the centre of potential.",
-            "gas",
-        ),
-        "ProjectedStellarAxisLengths": (
-            "ProjectedStellarAxisLengths",
-            2,
-            np.float32,
-            "kpc",
-            "Axis lengths of the projected stellar mass distribution, computed from the 2D stellar inertia tensor, relative to the centre of potential.",
-            "star",
-        ),
-        "ProjectedBaryonAxisLengths": (
-            "ProjectedBaryonAxisLengths",
-            2,
-            np.float32,
-            "kpc",
-            "Axis lengths of the projected baryon (gas and stars) mass distribution, computed from the 2D baryon inertia tensor, relative to the centre of potential.",
-            "baryon",
+            "FMantissa9",
+            False,
         ),
         "HalfMassRadiusBaryon": (
             "HalfMassRadiusBaryons",
@@ -231,6 +251,8 @@ class PropertyTable:
             "kpc",
             "Baryonic (gas and stars) half mass radius.",
             "baryon",
+            "FMantissa9",
+            False,
         ),
         "HalfMassRadiusDM": (
             "HalfMassRadiusDarkMatter",
@@ -239,6 +261,8 @@ class PropertyTable:
             "kpc",
             "Dark matter half mass radius.",
             "dm",
+            "FMantissa9",
+            True,
         ),
         "HalfMassRadiusGas": (
             "HalfMassRadiusGas",
@@ -247,6 +271,8 @@ class PropertyTable:
             "kpc",
             "Gas half mass radius.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "HalfMassRadiusStar": (
             "HalfMassRadiusStars",
@@ -255,6 +281,8 @@ class PropertyTable:
             "kpc",
             "Stellar half mass radius.",
             "star",
+            "FMantissa9",
+            False,
         ),
         "HalfMassRadiusTot": (
             "HalfMassRadiusTotal",
@@ -263,6 +291,8 @@ class PropertyTable:
             "kpc",
             "Total half mass radius.",
             "general",
+            "FMantissa9",
+            True,
         ),
         "Lbaryons": (
             "AngularMomentumBaryons",
@@ -271,6 +301,8 @@ class PropertyTable:
             "Msun*kpc*km/s",
             "Total angular momentum of baryons (gas and stars), relative to the centre of potential and baryonic centre of mass velocity.",
             "baryon",
+            "FMantissa9",
+            False,
         ),
         "Ldm": (
             "AngularMomentumDarkMatter",
@@ -279,6 +311,8 @@ class PropertyTable:
             "Msun*kpc*km/s",
             "Total angular momentum of the dark matter, relative to the centre of potential and DM centre of mass velocity.",
             "dm",
+            "FMantissa9",
+            True,
         ),
         "Lgas": (
             "AngularMomentumGas",
@@ -287,6 +321,8 @@ class PropertyTable:
             "Msun*kpc*km/s",
             "Total angular momentum of the gas, relative to the centre of potential and gas centre of mass velocity.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "Lstar": (
             "AngularMomentumStars",
@@ -295,6 +331,8 @@ class PropertyTable:
             "Msun*kpc*km/s",
             "Total angular momentum of the stars, relative to the centre of potential and stellar centre of mass velocity.",
             "star",
+            "FMantissa9",
+            False,
         ),
         "Mbh_dynamical": (
             "BlackHolesDynamicalMass",
@@ -303,6 +341,8 @@ class PropertyTable:
             "Msun",
             "Total BH dynamical mass.",
             "basic",
+            "FMantissa9",
+            False,
         ),
         "Mbh_subgrid": (
             "BlackHolesSubgridMass",
@@ -311,8 +351,19 @@ class PropertyTable:
             "Msun",
             "Total BH subgrid mass.",
             "basic",
+            "FMantissa9",
+            False,
         ),
-        "Mdm": ("DarkMatterMass", 1, np.float32, "Msun", "Total DM mass.", "basic"),
+        "Mdm": (
+            "DarkMatterMass",
+            1,
+            np.float32,
+            "Msun",
+            "Total DM mass.",
+            "basic",
+            "FMantissa9",
+            True,
+        ),
         "Mfrac_satellites": (
             "MassFractionSatellites",
             1,
@@ -320,8 +371,19 @@ class PropertyTable:
             "dimensionless",
             "Fraction of mass that is bound to a satellite.",
             "general",
+            "FMantissa9",
+            True,
         ),
-        "Mgas": ("GasMass", 1, np.float32, "Msun", "Total gas mass.", "basic"),
+        "Mgas": (
+            "GasMass",
+            1,
+            np.float32,
+            "Msun",
+            "Total gas mass.",
+            "basic",
+            "FMantissa9",
+            False,
+        ),
         "MgasFe": (
             "GasMassInIron",
             1,
@@ -329,6 +391,8 @@ class PropertyTable:
             "Msun",
             "Total gas mass in iron.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "MgasFe_SF": (
             "StarFormingGasMassInIron",
@@ -337,6 +401,8 @@ class PropertyTable:
             "Msun",
             "Total gas mass in iron for gas that is star-forming.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "MgasO": (
             "GasMassInOxygen",
@@ -345,6 +411,8 @@ class PropertyTable:
             "Msun",
             "Total gas mass in oxygen.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "MgasO_SF": (
             "StarFormingGasMassInOxygen",
@@ -353,6 +421,8 @@ class PropertyTable:
             "Msun",
             "Total gas mass in oxygen for gas that is star-forming.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "Mgas_SF": (
             "StarFormingGasMass",
@@ -361,6 +431,8 @@ class PropertyTable:
             "Msun",
             "Total mass of star-forming gas.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "Mgasmetal": (
             "GasMassInMetals",
@@ -369,6 +441,8 @@ class PropertyTable:
             "Msun",
             "Total gas mass in metals.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "Mgasmetal_SF": (
             "StarFormingGasMassInMetals",
@@ -377,6 +451,8 @@ class PropertyTable:
             "Msun",
             "Total gas mass in metals for gas that is star-forming.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "Mhotgas": (
             "HotGasMass",
@@ -385,6 +461,8 @@ class PropertyTable:
             "Msun",
             "Total mass of gas with a temperature above 1e5 K.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "Mnu": (
             "RawNeutrinoMass",
@@ -393,6 +471,8 @@ class PropertyTable:
             "Msun",
             "Total neutrino particle mass.",
             "basic",
+            "FMantissa9",
+            True,
         ),
         "MnuNS": (
             "NoiseSuppressedNeutrinoMass",
@@ -401,8 +481,19 @@ class PropertyTable:
             "Msun",
             "Noise suppressed total neutrino mass.",
             "basic",
+            "FMantissa9",
+            True,
         ),
-        "Mstar": ("StellarMass", 1, np.float32, "Msun", "Total stellar mass.", "basic"),
+        "Mstar": (
+            "StellarMass",
+            1,
+            np.float32,
+            "Msun",
+            "Total stellar mass.",
+            "basic",
+            "FMantissa9",
+            False,
+        ),
         "MstarFe": (
             "StellarMassInIron",
             1,
@@ -410,6 +501,8 @@ class PropertyTable:
             "Msun",
             "Total stellar mass in iron.",
             "star",
+            "FMantissa9",
+            False,
         ),
         "MstarO": (
             "StellarMassInOxygen",
@@ -418,6 +511,8 @@ class PropertyTable:
             "Msun",
             "Total stellar mass in oxygen.",
             "star",
+            "FMantissa9",
+            False,
         ),
         "Mstar_init": (
             "StellarInitialMass",
@@ -426,6 +521,8 @@ class PropertyTable:
             "Msun",
             "Total stellar initial mass.",
             "star",
+            "FMantissa9",
+            False,
         ),
         "Mstarmetal": (
             "StellarMassInMetals",
@@ -434,8 +531,19 @@ class PropertyTable:
             "Msun",
             "Total stellar mass in metals.",
             "star",
+            "FMantissa9",
+            False,
         ),
-        "Mtot": ("TotalMass", 1, np.float32, "Msun", "Total mass.", "basic"),
+        "Mtot": (
+            "TotalMass",
+            1,
+            np.float32,
+            "Msun",
+            "Total mass.",
+            "basic",
+            "FMantissa9",
+            True,
+        ),
         "Nbh": (
             "NumberOfBlackHoleParticles",
             1,
@@ -443,6 +551,8 @@ class PropertyTable:
             "dimensionless",
             "Number of black hole particles.",
             "basic",
+            "None",
+            False,
         ),
         "Ndm": (
             "NumberOfDarkMatterParticles",
@@ -451,6 +561,8 @@ class PropertyTable:
             "dimensionless",
             "Number of dark matter particles.",
             "basic",
+            "None",
+            True,
         ),
         "Ngas": (
             "NumberOfGasParticles",
@@ -459,6 +571,8 @@ class PropertyTable:
             "dimensionless",
             "Number of gas particles.",
             "basic",
+            "None",
+            False,
         ),
         "Nnu": (
             "NumberOfNeutrinoParticles",
@@ -467,6 +581,8 @@ class PropertyTable:
             "dimensionless",
             "Number of neutrino particles.",
             "basic",
+            "None",
+            False,
         ),
         "Nstar": (
             "NumberOfStarParticles",
@@ -475,6 +591,38 @@ class PropertyTable:
             "dimensionless",
             "Number of star particles.",
             "basic",
+            "None",
+            False,
+        ),
+        "ProjectedBaryonAxisLengths": (
+            "ProjectedBaryonAxisLengths",
+            2,
+            np.float32,
+            "kpc",
+            "Axis lengths of the projected baryon (gas and stars) mass distribution, computed from the 2D baryon inertia tensor, relative to the centre of potential.",
+            "baryon",
+            "FMantissa9",
+            False,
+        ),
+        "ProjectedGasAxisLengths": (
+            "ProjectedGasAxisLengths",
+            2,
+            np.float32,
+            "kpc",
+            "Axis lengths of the projected gas mass distribution, computed from the 2D gas inertia tensor, relative to the centre of potential.",
+            "gas",
+            "FMantissa9",
+            False,
+        ),
+        "ProjectedStellarAxisLengths": (
+            "ProjectedStellarAxisLengths",
+            2,
+            np.float32,
+            "kpc",
+            "Axis lengths of the projected stellar mass distribution, computed from the 2D stellar inertia tensor, relative to the centre of potential.",
+            "star",
+            "FMantissa9",
+            False,
         ),
         "R_vmax": (
             "MaximumCircularVelocityRadius",
@@ -483,6 +631,8 @@ class PropertyTable:
             "kpc",
             "Radius at which Vmax is reached.",
             "general",
+            "FMantissa9",
+            True,
         ),
         "SFR": (
             "StarFormationRate",
@@ -491,6 +641,8 @@ class PropertyTable:
             "Msun/yr",
             "Total star formation rate.",
             "general",
+            "FMantissa9",
+            False,
         ),
         "StellarAxisLengths": (
             "StellarAxisLengths",
@@ -499,6 +651,8 @@ class PropertyTable:
             "kpc",
             "Axis lengths of the stellar mass distribution, computed from the 3D stellar inertia tensor, relative to the centre of potential.",
             "star",
+            "FMantissa9",
+            False,
         ),
         "StellarLuminosity": (
             "StellarLuminosity",
@@ -507,6 +661,8 @@ class PropertyTable:
             "dimensionless",
             "Total stellar luminosity in the 9 GAMA bands.",
             "star",
+            "FMantissa9",
+            False,
         ),
         "Tgas": (
             "GasTemperature",
@@ -515,6 +671,8 @@ class PropertyTable:
             "K",
             "Mass-weighted mean gas temperature.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "Tgas_no_agn": (
             "GasTemperatureWithoutRecentAGNHeating",
@@ -523,6 +681,8 @@ class PropertyTable:
             "K",
             "Mass-weighted mean gas temperature, excluding gas that was recently heated by AGN.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "Tgas_no_cool": (
             "GasTemperatureWithoutCoolGas",
@@ -531,6 +691,8 @@ class PropertyTable:
             "K",
             "Mass-weighted mean gas temperature, excluding cool gas with a temperature below 1e5 K.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "Tgas_no_cool_no_agn": (
             "GasTemperatureWithoutCoolGasAndRecentAGNHeating",
@@ -539,6 +701,8 @@ class PropertyTable:
             "K",
             "Mass-weighted mean gas temperature, excluding cool gas with a temperature below 1e5 K and gas that was recently heated by AGN.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "TotalAxisLengths": (
             "TotalAxisLengths",
@@ -547,6 +711,78 @@ class PropertyTable:
             "kpc",
             "Axis lengths of the total mass distribution, computed from the 3D inertia tensor, relative to the centre of potential.",
             "general",
+            "FMantissa9",
+            True,
+        ),
+        "VRID": (
+            "ID",
+            1,
+            np.uint64,
+            "dimensionless",
+            "ID assigned to this halo by VR.",
+            "VR",
+            "None",
+            True,
+        ),
+        "VRParent_halo_ID": (
+            "ParentHaloID",
+            1,
+            np.int64,
+            "dimensionless",
+            "VR/ID of the direct parent of this halo. -1 for field halos.",
+            "VR",
+            "None",
+            True,
+        ),
+        "VRStructuretype": (
+            "StructureType",
+            1,
+            np.int32,
+            "dimensionless",
+            "Structure type identified by VR. Field halos are 10, higher numbers are for satellites.",
+            "VR",
+            "None",
+            True,
+        ),
+        "VRcofp": (
+            "CentreOfPotential",
+            3,
+            np.float64,
+            "Mpc",
+            "Centre of potential, as identified by VR. Used as reference for all relative positions.",
+            "VR",
+            "DScale5",
+            True,
+        ),
+        "VRhostHaloID": (
+            "HostHaloID",
+            1,
+            np.int64,
+            "dimensionless",
+            "VR/ID of the top level parent of this halo. -1 for field halos.",
+            "VR",
+            "None",
+            True,
+        ),
+        "VRindex": (
+            "Index",
+            1,
+            np.int64,
+            "dimensionless",
+            "Index of this halo in the original VR output.",
+            "VR",
+            "None",
+            True,
+        ),
+        "VRnumSubStruct": (
+            "NumberOfSubstructures",
+            1,
+            np.uint64,
+            "dimensionless",
+            "Number of sub-structures within this halo.",
+            "VR",
+            "None",
+            True,
         ),
         "Vmax": (
             "MaximumCircularVelocity",
@@ -555,6 +791,8 @@ class PropertyTable:
             "km/s",
             "Maximum circular velocity.",
             "general",
+            "FMantissa9",
+            True,
         ),
         "Xraylum": (
             "XRayLuminosity",
@@ -563,6 +801,8 @@ class PropertyTable:
             "erg/s",
             "Total rest-frame Xray luminosity in three bands.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "Xraylum_no_agn": (
             "XRayLuminosityWithoutRecentAGNHeating",
@@ -571,6 +811,8 @@ class PropertyTable:
             "erg/s",
             "Total rest-frame Xray luminosity in three bands. Excludes gas that was recently heated by AGN.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "Xrayphlum": (
             "XRayPhotonLuminosity",
@@ -579,6 +821,8 @@ class PropertyTable:
             "1/s",
             "Total rest-frame Xray photon luminosity in three bands.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "Xrayphlum_no_agn": (
             "XRayPhotonLuminosityWithoutRecentAGNHeating",
@@ -587,8 +831,19 @@ class PropertyTable:
             "1/s",
             "Total rest-frame Xray photon luminosity in three bands. Exclude gas that was recently heated by AGN.",
             "gas",
+            "FMantissa9",
+            False,
         ),
-        "com": ("CentreOfMass", 3, np.float32, "kpc", "Centre of mass.", "basic"),
+        "com": (
+            "CentreOfMass",
+            3,
+            np.float32,
+            "Mpc",
+            "Centre of mass.",
+            "basic",
+            "DScale5",
+            True,
+        ),
         "com_gas": (
             "GasCentreOfMass",
             3,
@@ -596,6 +851,8 @@ class PropertyTable:
             "Mpc",
             "Centre of mass of gas.",
             "gas",
+            "DScale5",
+            False,
         ),
         "com_star": (
             "StellarCentreOfMass",
@@ -604,6 +861,8 @@ class PropertyTable:
             "Mpc",
             "Centre of mass of stars.",
             "star",
+            "DScale5",
+            False,
         ),
         "compY": (
             "ComptonY",
@@ -612,6 +871,8 @@ class PropertyTable:
             "cm**2",
             "Total Compton y parameter.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "compY_no_agn": (
             "ComptonYWithoutRecentAGNHeating",
@@ -620,6 +881,8 @@ class PropertyTable:
             "cm**2",
             "Total Compton y parameter. Excludes gas that was recently heated by AGN.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "kappa_corot_baryons": (
             "KappaCorotBaryons",
@@ -628,6 +891,8 @@ class PropertyTable:
             "dimensionless",
             "Kappa-corot for baryons (gas and stars), relative to the centre of potential and the centre of mass velocity of the baryons.",
             "baryon",
+            "FMantissa9",
+            False,
         ),
         "kappa_corot_gas": (
             "KappaCorotGas",
@@ -636,6 +901,8 @@ class PropertyTable:
             "dimensionless",
             "Kappa-corot for gas, relative to the centre of potential and the centre of mass velocity of the gas.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "kappa_corot_star": (
             "KappaCorotStars",
@@ -644,6 +911,8 @@ class PropertyTable:
             "dimensionless",
             "Kappa-corot for stars, relative to the centre of potential and the centre of mass velocity of the stars.",
             "star",
+            "FMantissa9",
+            False,
         ),
         "proj_veldisp_dm": (
             "DarkMatterProjectedVelocityDispersion",
@@ -652,6 +921,8 @@ class PropertyTable:
             "km/s",
             "Mass-weighted velocity dispersion of the DM along the projection axis, relative to the DM centre of mass velocity.",
             "dm",
+            "FMantissa9",
+            True,
         ),
         "proj_veldisp_gas": (
             "GasProjectedVelocityDispersion",
@@ -660,6 +931,8 @@ class PropertyTable:
             "km/s",
             "Mass-weighted velocity dispersion of the gas along the projection axis, relative to the gas centre of mass velocity.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "proj_veldisp_star": (
             "StellarProjectedVelocityDispersion",
@@ -668,8 +941,19 @@ class PropertyTable:
             "km/s",
             "Mass-weighted velocity dispersion of the stars along the projection axis, relative to the stellar centre of mass velocity.",
             "star",
+            "FMantissa9",
+            False,
         ),
-        "r": ("SORadius", 1, np.float32, "Mpc", "Radius of a sphere {label}", "basic"),
+        "r": (
+            "SORadius",
+            1,
+            np.float32,
+            "Mpc",
+            "Radius of a sphere {label}",
+            "basic",
+            "FMantissa9",
+            True,
+        ),
         "spin_parameter": (
             "SpinParameter",
             1,
@@ -677,6 +961,28 @@ class PropertyTable:
             "dimensionless",
             "Bullock et al. (2001) spin parameter.",
             "general",
+            "FMantissa9",
+            True,
+        ),
+        "stellar_age_lw": (
+            "LuminosityWeightedMeanStellarAge",
+            1,
+            np.float32,
+            "Myr",
+            "Luminosity weighted mean stellar age. The weight is the r band luminosity.",
+            "star",
+            "FMantissa9",
+            False,
+        ),
+        "stellar_age_mw": (
+            "MassWeightedMeanStellarAge",
+            1,
+            np.float32,
+            "Myr",
+            "Mass weighted mean stellar age.",
+            "star",
+            "FMantissa9",
+            False,
         ),
         "vcom": (
             "CentreOfMassVelocity",
@@ -685,6 +991,8 @@ class PropertyTable:
             "km/s",
             "Centre of mass velocity.",
             "basic",
+            "DScale1",
+            True,
         ),
         "vcom_gas": (
             "GasCentreOfMassVelocity",
@@ -693,6 +1001,8 @@ class PropertyTable:
             "km/s",
             "Centre of mass velocity of gas.",
             "gas",
+            "DScale1",
+            False,
         ),
         "vcom_star": (
             "StellarCentreOfMassVelocity",
@@ -701,6 +1011,8 @@ class PropertyTable:
             "km/s",
             "Centre of mass velocity of stars.",
             "star",
+            "DScale1",
+            False,
         ),
         "veldisp_matrix_dm": (
             "DarkMatterVelocityDispersionMatrix",
@@ -709,6 +1021,8 @@ class PropertyTable:
             "km**2/s**2",
             "Mass-weighted velocity dispersion of the dark matter. Measured relative to the DM centre of mass velocity. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
             "dm",
+            "FMantissa9",
+            True,
         ),
         "veldisp_matrix_gas": (
             "GasVelocityDispersionMatrix",
@@ -717,6 +1031,8 @@ class PropertyTable:
             "km**2/s**2",
             "Mass-weighted velocity dispersion of the gas. Measured relative to the gas centre of mass velocity. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
             "gas",
+            "FMantissa9",
+            False,
         ),
         "veldisp_matrix_star": (
             "StellarVelocityDispersionMatrix",
@@ -725,8 +1041,16 @@ class PropertyTable:
             "km**2/s**2",
             "Mass-weighted velocity dispersion of the stars. Measured relative to the stellar centre of mass velocity. The order of the components of the dispersion tensor is XX YY ZZ XY XZ YZ.",
             "star",
+            "FMantissa9",
+            False,
         ),
     }
+
+    # we should really use removeprefix("VR") instead of [2:], but that only
+    # exists since Python 3.9
+    vr_properties = [
+        vrname[2:] for vrname in full_property_list.keys() if vrname.startswith("VR")
+    ]
 
     def get_footnotes(self, name):
         footnotes = []
@@ -759,6 +1083,8 @@ class PropertyTable:
             prop_units,
             prop_description,
             prop_cat,
+            prop_comp,
+            prop_dmo,
         ) in enumerate(props):
             prop_units = (
                 unyt.unyt_quantity(1, units=prop_units)
@@ -810,6 +1136,8 @@ class PropertyTable:
                     "units": prop_units,
                     "description": prop_description,
                     "category": prop_cat,
+                    "compression": prop_comp,
+                    "dmo": prop_dmo,
                     "types": [halo_type],
                     "raw": props[i],
                 }
@@ -820,15 +1148,18 @@ class PropertyTable:
         for name in names:
             (
                 raw_name,
+                raw_outputname,
                 raw_shape,
                 raw_dtype,
                 raw_units,
                 raw_description,
                 raw_cat,
+                raw_comp,
+                raw_dmo,
             ) = self.properties[name]["raw"]
             raw_dtype = f"np.{raw_dtype.__name__}"
             print(
-                f'  "{raw_name}": ("{raw_name}", {raw_shape}, {raw_dtype}, "{raw_units}", "{raw_description}", "{raw_cat}"),'
+                f'  "{raw_name}": ("{raw_outputname}", {raw_shape}, {raw_dtype}, "{raw_units}", "{raw_description}", "{raw_cat}", "{raw_comp}", {raw_dmo}),'
             )
         print("}")
 
@@ -848,12 +1179,14 @@ class PropertyTable:
 \\usepackage{pdflscape}
 \\usepackage{a4wide}
 \\usepackage{multirow}
+\\usepackage{xcolor}
+
 \\begin{document}"""
 
         tablestr = """\\begin{landscape}
-\\begin{longtable}{llllllllll}
-Name & Shape & Type & Units & SH & ES & IS & EP & SO & Category \\\\
-\\multicolumn{10}{l}{\\rule{30pt}{0pt}Description}\\\\
+\\begin{longtable}{lllllllllll}
+Name & Shape & Type & Units & SH & ES & IS & EP & SO & Category & Compression\\\\
+\\multicolumn{11}{l}{\\rule{30pt}{0pt}Description}\\\\
 \\hline{}\\endhead{}"""
         prev_cat = None
         for prop_name in prop_names:
@@ -864,6 +1197,7 @@ Name & Shape & Type & Units & SH & ES & IS & EP & SO & Category \\\\
             prop_dtype = prop["dtype"]
             prop_units = f'${prop["units"]}$' if prop["units"] != "" else "(no unit)"
             prop_cat = prop["category"]
+            prop_comp = self.compression_description[prop["compression"]]
             prop_description = prop["description"].format(
                 label="satisfying a spherical overdensity criterion."
             )
@@ -880,32 +1214,31 @@ Name & Shape & Type & Units & SH & ES & IS & EP & SO & Category \\\\
                 checkmark if "ProjectedApertureProperties" in prop["types"] else xmark
             )
             prop_SO = checkmark if "SOProperties" in prop["types"] else xmark
+            table_props = [
+                prop_outputname,
+                prop_shape,
+                prop_dtype,
+                prop_units,
+                prop_subhalo,
+                prop_exclusive,
+                prop_inclusive,
+                prop_projected,
+                prop_SO,
+                prop_cat,
+                prop_comp,
+            ]
+            if prop["dmo"]:
+                print_table_props = [f"{{\\color{{violet}}{v}}}" for v in table_props]
+                prop_description = f"{{\\color{{violet}}{prop_description}}}"
+            else:
+                print_table_props = list(table_props)
             if prev_cat is None:
                 prev_cat = prop_cat
             if prop_cat != prev_cat:
                 prev_cat = prop_cat
                 tablestr += "\\hline{}"
-            tablestr += (
-                "\\rule{0pt}{4ex}"
-                + " & ".join(
-                    [
-                        v
-                        for v in [
-                            prop_outputname,
-                            prop_shape,
-                            prop_dtype,
-                            prop_units,
-                            prop_subhalo,
-                            prop_exclusive,
-                            prop_inclusive,
-                            prop_projected,
-                            prop_SO,
-                            prop_cat,
-                        ]
-                    ]
-                )
-                + "\\\\*\n"
-            )
+            tablestr += "\\rule{0pt}{4ex}"
+            tablestr += " & ".join([v for v in print_table_props]) + "\\\\*\n"
             tablestr += f"\\multicolumn{{10}}{{p{{20cm}}}}{{\\rule{{30pt}}{{0pt}}{prop_description}}}\\\\\n"
         tablestr += """\\end{longtable}
 \\end{landscape}"""

@@ -37,6 +37,7 @@ def get_halo_props_args(comm):
         parser.add_argument("--extra-input", metavar="FORMAT_STRING",
                             help="Format string to generate names of files with additional particle datasets (e.g. halo membership). Use %%(file_nr)d for the file number and %%(snap_nr)04d for the snapshot.")
         parser.add_argument("--centrals-only", action="store_true", help="Only process central halos")
+        parser.add_argument("--dmo", action="store_true", help="Run in dark matter only mode")
         parser.add_argument("--max-halos", metavar="N", nargs=1, type=int, default=(0,),
                             help="(For debugging) only process the first N halos in the catalogue")
         parser.add_argument("--calculations", nargs="*", help="Which calculations to do (default is to do all)")

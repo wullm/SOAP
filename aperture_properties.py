@@ -14,11 +14,780 @@ from kinematic_properties import (
     get_axis_lengths,
 )
 from recently_heated_gas_filter import RecentlyHeatedGasFilter
+from stellar_age_calculator import StellarAgeCalculator
 from property_table import PropertyTable
+from lazy_properties import lazy_property
+from category_filter import CategoryFilter
 
 # index of elements O and Fe in the SmoothedElementMassFractions dataset
 indexO = 4
 indexFe = 8
+
+rbandindex = 2
+
+
+class ApertureParticleData:
+    def __init__(
+        self,
+        input_halo,
+        data,
+        types_present,
+        inclusive,
+        aperture_radius,
+        stellar_age_calculator,
+        recently_heated_gas_filter,
+    ):
+        self.input_halo = input_halo
+        self.data = data
+        self.types_present = types_present
+        self.inclusive = inclusive
+        self.aperture_radius = aperture_radius
+        self.stellar_age_calculator = stellar_age_calculator
+        self.recently_heated_gas_filter = recently_heated_gas_filter
+        self.compute_basics()
+
+    def compute_basics(self):
+        self.centre = self.input_halo["cofp"]
+        self.index = self.input_halo["index"]
+        mass = []
+        position = []
+        radius = []
+        velocity = []
+        types = []
+        for ptype in self.types_present:
+            grnr = self.data[ptype]["GroupNr_bound"]
+            if self.inclusive:
+                in_halo = np.ones(grnr.shape, dtype=bool)
+            else:
+                in_halo = grnr == self.index
+            mass.append(self.data[ptype][mass_dataset(ptype)][in_halo])
+            pos = self.data[ptype]["Coordinates"][in_halo, :] - self.centre[None, :]
+            position.append(pos)
+            r = np.sqrt(pos[:, 0] ** 2 + pos[:, 1] ** 2 + pos[:, 2] ** 2)
+            radius.append(r)
+            velocity.append(self.data[ptype]["Velocities"][in_halo, :])
+            typearr = np.zeros(r.shape, dtype="U9")
+            typearr[:] = ptype
+            types.append(typearr)
+
+        self.mass = unyt.array.uconcatenate(mass)
+        self.position = unyt.array.uconcatenate(position)
+        self.radius = unyt.array.uconcatenate(radius)
+        self.velocity = unyt.array.uconcatenate(velocity)
+        self.types = np.concatenate(types)
+
+        self.mask = self.radius <= self.aperture_radius
+
+        self.mass = self.mass[self.mask]
+        self.position = self.position[self.mask]
+        self.velocity = self.velocity[self.mask]
+        self.radius = self.radius[self.mask]
+        self.type = self.types[self.mask]
+
+    @lazy_property
+    def gas_mask_ap(self):
+        return self.mask[self.types == "PartType0"]
+
+    @lazy_property
+    def dm_mask_ap(self):
+        return self.mask[self.types == "PartType1"]
+
+    @lazy_property
+    def star_mask_ap(self):
+        return self.mask[self.types == "PartType4"]
+
+    @lazy_property
+    def bh_mask_ap(self):
+        return self.mask[self.types == "PartType5"]
+
+    @lazy_property
+    def baryon_mask_ap(self):
+        return self.mask[(self.types == "PartType0") | (self.types == "PartType4")]
+
+    @lazy_property
+    def Ngas(self):
+        return self.gas_mask_ap.sum()
+
+    @lazy_property
+    def Ndm(self):
+        return self.dm_mask_ap.sum()
+
+    @lazy_property
+    def Nstar(self):
+        return self.star_mask_ap.sum()
+
+    @lazy_property
+    def Nbh(self):
+        return self.bh_mask_ap.sum()
+
+    @lazy_property
+    def Nbaryon(self):
+        return self.baryon_mask_ap.sum()
+
+    @lazy_property
+    def mass_gas(self):
+        return self.mass[self.type == "PartType0"]
+
+    @lazy_property
+    def mass_dm(self):
+        return self.mass[self.type == "PartType1"]
+
+    @lazy_property
+    def mass_star(self):
+        return self.mass[self.type == "PartType4"]
+
+    @lazy_property
+    def mass_baryons(self):
+        return self.mass[(self.type == "PartType0") | (self.type == "PartType4")]
+
+    @lazy_property
+    def pos_gas(self):
+        return self.position[self.type == "PartType0"]
+
+    @lazy_property
+    def pos_dm(self):
+        return self.position[self.type == "PartType1"]
+
+    @lazy_property
+    def pos_star(self):
+        return self.position[self.type == "PartType4"]
+
+    @lazy_property
+    def pos_baryons(self):
+        return self.position[(self.type == "PartType0") | (self.type == "PartType4")]
+
+    @lazy_property
+    def vel_gas(self):
+        return self.velocity[self.type == "PartType0"]
+
+    @lazy_property
+    def vel_dm(self):
+        return self.velocity[self.type == "PartType1"]
+
+    @lazy_property
+    def vel_star(self):
+        return self.velocity[self.type == "PartType4"]
+
+    @lazy_property
+    def vel_baryons(self):
+        return self.velocity[(self.type == "PartType0") | (self.type == "PartType4")]
+
+    @lazy_property
+    def Mtot(self):
+        return self.mass.sum()
+
+    @lazy_property
+    def Mgas(self):
+        return self.mass_gas.sum()
+
+    @lazy_property
+    def Mdm(self):
+        return self.mass_dm.sum()
+
+    @lazy_property
+    def Mstar(self):
+        return self.mass_star.sum()
+
+    @lazy_property
+    def Mbh_dynamical(self):
+        return self.mass[self.type == "PartType5"].sum()
+
+    @lazy_property
+    def Mbaryons(self):
+        return self.Mgas + self.Mstar
+
+    @lazy_property
+    def star_mask_all(self):
+        if self.Nstar == 0:
+            return None
+        if self.inclusive:
+            return np.ones(self.data["PartType4"]["GroupNr_bound"].shape, dtype=bool)
+        else:
+            return self.data["PartType4"]["GroupNr_bound"] == self.index
+
+    @lazy_property
+    def Mstar_init(self):
+        if self.Nstar == 0:
+            return None
+        return self.data["PartType4"]["InitialMasses"][self.star_mask_all][
+            self.star_mask_ap
+        ].sum()
+
+    @lazy_property
+    def stellar_luminosities(self):
+        if self.Nstar == 0:
+            return None
+        return self.data["PartType4"]["Luminosities"][self.star_mask_all][
+            self.star_mask_ap
+        ]
+
+    @lazy_property
+    def StellarLuminosity(self):
+        if self.Nstar == 0:
+            return None
+        return self.stellar_luminosities.sum(axis=0)
+
+    @lazy_property
+    def Mstarmetal(self):
+        if self.Nstar == 0:
+            return None
+        return (
+            self.mass_star
+            * self.data["PartType4"]["MetalMassFractions"][self.star_mask_all][
+                self.star_mask_ap
+            ]
+        ).sum()
+
+    @lazy_property
+    def stellar_MstarO(self):
+        if self.Nstar == 0:
+            return None
+        return (
+            self.mass_star
+            * self.data["PartType4"]["SmoothedElementMassFractions"][
+                self.star_mask_all
+            ][self.star_mask_ap][:, indexO]
+        )
+
+    @lazy_property
+    def MstarO(self):
+        if self.Nstar == 0:
+            return None
+        return self.stellar_MstarO.sum()
+
+    @lazy_property
+    def stellar_MstarFe(self):
+        if self.Nstar == 0:
+            return None
+        return (
+            self.mass_star
+            * self.data["PartType4"]["SmoothedElementMassFractions"][
+                self.star_mask_all
+            ][self.star_mask_ap][:, indexFe]
+        )
+
+    @lazy_property
+    def MstarFe(self):
+        if self.Nstar == 0:
+            return None
+        return self.stellar_MstarFe.sum()
+
+    @lazy_property
+    def stellar_ages(self):
+        if self.Nstar == 0:
+            return None
+        birth_a = self.data["PartType4"]["BirthScaleFactors"][self.star_mask_all][
+            self.star_mask_ap
+        ]
+        return self.stellar_age_calculator.stellar_age(birth_a)
+
+    @lazy_property
+    def star_mass_fraction(self):
+        if self.Mstar == 0:
+            return None
+        return self.mass_star / self.Mstar
+
+    @lazy_property
+    def stellar_age_mw(self):
+        if self.Nstar == 0 or self.Mstar == 0:
+            return None
+        return (self.star_mass_fraction * self.stellar_ages).sum()
+
+    @lazy_property
+    def stellar_age_lw(self):
+        if self.Nstar == 0:
+            return None
+        Lr = self.stellar_luminosities[:, rbandindex]
+        Lrtot = Lr.sum()
+        if Lrtot == 0:
+            return None
+        return ((Lr / Lrtot) * self.stellar_ages).sum()
+
+    @lazy_property
+    def bh_mask_all(self):
+        if self.Nbh == 0:
+            return None
+        if self.inclusive:
+            return np.ones(self.data["PartType5"]["GroupNr_bound"].shape, dtype=bool)
+        else:
+            return self.data["PartType5"]["GroupNr_bound"] == self.index
+
+    @lazy_property
+    def Mbh_subgrid(self):
+        if self.Nbh == 0:
+            return None
+        return self.data["PartType5"]["SubgridMasses"][self.bh_mask_all][
+            self.bh_mask_ap
+        ].sum()
+
+    @lazy_property
+    def agn_eventa(self):
+        if self.Nbh == 0:
+            return None
+        return self.data["PartType5"]["LastAGNFeedbackScaleFactors"][self.bh_mask_all][
+            self.bh_mask_ap
+        ]
+
+    @lazy_property
+    def BHlasteventa(self):
+        if self.Nbh == 0:
+            return None
+        return np.max(self.agn_eventa)
+
+    @lazy_property
+    def iBHmax(self):
+        if self.Nbh == 0:
+            return None
+        return np.argmax(
+            self.data["PartType5"]["SubgridMasses"][self.bh_mask_all][self.bh_mask_ap]
+        )
+
+    @lazy_property
+    def BHmaxM(self):
+        if self.Nbh == 0:
+            return None
+        return self.data["PartType5"]["SubgridMasses"][self.bh_mask_all][
+            self.bh_mask_ap
+        ][self.iBHmax]
+
+    @lazy_property
+    def BHmaxID(self):
+        if self.Nbh == 0:
+            return None
+        return self.data["PartType5"]["ParticleIDs"][self.bh_mask_all][self.bh_mask_ap][
+            self.iBHmax
+        ]
+
+    @lazy_property
+    def BHmaxpos(self):
+        if self.Nbh == 0:
+            return None
+        return self.data["PartType5"]["Coordinates"][self.bh_mask_all][self.bh_mask_ap][
+            self.iBHmax
+        ]
+
+    @lazy_property
+    def BHmaxvel(self):
+        if self.Nbh == 0:
+            return None
+        return self.data["PartType5"]["Velocities"][self.bh_mask_all][self.bh_mask_ap][
+            self.iBHmax
+        ]
+
+    @lazy_property
+    def BHmaxAR(self):
+        if self.Nbh == 0:
+            return None
+        return self.data["PartType5"]["AccretionRates"][self.bh_mask_all][
+            self.bh_mask_ap
+        ][self.iBHmax]
+
+    @lazy_property
+    def BHmaxlasteventa(self):
+        if self.Nbh == 0:
+            return None
+        return self.agn_eventa[self.iBHmax]
+
+    @lazy_property
+    def mass_fraction(self):
+        if self.Mtot == 0:
+            return None
+        return self.mass / self.Mtot
+
+    @lazy_property
+    def com(self):
+        if self.Mtot == 0:
+            return None
+        return (self.mass_fraction[:, None] * self.position).sum(axis=0) + self.centre
+
+    @lazy_property
+    def vcom(self):
+        if self.Mtot == 0:
+            return None
+        return (self.mass_fraction[:, None] * self.velocity).sum(axis=0)
+
+    @lazy_property
+    def spin_parameter(self):
+        if self.Mtot == 0:
+            return None
+        _, vmax = get_vmax(self.mass, self.radius)
+        if vmax == 0:
+            return None
+        vrel = self.velocity - self.vcom[None, :]
+        Ltot = unyt.array.unorm(
+            (self.mass[:, None] * unyt.array.ucross(self.position, vrel)).sum(axis=0)
+        )
+        return Ltot / (np.sqrt(2.0) * self.Mtot * self.aperture_radius * vmax)
+
+    @lazy_property
+    def gas_mass_fraction(self):
+        if self.Mgas == 0:
+            return None
+        return self.mass_gas / self.Mgas
+
+    @lazy_property
+    def vcom_gas(self):
+        if self.Mgas == 0:
+            return None
+        return (self.gas_mass_fraction[:, None] * self.vel_gas).sum(axis=0)
+
+    def compute_Lgas_props(self):
+        (
+            self.internal_Lgas,
+            self.internal_kappa_gas,
+            self.internal_Mcountrot_gas,
+        ) = get_angular_momentum_and_kappa_corot(
+            self.mass_gas,
+            self.pos_gas,
+            self.vel_gas,
+            ref_velocity=self.vcom_gas,
+            do_counterrot_mass=True,
+        )
+
+    @lazy_property
+    def Lgas(self):
+        if self.Mgas == 0:
+            return None
+        if not hasattr(self, "internal_Lgas"):
+            self.compute_Lgas_props()
+        return self.internal_Lgas
+
+    @lazy_property
+    def kappa_corot_gas(self):
+        if self.Mgas == 0:
+            return None
+        if not hasattr(self, "internal_kappa_gas"):
+            self.compute_Lgas_props()
+        return self.internal_kappa_gas
+
+    @lazy_property
+    def DtoTgas(self):
+        if self.Mgas == 0:
+            return None
+        if not hasattr(self, "internal_Mcountrot_gas"):
+            self.compute_Lgas_props()
+        return 1.0 - 2.0 * self.internal_Mcountrot_gas / self.Mgas
+
+    @lazy_property
+    def Ekin_gas(self):
+        if self.Mgas == 0:
+            return None
+        # below we need to force conversion to np.float64 before summing
+        # up particles to avoid overflow
+        ekin_gas = self.mass_gas * ((self.vel_gas - self.vcom_gas) ** 2).sum(axis=1)
+        ekin_gas = unyt.unyt_array(
+            ekin_gas.value, dtype=np.float64, units=ekin_gas.units
+        )
+        return 0.5 * ekin_gas.sum()
+
+    @lazy_property
+    def GasAxisLengths(self):
+        if self.Mgas == 0:
+            return None
+        return get_axis_lengths(self.mass_gas, self.pos_gas)
+
+    @lazy_property
+    def dm_mass_fraction(self):
+        if self.Mdm == 0:
+            return None
+        return self.mass_dm / self.Mdm
+
+    @lazy_property
+    def vcom_dm(self):
+        if self.Mdm == 0:
+            return None
+        return (self.dm_mass_fraction[:, None] * self.vel_dm).sum(axis=0)
+
+    @lazy_property
+    def Ldm(self):
+        if self.Mdm == 0:
+            return None
+        return get_angular_momentum(
+            self.mass_dm, self.pos_dm, self.vel_dm, ref_velocity=self.vcom_dm
+        )
+
+    @lazy_property
+    def DMAxisLengths(self):
+        if self.Mdm == 0:
+            return None
+        return get_axis_lengths(self.mass_dm, self.pos_dm)
+
+    @lazy_property
+    def vcom_star(self):
+        if self.Mstar == 0:
+            return None
+        return (self.star_mass_fraction[:, None] * self.vel_star).sum(axis=0)
+
+    def compute_Lstar_props(self):
+        (
+            self.internal_Lstar,
+            self.internal_kappa_star,
+            self.internal_Mcountrot_star,
+        ) = get_angular_momentum_and_kappa_corot(
+            self.mass_star,
+            self.pos_star,
+            self.vel_star,
+            ref_velocity=self.vcom_star,
+            do_counterrot_mass=True,
+        )
+
+    @lazy_property
+    def Lstar(self):
+        if self.Mstar == 0:
+            return None
+        if not hasattr(self, "internal_Lstar"):
+            self.compute_Lstar_props()
+        return self.internal_Lstar
+
+    @lazy_property
+    def kappa_corot_star(self):
+        if self.Mstar == 0:
+            return None
+        if not hasattr(self, "internal_kappa_star"):
+            self.compute_Lstar_props()
+        return self.internal_kappa_star
+
+    @lazy_property
+    def DtoTstar(self):
+        if self.Mstar == 0:
+            return None
+        if not hasattr(self, "internal_Mcountrot_star"):
+            self.compute_Lstar_props()
+        return 1.0 - 2.0 * self.internal_Mcountrot_star / self.Mstar
+
+    @lazy_property
+    def StellarAxisLengths(self):
+        if self.Mstar == 0:
+            return None
+        return get_axis_lengths(self.mass_star, self.pos_star)
+
+    @lazy_property
+    def Ekin_star(self):
+        if self.Mstar == 0:
+            return None
+        # below we need to force conversion to np.float64 before summing
+        # up particles to avoid overflow
+        ekin_star = self.mass_star * ((self.vel_star - self.vcom_star) ** 2).sum(axis=1)
+        ekin_star = unyt.unyt_array(
+            ekin_star.value, dtype=np.float64, units=ekin_star.units
+        )
+        return 0.5 * ekin_star.sum()
+
+    @lazy_property
+    def baryon_mass_fraction(self):
+        if self.Mbaryons == 0:
+            return None
+        return self.mass_baryons / self.Mbaryons
+
+    @lazy_property
+    def vcom_bar(self):
+        if self.Mbaryons == 0:
+            return None
+        return (self.baryon_mass_fraction[:, None] * self.vel_baryons).sum(axis=0)
+
+    def compute_Lbar_props(self):
+        (
+            self.internal_Lbar,
+            self.internal_kappa_bar,
+        ) = get_angular_momentum_and_kappa_corot(
+            self.mass_baryons,
+            self.pos_baryons,
+            self.vel_baryons,
+            ref_velocity=self.vcom_bar,
+        )
+
+    @lazy_property
+    def Lbaryons(self):
+        if self.Mbaryons == 0:
+            return None
+        if not hasattr(self, "internal_Lbar"):
+            self.compute_Lbar_props()
+        return self.internal_Lbar
+
+    @lazy_property
+    def kappa_corot_baryons(self):
+        if self.Mbaryons == 0:
+            return None
+        if not hasattr(self, "internal_kappa_bar"):
+            self.compute_Lbar_props()
+        return self.internal_kappa_bar
+
+    @lazy_property
+    def BaryonAxisLengths(self):
+        if self.Mbaryons == 0:
+            return None
+        return get_axis_lengths(self.mass_baryons, self.pos_baryons)
+
+    @lazy_property
+    def gas_mask_all(self):
+        if self.Ngas == 0:
+            return None
+        if self.inclusive:
+            return np.ones(self.data["PartType0"]["GroupNr_bound"].shape, dtype=bool)
+        else:
+            return self.data["PartType0"]["GroupNr_bound"] == self.index
+
+    @lazy_property
+    def gas_SFR(self):
+        if self.Ngas == 0:
+            return None
+        raw_SFR = self.data["PartType0"]["StarFormationRates"][self.gas_mask_all][
+            self.gas_mask_ap
+        ]
+        # Negative SFR are not SFR at all!
+        raw_SFR[raw_SFR < 0] = 0
+        return raw_SFR
+
+    @lazy_property
+    def is_SFR(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_SFR > 0
+
+    @lazy_property
+    def SFR(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_SFR.sum()
+
+    @lazy_property
+    def Mgas_SF(self):
+        if self.Ngas == 0:
+            return None
+        return self.mass_gas[self.is_SFR].sum()
+
+    @lazy_property
+    def gas_Mgasmetal(self):
+        if self.Ngas == 0:
+            return None
+        return (
+            self.mass_gas
+            * self.data["PartType0"]["MetalMassFractions"][self.gas_mask_all][
+                self.gas_mask_ap
+            ]
+        )
+
+    @lazy_property
+    def Mgasmetal_SF(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_Mgasmetal[self.is_SFR].sum()
+
+    @lazy_property
+    def Mgasmetal(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_Mgasmetal.sum()
+
+    @lazy_property
+    def gas_MgasO(self):
+        if self.Ngas == 0:
+            return None
+        return (
+            self.mass_gas
+            * self.data["PartType0"]["SmoothedElementMassFractions"][self.gas_mask_all][
+                self.gas_mask_ap
+            ][:, indexO]
+        )
+
+    @lazy_property
+    def MgasO_SF(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_MgasO[self.is_SFR].sum()
+
+    @lazy_property
+    def MgasO(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_MgasO.sum()
+
+    @lazy_property
+    def gas_MgasFe(self):
+        if self.Ngas == 0:
+            return None
+        return (
+            self.mass_gas
+            * self.data["PartType0"]["SmoothedElementMassFractions"][self.gas_mask_all][
+                self.gas_mask_ap
+            ][:, indexFe]
+        )
+
+    @lazy_property
+    def MgasFe_SF(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_MgasFe[self.is_SFR].sum()
+
+    @lazy_property
+    def MgasFe(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_MgasFe.sum()
+
+    @lazy_property
+    def gas_temp(self):
+        if self.Ngas == 0:
+            return None
+        return self.data["PartType0"]["Temperatures"][self.gas_mask_all][
+            self.gas_mask_ap
+        ]
+
+    @lazy_property
+    def gas_no_agn(self):
+        if self.Ngas == 0:
+            return None
+        last_agn_gas = self.data["PartType0"]["LastAGNFeedbackScaleFactors"][
+            self.gas_mask_all
+        ][self.gas_mask_ap]
+        return ~self.recently_heated_gas_filter.is_recently_heated(
+            last_agn_gas, self.gas_temp
+        )
+
+    @lazy_property
+    def Tgas(self):
+        if self.Mgas == 0 or self.Ngas == 0:
+            return None
+        return (self.gas_mass_fraction * self.gas_temp).sum()
+
+    @lazy_property
+    def Tgas_no_agn(self):
+        if self.Ngas == 0:
+            return None
+        if np.any(self.gas_no_agn):
+            mass_gas_no_agn = self.mass_gas[self.gas_no_agn]
+            Mgas_no_agn = mass_gas_no_agn.sum()
+            if Mgas_no_agn > 0:
+                return (
+                    (mass_gas_no_agn / Mgas_no_agn) * self.gas_temp[self.gas_no_agn]
+                ).sum()
+        return None
+
+    @lazy_property
+    def HalfMassRadiusGas(self):
+        return get_half_mass_radius(
+            self.radius[self.type == "PartType0"], self.mass_gas, self.Mgas
+        )
+
+    @lazy_property
+    def HalfMassRadiusDM(self):
+        return get_half_mass_radius(
+            self.radius[self.type == "PartType1"], self.mass_dm, self.Mdm
+        )
+
+    @lazy_property
+    def HalfMassRadiusStar(self):
+        return get_half_mass_radius(
+            self.radius[self.type == "PartType4"], self.mass_star, self.Mstar
+        )
+
+    @lazy_property
+    def HalfMassRadiusBaryon(self):
+        return get_half_mass_radius(
+            self.radius[(self.type == "PartType0") | (self.type == "PartType4")],
+            self.mass_baryons,
+            self.Mbaryons,
+        )
 
 
 class ApertureProperties(HaloProperty):
@@ -44,6 +813,7 @@ class ApertureProperties(HaloProperty):
         ],
         "PartType1": ["Coordinates", "GroupNr_bound", "Masses", "Velocities"],
         "PartType4": [
+            "BirthScaleFactors",
             "Coordinates",
             "GroupNr_bound",
             "InitialMasses",
@@ -127,11 +897,19 @@ class ApertureProperties(HaloProperty):
             "DtoTstar",
             "MstarO",
             "MstarFe",
+            "stellar_age_mw",
+            "stellar_age_lw",
         ]
     ]
 
     def __init__(
-        self, cellgrid, physical_radius_kpc, recently_heated_gas_filter, inclusive=False
+        self,
+        cellgrid,
+        physical_radius_kpc,
+        recently_heated_gas_filter,
+        stellar_age_calculator,
+        category_filter,
+        inclusive=False,
     ):
         """
         Construct an ApertureProperties object with the given physical
@@ -142,6 +920,8 @@ class ApertureProperties(HaloProperty):
         super().__init__(cellgrid)
 
         self.filter = recently_heated_gas_filter
+        self.stellar_ages = stellar_age_calculator
+        self.category_filter = category_filter
 
         # no density criterion for these properties
         self.mean_density_multiple = None
@@ -171,37 +951,19 @@ class ApertureProperties(HaloProperty):
         Input particle data arrays are unyt_arrays.
         """
 
-        centre = input_halo["cofp"]
-        index = input_halo["index"]
-
         types_present = [type for type in self.particle_properties if type in data]
 
-        mass = []
-        position = []
-        radius = []
-        velocity = []
-        types = []
-        for ptype in types_present:
-            grnr = data[ptype]["GroupNr_bound"]
-            if self.inclusive:
-                in_halo = np.ones(grnr.shape, dtype=bool)
-            else:
-                in_halo = grnr == index
-            mass.append(data[ptype][mass_dataset(ptype)][in_halo])
-            pos = data[ptype]["Coordinates"][in_halo, :] - centre[None, :]
-            position.append(pos)
-            r = np.sqrt(pos[:, 0] ** 2 + pos[:, 1] ** 2 + pos[:, 2] ** 2)
-            radius.append(r)
-            velocity.append(data[ptype]["Velocities"][in_halo, :])
-            typearr = np.zeros(r.shape, dtype="U9")
-            typearr[:] = ptype
-            types.append(typearr)
+        part_props = ApertureParticleData(
+            input_halo,
+            data,
+            types_present,
+            self.inclusive,
+            self.physical_radius_mpc * unyt.Mpc,
+            self.stellar_ages,
+            self.filter,
+        )
 
-        mass = unyt.array.uconcatenate(mass)
-        position = unyt.array.uconcatenate(position)
-        radius = unyt.array.uconcatenate(radius)
-        velocity = unyt.array.uconcatenate(velocity)
-        types = np.concatenate(types)
+        do_calculation = self.category_filter.get_filters(halo_result)
 
         aperture_sphere = {}
         # declare all the variables we will compute
@@ -209,342 +971,49 @@ class ApertureProperties(HaloProperty):
         # all variables are defined with physical units and an appropriate dtype
         # we need to use the custom unit registry so that everything can be converted
         # back to snapshot units in the end
-        for name, _, shape, dtype, unit, _, _ in self.property_list:
+        registry = part_props.mass.units.registry
+        for prop in self.property_list:
+            # skip non-DMO properties in DMO run mode
+            is_dmo = prop[8]
+            if do_calculation["DMO"] and not is_dmo:
+                continue
+            name = prop[0]
+            shape = prop[2]
+            dtype = prop[3]
+            unit = prop[4]
+            category = prop[6]
             if shape > 1:
                 val = [0] * shape
             else:
                 val = 0
             aperture_sphere[name] = unyt.unyt_array(
-                val, dtype=dtype, units=unit, registry=mass.units.registry
+                val, dtype=dtype, units=unit, registry=registry
             )
-
-        mask = radius <= self.physical_radius_mpc * unyt.Mpc
-
-        mass = mass[mask]
-        position = position[mask]
-        velocity = velocity[mask]
-        radius = radius[mask]
-        type = types[mask]
-
-        gas_mask_ap = mask[types == "PartType0"]
-        dm_mask_ap = mask[types == "PartType1"]
-        star_mask_ap = mask[types == "PartType4"]
-        bh_mask_ap = mask[types == "PartType5"]
-        baryons_mask_ap = mask[(types == "PartType0") | (types == "PartType4")]
-
-        aperture_sphere["Ngas"] = (
-            gas_mask_ap.sum(dtype=aperture_sphere["Ngas"].dtype)
-            * aperture_sphere["Ngas"].units
-        )
-        aperture_sphere["Ndm"] = (
-            dm_mask_ap.sum(dtype=aperture_sphere["Ndm"].dtype)
-            * aperture_sphere["Ndm"].units
-        )
-        aperture_sphere["Nstar"] = (
-            star_mask_ap.sum(dtype=aperture_sphere["Nstar"].dtype)
-            * aperture_sphere["Nstar"].units
-        )
-        aperture_sphere["Nbh"] = (
-            bh_mask_ap.sum(dtype=aperture_sphere["Nbh"].dtype)
-            * aperture_sphere["Nbh"].units
-        )
-
-        mass_gas = mass[type == "PartType0"]
-        mass_dm = mass[type == "PartType1"]
-        mass_star = mass[type == "PartType4"]
-        mass_baryons = mass[(type == "PartType0") | (type == "PartType4")]
-
-        pos_gas = position[type == "PartType0"]
-        pos_dm = position[type == "PartType1"]
-        pos_star = position[type == "PartType4"]
-        pos_baryons = position[(type == "PartType0") | (type == "PartType4")]
-
-        vel_gas = velocity[type == "PartType0"]
-        vel_dm = velocity[type == "PartType1"]
-        vel_star = velocity[type == "PartType4"]
-        vel_baryons = velocity[(type == "PartType0") | (type == "PartType4")]
-
-        aperture_sphere["Mtot"] += mass.sum()
-        aperture_sphere["Mgas"] += mass_gas.sum()
-        aperture_sphere["Mdm"] = mass_dm.sum()
-        aperture_sphere["Mstar"] += mass_star.sum()
-        if aperture_sphere["Nstar"] > 0:
-            if self.inclusive:
-                star_mask_all = np.ones(
-                    data["PartType4"]["GroupNr_bound"].shape, dtype=bool
-                )
-            else:
-                star_mask_all = data["PartType4"]["GroupNr_bound"] == index
-            aperture_sphere["Mstar_init"] += data["PartType4"]["InitialMasses"][
-                star_mask_all
-            ][star_mask_ap].sum()
-            aperture_sphere["StellarLuminosity"] += data["PartType4"]["Luminosities"][
-                star_mask_all
-            ][star_mask_ap].sum(axis=0)
-            aperture_sphere["Mstarmetal"] += (
-                mass_star
-                * data["PartType4"]["MetalMassFractions"][star_mask_all][star_mask_ap]
-            ).sum()
-            MstarO = (
-                mass_star
-                * data["PartType4"]["SmoothedElementMassFractions"][star_mask_all][
-                    star_mask_ap
-                ][:, indexO]
-            )
-            aperture_sphere["MstarO"] += MstarO.sum()
-            MstarFe = (
-                mass_star
-                * data["PartType4"]["SmoothedElementMassFractions"][star_mask_all][
-                    star_mask_ap
-                ][:, indexFe]
-            )
-            aperture_sphere["MstarFe"] += MstarFe.sum()
-        aperture_sphere["Mbh_dynamical"] = mass[type == "PartType5"].sum()
-        if aperture_sphere["Nbh"] > 0:
-            if self.inclusive:
-                bh_mask_all = np.ones(
-                    data["PartType5"]["GroupNr_bound"].shape, dtype=bool
-                )
-            else:
-                bh_mask_all = data["PartType5"]["GroupNr_bound"] == index
-            aperture_sphere["Mbh_subgrid"] += data["PartType5"]["SubgridMasses"][
-                bh_mask_all
-            ][bh_mask_ap].sum()
-
-            agn_eventa = data["PartType5"]["LastAGNFeedbackScaleFactors"][bh_mask_all][
-                bh_mask_ap
-            ]
-
-            aperture_sphere["BHlasteventa"] += np.max(agn_eventa)
-
-            iBHmax = np.argmax(
-                data["PartType5"]["SubgridMasses"][bh_mask_all][bh_mask_ap]
-            )
-            aperture_sphere["BHmaxM"] += data["PartType5"]["SubgridMasses"][
-                bh_mask_all
-            ][bh_mask_ap][iBHmax]
-            aperture_sphere["BHmaxID"] = (
-                data["PartType5"]["ParticleIDs"][bh_mask_all][bh_mask_ap][
-                    iBHmax
-                ].astype(aperture_sphere["BHmaxID"].dtype)
-                * aperture_sphere["BHmaxID"].units
-            )
-            aperture_sphere["BHmaxpos"] += data["PartType5"]["Coordinates"][
-                bh_mask_all
-            ][bh_mask_ap][iBHmax]
-            aperture_sphere["BHmaxvel"] += data["PartType5"]["Velocities"][bh_mask_all][
-                bh_mask_ap
-            ][iBHmax]
-            aperture_sphere["BHmaxAR"] += data["PartType5"]["AccretionRates"][
-                bh_mask_all
-            ][bh_mask_ap][iBHmax]
-            aperture_sphere["BHmaxlasteventa"] += agn_eventa[iBHmax]
-
-        if aperture_sphere["Mtot"] > 0.0 * aperture_sphere["Mtot"].units:
-            mfrac = mass / aperture_sphere["Mtot"]
-            aperture_sphere["com"] += (mfrac[:, None] * position).sum(axis=0)
-            aperture_sphere["com"] += centre
-            aperture_sphere["vcom"] += (mfrac[:, None] * velocity).sum(axis=0)
-            _, vmax = get_vmax(mass, radius)
-            if vmax > 0.0 * vmax.units:
-                vrel = velocity - aperture_sphere["vcom"][None, :]
-                Ltot = unyt.array.unorm(
-                    (mass[:, None] * unyt.array.ucross(position, vrel)).sum(axis=0)
-                )
-                aperture_sphere["spin_parameter"] += Ltot / (
-                    np.sqrt(2.0)
-                    * aperture_sphere["Mtot"]
-                    * self.physical_radius_mpc
-                    * unyt.Mpc
-                    * vmax
-                )
-
-        if aperture_sphere["Mgas"] > 0.0 * aperture_sphere["Mgas"].units:
-            frac_mgas = mass_gas / aperture_sphere["Mgas"]
-            vcom_gas = (frac_mgas[:, None] * vel_gas).sum(axis=0)
-            Lgas, kappa, Mcountrot = get_angular_momentum_and_kappa_corot(
-                mass_gas,
-                pos_gas,
-                vel_gas,
-                ref_velocity=vcom_gas,
-                do_counterrot_mass=True,
-            )
-            aperture_sphere["Lgas"] += Lgas
-            aperture_sphere["kappa_corot_gas"] += kappa
-            aperture_sphere["DtoTgas"] += (
-                1.0 - 2.0 * Mcountrot / aperture_sphere["Mgas"]
-            )
-
-            """
-            aperture_sphere["veldisp_matrix_gas"] += get_velocity_dispersion_matrix(
-                frac_mgas, vel_gas, vcom_gas
-            )
-            """
-
-            # below we need to force conversion to np.float64 before summing
-            # up particles to avoid overflow
-            ekin_gas = mass_gas * ((vel_gas - vcom_gas) ** 2).sum(axis=1)
-            ekin_gas = unyt.unyt_array(
-                ekin_gas.value, dtype=np.float64, units=ekin_gas.units
-            )
-            aperture_sphere["Ekin_gas"] += 0.5 * ekin_gas.sum()
-
-            aperture_sphere["GasAxisLengths"] += get_axis_lengths(mass_gas, pos_gas)
-
-        if aperture_sphere["Mdm"] > 0.0 * aperture_sphere["Mdm"].units:
-            frac_mdm = mass_dm / aperture_sphere["Mdm"]
-            vcom_dm = (frac_mdm[:, None] * vel_dm).sum(axis=0)
-            aperture_sphere["Ldm"] += get_angular_momentum(
-                mass_dm, pos_dm, vel_dm, ref_velocity=vcom_dm
-            )
-            aperture_sphere["DMAxisLengths"] += get_axis_lengths(mass_dm, pos_dm)
-
-            """
-            aperture_sphere["veldisp_matrix_dm"] += get_velocity_dispersion_matrix(
-                frac_mdm, vel_dm, vcom_dm
-            )
-            """
-
-        if aperture_sphere["Mstar"] > 0.0 * aperture_sphere["Mstar"].units:
-            frac_mstar = mass_star / aperture_sphere["Mstar"]
-            vcom_star = (frac_mstar[:, None] * vel_star).sum(axis=0)
-            Lstar, kappa, Mcountrot = get_angular_momentum_and_kappa_corot(
-                mass_star,
-                pos_star,
-                vel_star,
-                ref_velocity=vcom_star,
-                do_counterrot_mass=True,
-            )
-            aperture_sphere["Lstar"] += Lstar
-            aperture_sphere["kappa_corot_star"] += kappa
-            aperture_sphere["DtoTstar"] += (
-                1.0 - 2.0 * Mcountrot / aperture_sphere["Mstar"]
-            )
-            aperture_sphere["StellarAxisLengths"] += get_axis_lengths(
-                mass_star, pos_star
-            )
-
-            """
-            aperture_sphere["veldisp_matrix_star"] += get_velocity_dispersion_matrix(
-                frac_mstar, vel_star, vcom_star
-            )
-            """
-
-            # below we need to force conversion to np.float64 before summing
-            # up particles to avoid overflow
-            ekin_star = mass_star * ((vel_star - vcom_star) ** 2).sum(axis=1)
-            ekin_star = unyt.unyt_array(
-                ekin_star.value, dtype=np.float64, units=ekin_star.units
-            )
-            aperture_sphere["Ekin_star"] += 0.5 * ekin_star.sum()
-
-        if (
-            aperture_sphere["Mgas"] + aperture_sphere["Mstar"]
-            > 0.0 * aperture_sphere["Mgas"].units
-        ):
-            frac_mbar = mass_baryons / (
-                aperture_sphere["Mgas"] + aperture_sphere["Mstar"]
-            )
-            vcom_bar = (frac_mbar[:, None] * vel_baryons).sum(axis=0)
-            Lbar, kappa = get_angular_momentum_and_kappa_corot(
-                mass_baryons, pos_baryons, vel_baryons, ref_velocity=vcom_bar
-            )
-            aperture_sphere["Lbaryons"] += Lbar
-            aperture_sphere["kappa_corot_baryons"] += kappa
-            aperture_sphere["BaryonAxisLengths"] += get_axis_lengths(
-                mass_baryons, pos_baryons
-            )
-
-        if aperture_sphere["Ngas"] > 0:
-            if self.inclusive:
-                gas_mask_all = np.ones(
-                    data["PartType0"]["GroupNr_bound"].shape, dtype=bool
-                )
-            else:
-                gas_mask_all = data["PartType0"]["GroupNr_bound"] == index
-            SFR = data["PartType0"]["StarFormationRates"][gas_mask_all][gas_mask_ap]
-            # negative values of SFR are not SFR at all!
-            is_SFR = SFR > 0.0
-            aperture_sphere["SFR"] += SFR[is_SFR].sum()
-            aperture_sphere["Mgas_SF"] += mass_gas[is_SFR].sum()
-            Mgasmetal = (
-                mass_gas
-                * data["PartType0"]["MetalMassFractions"][gas_mask_all][gas_mask_ap]
-            )
-            aperture_sphere["Mgasmetal_SF"] += Mgasmetal[is_SFR].sum()
-            aperture_sphere["Mgasmetal"] += Mgasmetal.sum()
-            MgasO = (
-                mass_gas
-                * data["PartType0"]["SmoothedElementMassFractions"][gas_mask_all][
-                    gas_mask_ap
-                ][:, indexO]
-            )
-            aperture_sphere["MgasO_SF"] += MgasO[is_SFR].sum()
-            aperture_sphere["MgasO"] += MgasO.sum()
-            MgasFe = (
-                mass_gas
-                * data["PartType0"]["SmoothedElementMassFractions"][gas_mask_all][
-                    gas_mask_ap
-                ][:, indexFe]
-            )
-            aperture_sphere["MgasFe_SF"] += MgasFe[is_SFR].sum()
-            aperture_sphere["MgasFe"] += MgasFe.sum()
-            gas_temp = data["PartType0"]["Temperatures"][gas_mask_all][gas_mask_ap]
-            last_agn_gas = data["PartType0"]["LastAGNFeedbackScaleFactors"][
-                gas_mask_all
-            ][gas_mask_ap]
-            no_agn = ~self.filter.is_recently_heated(last_agn_gas, gas_temp)
-            aperture_sphere["Tgas"] += (
-                (mass_gas / aperture_sphere["Mgas"]) * gas_temp
-            ).sum()
-            if np.any(no_agn):
-                mass_gas_no_agn = mass_gas[no_agn]
-                Mgas_no_agn = mass_gas_no_agn.sum()
-                if Mgas_no_agn > 0.0:
-                    aperture_sphere["Tgas_no_agn"] += (
-                        (mass_gas_no_agn / Mgas_no_agn) * gas_temp[no_agn]
-                    ).sum()
-
-        for name, r, m, M in zip(
-            [
-                "HalfMassRadiusGas",
-                "HalfMassRadiusDM",
-                "HalfMassRadiusStar",
-                "HalfMassRadiusBaryon",
-            ],
-            [
-                radius[type == "PartType0"],
-                radius[type == "PartType1"],
-                radius[type == "PartType4"],
-                radius[(type == "PartType0") | (type == "PartType4")],
-            ],
-            [
-                mass_gas,
-                mass_dm,
-                mass_star,
-                mass[(type == "PartType0") | (type == "PartType4")],
-            ],
-            [
-                aperture_sphere["Mgas"],
-                aperture_sphere["Mdm"],
-                aperture_sphere["Mstar"],
-                aperture_sphere["Mgas"] + aperture_sphere["Mstar"],
-            ],
-        ):
-            aperture_sphere[name] += get_half_mass_radius(r, m, M)
-            if aperture_sphere[name] >= self.physical_radius_mpc * unyt.Mpc:
-                raise RuntimeError(
-                    "Half mass radius '{name}' larger than aperture"
-                    f" ({aperture_sphere[name]} >="
-                    f" {self.physical_radius_mpc * unyt.Mpc}!"
-                    " This should not happen."
-                )
+            if do_calculation[category]:
+                val = getattr(part_props, name)
+                if val is not None:
+                    if unit == "dimensionless":
+                        aperture_sphere[name] = unyt.unyt_array(
+                            val.astype(dtype),
+                            dtype=dtype,
+                            units=unit,
+                            registry=registry,
+                        )
+                    else:
+                        aperture_sphere[name] += val
 
         if self.inclusive:
             prefix = f"InclusiveSphere/{self.physical_radius_mpc*1000.:.0f}kpc"
         else:
             prefix = f"ExclusiveSphere/{self.physical_radius_mpc*1000.:.0f}kpc"
-        for name, outputname, _, _, _, description, _ in self.property_list:
+        for prop in self.property_list:
+            # skip non-DMO properties in DMO run mode
+            is_dmo = prop[8]
+            if do_calculation["DMO"] and not is_dmo:
+                continue
+            name = prop[0]
+            outputname = prop[1]
+            description = prop[5]
             halo_result.update(
                 {
                     f"{prefix}/{outputname}": (
@@ -558,16 +1027,40 @@ class ApertureProperties(HaloProperty):
 
 
 class ExclusiveSphereProperties(ApertureProperties):
-    def __init__(self, cellgrid, physical_radius_kpc, recently_heated_gas_filter):
+    def __init__(
+        self,
+        cellgrid,
+        physical_radius_kpc,
+        recently_heated_gas_filter,
+        stellar_age_calculator,
+        category_filter,
+    ):
         super().__init__(
-            cellgrid, physical_radius_kpc, recently_heated_gas_filter, False
+            cellgrid,
+            physical_radius_kpc,
+            recently_heated_gas_filter,
+            stellar_age_calculator,
+            category_filter,
+            False,
         )
 
 
 class InclusiveSphereProperties(ApertureProperties):
-    def __init__(self, cellgrid, physical_radius_kpc, recently_heated_gas_filter):
+    def __init__(
+        self,
+        cellgrid,
+        physical_radius_kpc,
+        recently_heated_gas_filter,
+        stellar_age_calculator,
+        category_filter,
+    ):
         super().__init__(
-            cellgrid, physical_radius_kpc, recently_heated_gas_filter, True
+            cellgrid,
+            physical_radius_kpc,
+            recently_heated_gas_filter,
+            stellar_age_calculator,
+            category_filter,
+            True,
         )
 
 
@@ -586,15 +1079,59 @@ def test_aperture_properties():
     # initialise the DummyHaloGenerator with a random seed
     dummy_halos = DummyHaloGenerator(3256)
     filter = RecentlyHeatedGasFilter(dummy_halos.get_cell_grid())
+    stellar_age_calculator = StellarAgeCalculator(dummy_halos.get_cell_grid())
+    cat_filter = CategoryFilter()
 
-    pc_exclusive = ExclusiveSphereProperties(dummy_halos.get_cell_grid(), 50.0, filter)
-    pc_inclusive = InclusiveSphereProperties(dummy_halos.get_cell_grid(), 50.0, filter)
+    pc_exclusive = ExclusiveSphereProperties(
+        dummy_halos.get_cell_grid(),
+        50.0,
+        filter,
+        stellar_age_calculator,
+        cat_filter,
+    )
+    pc_inclusive = InclusiveSphereProperties(
+        dummy_halos.get_cell_grid(), 50.0, filter, stellar_age_calculator, cat_filter
+    )
 
     # generate 100 random halos
     for i in range(100):
-        input_halo, data, _, _, _ = dummy_halos.get_random_halo(
+        input_halo, data, _, _, _, particle_numbers = dummy_halos.get_random_halo(
             [1, 10, 100, 1000, 10000]
         )
+        halo_result_template = {
+            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}": (
+                unyt.unyt_array(
+                    particle_numbers["PartType0"],
+                    dtype=PropertyTable.full_property_list["Ngas"][2],
+                    units="dimensionless",
+                ),
+                "Dummy Ngas for filter",
+            ),
+            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}": (
+                unyt.unyt_array(
+                    particle_numbers["PartType1"],
+                    dtype=PropertyTable.full_property_list["Ndm"][2],
+                    units="dimensionless",
+                ),
+                "Dummy Ndm for filter",
+            ),
+            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}": (
+                unyt.unyt_array(
+                    particle_numbers["PartType4"],
+                    dtype=PropertyTable.full_property_list["Nstar"][2],
+                    units="dimensionless",
+                ),
+                "Dummy Nstar for filter",
+            ),
+            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}": (
+                unyt.unyt_array(
+                    particle_numbers["PartType5"],
+                    dtype=PropertyTable.full_property_list["Nbh"][2],
+                    units="dimensionless",
+                ),
+                "Dummy Nbh for filter",
+            ),
+        }
 
         for pc_type, pc_calc in [
             ("ExclusiveSphere", pc_exclusive),
@@ -608,21 +1145,17 @@ def test_aperture_properties():
                         input_data[ptype][dset] = data[ptype][dset]
             input_halo_copy = input_halo.copy()
             input_data_copy = input_data.copy()
-            halo_result = {}
+            halo_result = dict(halo_result_template)
             pc_calc.calculate(input_halo, 0.0 * unyt.kpc, input_data, halo_result)
             assert input_halo == input_halo_copy
             assert input_data == input_data_copy
 
             # check that the calculation returns the correct values
-            for (
-                _,
-                outputname,
-                size,
-                dtype,
-                unit_string,
-                _,
-                _,
-            ) in pc_calc.property_list:
+            for prop in pc_calc.property_list:
+                outputname = prop[1]
+                size = prop[2]
+                dtype = prop[3]
+                unit_string = prop[4]
                 full_name = f"{pc_type}/50kpc/{outputname}"
                 assert full_name in halo_result
                 result = halo_result[full_name][0]

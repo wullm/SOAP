@@ -121,7 +121,7 @@ def get_vmax(mass, radius):
     cumulative_mass = mass[isort].cumsum()
     nskip = max(1, np.argmax(ordered_radius > 0.0 * ordered_radius.units))
     ordered_radius = ordered_radius[nskip:]
-    if len(ordered_radius) == 0:
+    if len(ordered_radius) == 0 or ordered_radius[0] == 0:
         return 0.0 * radius.units, np.sqrt(0.0 * G * mass.units / radius.units)
     cumulative_mass = cumulative_mass[nskip:]
     v_over_G = cumulative_mass / ordered_radius

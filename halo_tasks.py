@@ -10,24 +10,33 @@ from halo_properties import ReadRadiusTooSmallError
 import shared_array
 import result_set
 import halo_properties
+from property_table import PropertyTable
 
 # Factor by which to increase search radius when looking for density threshold
-SEARCH_RADIUS_FACTOR=1.2
+SEARCH_RADIUS_FACTOR = 1.2
 
 # Factor by which to increase the region read in around a halo if too small
-READ_RADIUS_FACTOR=1.5
+READ_RADIUS_FACTOR = 1.5
 
 # Radius in Mpc at which we report halos which have a large search radius
-REPORT_RADIUS=20.0
+REPORT_RADIUS = 20.0
 
 
-def process_single_halo(mesh, unit_registry, data, halo_prop_list,
-                        critical_density, mean_density, boxsize, input_halo,
-                        target_density):
+def process_single_halo(
+    mesh,
+    unit_registry,
+    data,
+    halo_prop_list,
+    critical_density,
+    mean_density,
+    boxsize,
+    input_halo,
+    target_density,
+):
     """
     This computes properties for one halo and runs on a single
     MPI rank. Result is a dict of properties of the form
-    
+
     halo_result[property_name] = (unyt_array, description)
 
     where the property_name will be used as the HDF5 dataset name
@@ -45,9 +54,9 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
     Returns None if we need to try again with a larger region.
     """
 
-    swift_mpc   = unyt.Unit("swift_mpc", registry=unit_registry)    
+    swift_mpc = unyt.Unit("swift_mpc", registry=unit_registry)
     snap_length = unyt.Unit("snap_length", registry=unit_registry)
-    snap_mass   = unyt.Unit("snap_mass", registry=unit_registry)
+    snap_mass = unyt.Unit("snap_mass", registry=unit_registry)
     snap_density = snap_mass / (snap_length**3)
 
     # Record which calculations are still to do for this halo
@@ -59,27 +68,31 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
     # Loop until we fall below the required density
     current_radius = input_halo["search_radius"]
     while True:
-        
+
         # Sanity checks on the radius
         assert current_radius <= input_halo["read_radius"]
-        if current_radius > REPORT_RADIUS*swift_mpc:
-            print(f"Halo ID={input_halo['ID']} has large search radius {current_radius}")
+        if current_radius > REPORT_RADIUS * swift_mpc:
+            print("Halo ID={input_halo['ID']} has large search radius {current_radius}")
 
         # Find the mass within the search radius
         mass_total = unyt.unyt_quantity(0.0, units=snap_mass)
         idx = {}
         for ptype in data:
             pos = data[ptype]["Coordinates"]
-            idx[ptype] = mesh[ptype].query_radius_periodic(input_halo["cofp"], current_radius, pos, boxsize)
+            idx[ptype] = mesh[ptype].query_radius_periodic(
+                input_halo["cofp"], current_radius, pos, boxsize
+            )
             if ptype in ptypes_for_so_masses:
                 mass = data[ptype][mass_dataset(ptype)]
                 mass_total += np.sum(mass.full[idx[ptype]], dtype=float)
 
         # Find mean density in the search radius
-        density = mass_total / (4./3.*np.pi*current_radius**3)
+        density = mass_total / (4.0 / 3.0 * np.pi * current_radius**3)
 
         # If we've reached the target density, we can try to compute halo properties
-        max_physical_radius_mpc = 0.0 # Will store the largest physical radius requested by any calculation
+        max_physical_radius_mpc = (
+            0.0  # Will store the largest physical radius requested by any calculation
+        )
         if target_density is None or density <= target_density:
 
             # Extract particles in this halo
@@ -87,14 +100,14 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
             for ptype in data:
                 particle_data[ptype] = {}
                 for name in data[ptype]:
-                    particle_data[ptype][name] = data[ptype][name].full[idx[ptype],...]
+                    particle_data[ptype][name] = data[ptype][name].full[idx[ptype], ...]
 
             # Wrap coordinates to copy closest to the halo centre
             for ptype in particle_data:
                 pos = particle_data[ptype]["Coordinates"]
                 # Shift halo to box centre, wrap all particles into box, shift halo back
-                offset = input_halo["cofp"] - 0.5*boxsize
-                pos[:,:] = ((pos - offset) % boxsize) + offset
+                offset = input_halo["cofp"] - 0.5 * boxsize
+                pos[:, :] = ((pos - offset) % boxsize) + offset
 
             # Try to compute properties of this halo which haven't been done yet
             for prop_nr, halo_prop in enumerate(halo_prop_list):
@@ -102,10 +115,14 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
                     # Already have the result for this one
                     continue
                 try:
-                    halo_prop.calculate(input_halo, current_radius, particle_data, halo_result)
+                    halo_prop.calculate(
+                        input_halo, current_radius, particle_data, halo_result
+                    )
                 except ReadRadiusTooSmallError:
                     # Search radius was too small, so will need to try again with a larger radius.
-                    max_physical_radius_mpc = max(max_physical_radius_mpc, halo_prop.physical_radius_mpc)
+                    max_physical_radius_mpc = max(
+                        max_physical_radius_mpc, halo_prop.physical_radius_mpc
+                    )
                     break
                 else:
                     # The property calculation worked!
@@ -117,7 +134,7 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
 
         # Either the density is still too high or the property calculation failed.
         search_radius = input_halo["search_radius"]
-        required_radius = (max_physical_radius_mpc*swift_mpc).to(search_radius.units)
+        required_radius = (max_physical_radius_mpc * swift_mpc).to(search_radius.units)
         if required_radius > input_halo["read_radius"]:
             # A calculation has set its physical_radius_mpc larger than the region
             # which we read in, so we can't process the halo on this iteration regardless
@@ -131,30 +148,51 @@ def process_single_halo(mesh, unit_registry, data, halo_prop_list,
             return None
         else:
             # We still have a large enough region in memory that we can try a larger radius
-            current_radius = min(current_radius*SEARCH_RADIUS_FACTOR, input_halo["read_radius"])
+            current_radius = min(
+                current_radius * SEARCH_RADIUS_FACTOR, input_halo["read_radius"]
+            )
             current_radius = max(current_radius, required_radius)
 
     # In case we're not doing any calculations with a target density
     if target_density is None:
-        target_density = density*0.0
+        target_density = density * 0.0
 
     # Add the halo index to the result set
-    halo_result["VR/position"]      = (input_halo["cofp"], "Centre of potential of the halo in the input catalogue")
-    halo_result["VR/index"]         = (input_halo["index"],         "Index of this halo in the input catalogue")
-    halo_result["VR/ID"]            = (input_halo["ID"],            "VELOCIraptor halo ID")
-    halo_result["VR/Structuretype"] = (input_halo["Structuretype"], "VELOCIraptor Structuretype parameter")
+    for vrkey in PropertyTable.vr_properties:
+        vrprops = PropertyTable.full_property_list[f"VR{vrkey}"]
+        vrname = vrprops[0]
+        vrdescription = vrprops[4]
+        halo_result[f"VR/{vrname}"] = (input_halo[vrkey], vrdescription)
 
     # Store search radius and density within that radius
-    halo_result["SearchRadius/search_radius"]            = (current_radius,                  "Search radius for property calculation")
-    halo_result["SearchRadius/density_in_search_radius"] = (density.to(snap_density),        "Density within the search radius")
-    halo_result["SearchRadius/target_density"]           = (target_density.to(snap_density), "Target density for property calculation")
+    halo_result["SearchRadius/search_radius"] = (
+        current_radius,
+        "Search radius for property calculation",
+    )
+    halo_result["SearchRadius/density_in_search_radius"] = (
+        density.to(snap_density),
+        "Density within the search radius",
+    )
+    halo_result["SearchRadius/target_density"] = (
+        target_density.to(snap_density),
+        "Target density for property calculation",
+    )
 
     return halo_result
 
 
-def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
-                  critical_density, mean_density, boxsize, halo_arrays,
-                  results):
+def process_halos(
+    comm,
+    unit_registry,
+    data,
+    mesh,
+    halo_prop_list,
+    critical_density,
+    mean_density,
+    boxsize,
+    halo_arrays,
+    results,
+):
     """
     This uses all of the MPI ranks on one compute node to compute halo properties
     for a single "chunk" of the simulation.
@@ -162,7 +200,7 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
     Each rank returns a dict with the properties of the halos it processed.
     The dict keys are the property names. The values are tuples containing
     (unyt_array, description).
-    
+
     Halos where done=1 are not processed and don't generate an entry in the
     output arrays.
 
@@ -177,12 +215,12 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
     for halo_prop in halo_prop_list:
         # Ensure target density is no greater than mean density multiple
         if halo_prop.mean_density_multiple is not None:
-            density = halo_prop.mean_density_multiple*mean_density
+            density = halo_prop.mean_density_multiple * mean_density
             if target_density is None or density < target_density:
                 target_density = density
         # Ensure target density is no greater than critical density multiple
         if halo_prop.critical_density_multiple is not None:
-            density = halo_prop.critical_density_multiple*critical_density
+            density = halo_prop.critical_density_multiple * critical_density
             if target_density is None or density < target_density:
                 target_density = density
 
@@ -201,7 +239,7 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
     t0_all = time.time()
 
     # Count halos to do
-    nr_halos_left = comm.allreduce(np.sum(halo_arrays["done"].local==0))
+    nr_halos_left = comm.allreduce(np.sum(halo_arrays["done"].local == 0))
 
     # Loop until all halos are done
     nr_halos = len(halo_arrays["index"].full)
@@ -229,12 +267,20 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
                 # Extract this halo's VR information (centre, radius, index etc)
                 input_halo = {}
                 for name in halo_arrays:
-                    input_halo[name] = halo_arrays[name].full[task_to_do,...].copy()
+                    input_halo[name] = halo_arrays[name].full[task_to_do, ...].copy()
 
                 # Fetch the results for this particular halo
-                halo_result = process_single_halo(mesh, unit_registry, data, halo_prop_list,
-                                                  critical_density, mean_density,
-                                                  boxsize, input_halo, target_density)
+                halo_result = process_single_halo(
+                    mesh,
+                    unit_registry,
+                    data,
+                    halo_prop_list,
+                    critical_density,
+                    mean_density,
+                    boxsize,
+                    input_halo,
+                    target_density,
+                )
                 if halo_result is not None:
                     # Store results and flag this halo as done
                     results.append(halo_result)
@@ -244,15 +290,19 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
                     # We didn't read in a large enough region. Update the shared radius
                     # arrays so that we read a larger region next time and start the
                     # search from whatever radius we had reached this time.
-                    new_read_radius = max(input_halo["read_radius"] * READ_RADIUS_FACTOR,
-                                          input_halo["search_radius"])
+                    new_read_radius = max(
+                        input_halo["read_radius"] * READ_RADIUS_FACTOR,
+                        input_halo["search_radius"],
+                    )
                     # Set the radius around the halo to read in
                     halo_arrays["read_radius"].full[task_to_do] = new_read_radius
                     # Set the initial guess at the radius we need
-                    halo_arrays["search_radius"].full[task_to_do] = input_halo["search_radius"]
+                    halo_arrays["search_radius"].full[task_to_do] = input_halo[
+                        "search_radius"
+                    ]
 
             t1_task = time.time()
-            task_time += (t1_task-t0_task)
+            task_time += t1_task - t0_task
         else:
             # We ran out of halos to do
             break
@@ -262,10 +312,10 @@ def process_halos(comm, unit_registry, data, mesh, halo_prop_list,
 
     # Count halos left to do
     comm.barrier()
-    nr_halos_left = comm.allreduce(np.sum(halo_arrays["done"].local==0))
+    nr_halos_left = comm.allreduce(np.sum(halo_arrays["done"].local == 0))
 
     # Stop the clock
     comm.barrier()
     t1_all = time.time()
-    
-    return t1_all-t0_all, task_time, nr_halos_left, comm.allreduce(nr_done_this_rank)
+
+    return t1_all - t0_all, task_time, nr_halos_left, comm.allreduce(nr_done_this_rank)

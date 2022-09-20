@@ -14,10 +14,9 @@ from kinematic_properties import (
 )
 from recently_heated_gas_filter import RecentlyHeatedGasFilter
 from property_table import PropertyTable
-
 from dataset_names import mass_dataset
-
-from mpi4py import MPI
+from lazy_properties import lazy_property
+from category_filter import CategoryFilter
 
 # index of elements O and Fe in the SmoothedElementMassFractions dataset
 indexO = 4
@@ -169,6 +168,832 @@ def find_SO_radius_and_mass(
     return SO_r, SO_mass, SO_volume
 
 
+class SOParticleData:
+    def __init__(
+        self,
+        input_halo,
+        data,
+        types_present,
+        recently_heated_gas_filter,
+        nu_density,
+        observer_position,
+    ):
+        self.input_halo = input_halo
+        self.data = data
+        self.types_present = types_present
+        self.recently_heated_gas_filter = recently_heated_gas_filter
+        self.nu_density = nu_density
+        self.observer_position = observer_position
+        self.compute_basics()
+
+    def compute_basics(self):
+        self.centre = self.input_halo["cofp"]
+        self.index = self.input_halo["index"]
+
+        # Make an array of particle masses, radii and positions
+        mass = []
+        radius = []
+        position = []
+        velocity = []
+        types = []
+        groupnr = []
+        for ptype in self.types_present:
+            if ptype == "PartType6":
+                # add neutrinos separately, since we need to treat them
+                # differently
+                continue
+            mass.append(self.data[ptype][mass_dataset(ptype)])
+            pos = self.data[ptype]["Coordinates"] - self.centre[None, :]
+            position.append(pos)
+            r = np.sqrt(np.sum(pos**2, axis=1))
+            radius.append(r)
+            velocity.append(self.data[ptype]["Velocities"])
+            typearr = np.zeros(r.shape, dtype="U9")
+            typearr[:] = ptype
+            types.append(typearr)
+            groupnr.append(self.data[ptype]["GroupNr_bound"])
+        self.mass = unyt.array.uconcatenate(mass)
+        self.radius = unyt.array.uconcatenate(radius)
+        self.position = unyt.array.uconcatenate(position)
+        self.velocity = unyt.array.uconcatenate(velocity)
+        self.types = np.concatenate(types)
+        self.groupnr = unyt.array.uconcatenate(groupnr)
+
+        # figure out which particles in the list are bound to a halo that is not the
+        # central halo
+        self.is_bound_to_satellite = (self.groupnr >= 0) & (self.groupnr != self.index)
+
+    def compute_SO_radius_and_mass(self, reference_density, physical_radius):
+        # add neutrinos
+        if "PartType6" in self.data:
+            numass = (
+                self.data["PartType6"]["Masses"] * self.data["PartType6"]["Weights"]
+            )
+            pos = self.data["PartType6"]["Coordinates"] - self.centre[None, :]
+            nur = np.sqrt(np.sum(pos**2, axis=1))
+            all_mass = unyt.array.uconcatenate([self.mass, numass])
+            all_r = unyt.array.uconcatenate([self.radius, nur])
+        else:
+            all_mass = self.mass
+            all_r = self.radius
+
+        # Sort by radius
+        order = np.argsort(all_r)
+        ordered_radius = all_r[order]
+        cumulative_mass = np.cumsum(all_mass[order], dtype=np.float64).astype(
+            self.mass.dtype
+        )
+        # add mean neutrino mass
+        cumulative_mass += self.nu_density * 4.0 / 3.0 * np.pi * ordered_radius**3
+
+        # Compute density within radius of each particle.
+        # Will need to skip any at zero radius.
+        # Note that because of the definition of the centre of potential, the first
+        # particle *should* be at r=0. We need to manually exclude it, in case round
+        # off error places it at a very small non-zero radius.
+        nskip = max(1, np.argmax(ordered_radius > 0.0 * ordered_radius.units))
+        ordered_radius = ordered_radius[nskip:]
+        cumulative_mass = cumulative_mass[nskip:]
+        nr_parts = len(ordered_radius)
+        density = cumulative_mass / (4.0 / 3.0 * np.pi * ordered_radius**3)
+
+        # Check if we ever reach the density threshold
+        if reference_density > 0:
+            if nr_parts > 0:
+                try:
+                    self.SO_r, self.SO_mass, self.SO_volume = find_SO_radius_and_mass(
+                        ordered_radius,
+                        density,
+                        cumulative_mass,
+                        reference_density,
+                    )
+                except ReadRadiusTooSmallError:
+                    raise ReadRadiusTooSmallError("SO radius multiple was too small!")
+            else:
+                self.SO_volume = 0 * ordered_radius.units**3
+        elif physical_radius > 0:
+            self.SO_r = physical_radius
+            self.SO_volume = 4.0 * np.pi / 3.0 * self.SO_r**3
+            if nr_parts > 0:
+                # find the enclosed mass using interpolation
+                outside_radius = ordered_radius > self.SO_r
+                if not np.any(outside_radius):
+                    # all particles are within the radius, we cannot interpolate
+                    self.SO_mass = cumulative_mass[-1]
+                else:
+                    i = np.argmax(outside_radius)
+                    if i == 0:
+                        # we only have particles in the centre, so we cannot interpolate
+                        self.SO_mass = cumulative_mass[i]
+                    else:
+                        r1 = ordered_radius[i - 1]
+                        r2 = ordered_radius[i]
+                        M1 = cumulative_mass[i - 1]
+                        M2 = cumulative_mass[i]
+                        self.SO_mass = M1 + (self.SO_r - r1) / (r2 - r1) * (M2 - M1)
+
+        # check if we were successful. We only compute SO properties if we
+        # have both a radius and mass (the mass criterion covers the case where
+        # the radius is set to a physical size but we have no mass nonetheless)
+        SO_exists = self.SO_r > 0 and self.SO_mass > 0
+
+        if SO_exists:
+            self.gas_selection = self.radius[self.types == "PartType0"] < self.SO_r
+            self.dm_selection = self.radius[self.types == "PartType1"] < self.SO_r
+            self.star_selection = self.radius[self.types == "PartType4"] < self.SO_r
+            self.bh_selection = self.radius[self.types == "PartType5"] < self.SO_r
+
+            self.all_selection = self.radius < self.SO_r
+            self.mass = self.mass[self.all_selection]
+            self.radius = self.radius[self.all_selection]
+            self.position = self.position[self.all_selection]
+            self.velocity = self.velocity[self.all_selection]
+            self.types = self.types[self.all_selection]
+            self.is_bound_to_satellite = self.is_bound_to_satellite[self.all_selection]
+
+        return SO_exists
+
+    @property
+    def r(self):
+        return self.SO_r
+
+    @property
+    def Mtot(self):
+        return self.SO_mass
+
+    @lazy_property
+    def Mtotpart(self):
+        return self.mass.sum()
+
+    @lazy_property
+    def mass_fraction(self):
+        # note that we cannot divide by mSO here, since that was based on an interpolation
+        return self.mass / self.Mtotpart
+
+    @lazy_property
+    def com(self):
+        return (self.mass_fraction[:, None] * self.position).sum(axis=0) + self.centre
+
+    @lazy_property
+    def vcom(self):
+        return (self.mass_fraction[:, None] * self.velocity).sum(axis=0)
+
+    @lazy_property
+    def spin_parameter(self):
+        if self.Mtotpart == 0:
+            return None
+        _, vmax = get_vmax(self.mass, self.radius)
+        if vmax > 0:
+            vrel = self.velocity - self.vcom[None, :]
+            Ltot = unyt.array.unorm(
+                (self.mass[:, None] * unyt.array.ucross(self.position, vrel)).sum(
+                    axis=0
+                )
+            )
+            return Ltot / (np.sqrt(2.0) * self.Mtotpart * self.SO_r * vmax)
+        return None
+
+    @lazy_property
+    def TotalAxisLengths(self):
+        if self.Mtotpart == 0:
+            return None
+        return get_axis_lengths(self.mass, self.position)
+
+    @lazy_property
+    def Mfrac_satellites(self):
+        return self.mass[self.is_bound_to_satellite].sum() / self.SO_mass
+
+    @lazy_property
+    def gas_masses(self):
+        return self.mass[self.types == "PartType0"]
+
+    @lazy_property
+    def gas_pos(self):
+        return self.position[self.types == "PartType0"]
+
+    @lazy_property
+    def gas_vel(self):
+        return self.velocity[self.types == "PartType0"]
+
+    @lazy_property
+    def Mgas(self):
+        return self.gas_masses.sum()
+
+    @lazy_property
+    def gas_mass_fraction(self):
+        if self.Mgas == 0:
+            return None
+        return self.gas_masses / self.Mgas
+
+    @lazy_property
+    def com_gas(self):
+        if self.Mgas == 0:
+            return None
+        return (self.gas_mass_fraction[:, None] * self.gas_pos).sum(
+            axis=0
+        ) + self.centre
+
+    @lazy_property
+    def vcom_gas(self):
+        if self.Mgas == 0:
+            return None
+        return (self.gas_mass_fraction[:, None] * self.gas_vel).sum(axis=0)
+
+    def compute_Lgas_props(self):
+        (
+            self.internal_Lgas,
+            _,
+            self.internal_Mcountrot_gas,
+        ) = get_angular_momentum_and_kappa_corot(
+            self.gas_masses,
+            self.gas_pos,
+            self.gas_vel,
+            ref_velocity=self.vcom_gas,
+            do_counterrot_mass=True,
+        )
+
+    @lazy_property
+    def Lgas(self):
+        if self.Mgas == 0:
+            return None
+        if not hasattr(self, "internal_Lgas"):
+            self.compute_Lgas_props()
+        return self.internal_Lgas
+
+    @lazy_property
+    def DtoTgas(self):
+        if self.Mgas == 0:
+            return None
+        if not hasattr(self, "internal_Mcountrot_gas"):
+            self.compute_Lgas_props()
+        return 1.0 - 2.0 * self.internal_Mcountrot_gas / self.Mgas
+
+    @lazy_property
+    def GasAxisLengths(self):
+        if self.Mgas == 0:
+            return None
+        return get_axis_lengths(self.gas_masses, self.gas_pos)
+
+    @lazy_property
+    def dm_masses(self):
+        return self.mass[self.types == "PartType1"]
+
+    @lazy_property
+    def dm_pos(self):
+        return self.position[self.types == "PartType1"]
+
+    @lazy_property
+    def dm_vel(self):
+        return self.velocity[self.types == "PartType1"]
+
+    @lazy_property
+    def Mdm(self):
+        return self.dm_masses.sum()
+
+    @lazy_property
+    def dm_mass_fraction(self):
+        if self.Mdm == 0:
+            return None
+        return self.dm_masses / self.Mdm
+
+    @lazy_property
+    def vcom_dm(self):
+        if self.Mdm == 0:
+            return None
+        return (self.dm_mass_fraction[:, None] * self.dm_vel).sum(axis=0)
+
+    @lazy_property
+    def Ldm(self):
+        if self.Mdm == 0:
+            return None
+        return get_angular_momentum(
+            self.dm_masses, self.dm_pos, self.dm_vel, ref_velocity=self.vcom_dm
+        )
+
+    @lazy_property
+    def DMAxisLengths(self):
+        if self.Mdm == 0:
+            return None
+        return get_axis_lengths(self.dm_masses, self.dm_pos)
+
+    @lazy_property
+    def star_masses(self):
+        return self.mass[self.types == "PartType4"]
+
+    @lazy_property
+    def star_pos(self):
+        return self.position[self.types == "PartType4"]
+
+    @lazy_property
+    def star_vel(self):
+        return self.velocity[self.types == "PartType4"]
+
+    @lazy_property
+    def Mstar(self):
+        return self.star_masses.sum()
+
+    @lazy_property
+    def star_mass_fraction(self):
+        if self.Mstar == 0:
+            return None
+        return self.star_masses / self.Mstar
+
+    @lazy_property
+    def com_star(self):
+        if self.Mstar == 0:
+            return None
+        return (self.star_mass_fraction[:, None] * self.star_pos).sum(
+            axis=0
+        ) + self.centre
+
+    @lazy_property
+    def vcom_star(self):
+        if self.Mstar == 0:
+            return None
+        return (self.star_mass_fraction[:, None] * self.star_vel).sum(axis=0)
+
+    def compute_Lstar_props(self):
+        (
+            self.internal_Lstar,
+            _,
+            self.internal_Mcountrot_star,
+        ) = get_angular_momentum_and_kappa_corot(
+            self.star_masses,
+            self.star_pos,
+            self.star_vel,
+            ref_velocity=self.vcom_star,
+            do_counterrot_mass=True,
+        )
+
+    @lazy_property
+    def Lstar(self):
+        if self.Mstar == 0:
+            return None
+        if not hasattr(self, "internal_Lstar"):
+            self.compute_Lstar_props()
+        return self.internal_Lstar
+
+    @lazy_property
+    def DtoTstar(self):
+        if self.Mstar == 0:
+            return None
+        if not hasattr(self, "internal_Mcountrot_star"):
+            self.compute_Lstar_props()
+        return 1.0 - 2.0 * self.internal_Mcountrot_star / self.Mstar
+
+    @lazy_property
+    def StellarAxisLengths(self):
+        if self.Mstar == 0:
+            return None
+        return get_axis_lengths(self.star_masses, self.star_pos)
+
+    @lazy_property
+    def baryon_masses(self):
+        return self.mass[(self.types == "PartType0") | (self.types == "PartType4")]
+
+    @lazy_property
+    def baryon_pos(self):
+        return self.position[(self.types == "PartType0") | (self.types == "PartType4")]
+
+    @lazy_property
+    def baryon_vel(self):
+        return self.velocity[(self.types == "PartType0") | (self.types == "PartType4")]
+
+    @lazy_property
+    def Mbaryons(self):
+        return self.baryon_masses.sum()
+
+    @lazy_property
+    def baryon_mass_fraction(self):
+        if self.Mbaryons == 0:
+            return None
+        return self.baryon_masses / self.Mbaryons
+
+    @lazy_property
+    def baryon_vcom(self):
+        if self.Mbaryons == 0:
+            return None
+        return (self.baryon_mass_fraction[:, None] * self.baryon_vel).sum(axis=0)
+
+    @lazy_property
+    def Lbaryons(self):
+        if self.Mbaryons == 0:
+            return None
+        baryon_relvel = self.baryon_vel - self.baryon_vcom[None, :]
+        return (
+            self.baryon_masses[:, None]
+            * unyt.array.ucross(self.baryon_pos, baryon_relvel)
+        ).sum(axis=0)
+
+    @lazy_property
+    def BaryonAxisLengths(self):
+        if self.Mbaryons == 0:
+            return None
+        return get_axis_lengths(self.baryon_masses, self.baryon_pos)
+
+    @lazy_property
+    def Mbh_dynamical(self):
+        return self.mass[self.types == "PartType5"].sum()
+
+    @lazy_property
+    def Ngas(self):
+        return self.gas_selection.sum()
+
+    @lazy_property
+    def Mgasmetal(self):
+        if self.Ngas == 0:
+            return None
+        return (
+            self.gas_masses
+            * self.data["PartType0"]["MetalMassFractions"][self.gas_selection]
+        ).sum()
+
+    @lazy_property
+    def MgasO(self):
+        if self.Ngas == 0:
+            return None
+        return (
+            self.gas_masses
+            * self.data["PartType0"]["SmoothedElementMassFractions"][
+                self.gas_selection
+            ][:, indexO]
+        ).sum()
+
+    @lazy_property
+    def MgasFe(self):
+        if self.Ngas == 0:
+            return None
+        return (
+            self.gas_masses
+            * self.data["PartType0"]["SmoothedElementMassFractions"][
+                self.gas_selection
+            ][:, indexFe]
+        ).sum()
+
+    @lazy_property
+    def gas_temperatures(self):
+        if self.Ngas == 0:
+            return None
+        return self.data["PartType0"]["Temperatures"][self.gas_selection]
+
+    @lazy_property
+    def Tgas(self):
+        if self.Ngas == 0:
+            return None
+        return (self.gas_temperatures * (self.gas_masses / self.Mgas)).sum()
+
+    @lazy_property
+    def gas_no_cool(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_temperatures > 1.0e5 * unyt.K
+
+    @lazy_property
+    def Mhotgas(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_masses[self.gas_no_cool].sum()
+
+    @lazy_property
+    def Tgas_no_cool(self):
+        if self.Ngas == 0:
+            return None
+        if np.any(self.gas_no_cool):
+            return (
+                self.gas_temperatures[self.gas_no_cool]
+                * self.gas_masses[self.gas_no_cool]
+            ).sum() / self.Mhotgas
+
+    @lazy_property
+    def SFR(self):
+        if self.Ngas == 0:
+            return None
+        SFR = self.data["PartType0"]["StarFormationRates"][self.gas_selection]
+        is_SFR = SFR > 0.0
+        return SFR[is_SFR].sum()
+
+    @lazy_property
+    def gas_xraylum(self):
+        if self.Ngas == 0:
+            return None
+        return self.data["PartType0"]["XrayLuminosities"][self.gas_selection]
+
+    @lazy_property
+    def Xraylum(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_xraylum.sum()
+
+    @lazy_property
+    def gas_xrayphlum(self):
+        if self.Ngas == 0:
+            return None
+        return self.data["PartType0"]["XrayPhotonLuminosities"][self.gas_selection]
+
+    @lazy_property
+    def Xrayphlum(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_xrayphlum.sum()
+
+    @lazy_property
+    def gas_compY(self):
+        if self.Ngas == 0:
+            return None
+        return self.data["PartType0"]["ComptonYParameters"][self.gas_selection]
+
+    @lazy_property
+    def compY_unit(self):
+        # We need to manually convert the units for compY to avoid numerical
+        # overflow inside unyt
+        if self.Ngas == 0:
+            return None
+        unit = 1.0 * self.gas_compY.units
+        new_unit = unit.to(PropertyTable.full_property_list["compY"][3])
+        return new_unit
+
+    @lazy_property
+    def compY(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_compY.sum().value * self.compY_unit
+
+    @lazy_property
+    def gas_no_agn(self):
+        if self.Ngas == 0:
+            return None
+        last_agn_gas = self.data["PartType0"]["LastAGNFeedbackScaleFactors"][
+            self.gas_selection
+        ]
+        return ~self.recently_heated_gas_filter.is_recently_heated(
+            last_agn_gas, self.gas_temperatures
+        )
+
+    @lazy_property
+    def Xraylum_no_agn(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_xraylum[self.gas_no_agn].sum()
+
+    @lazy_property
+    def Xrayphlum_no_agn(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_xrayphlum[self.gas_no_agn].sum()
+
+    @lazy_property
+    def compY_no_agn(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_compY[self.gas_no_agn].sum().value * self.compY_unit
+
+    @lazy_property
+    def Tgas_no_agn(self):
+        if self.Ngas == 0:
+            return None
+        mass_gas_no_agn = self.gas_masses[self.gas_no_agn]
+        Mgas_no_agn = mass_gas_no_agn.sum()
+        if Mgas_no_agn > 0:
+            return (
+                (mass_gas_no_agn / Mgas_no_agn) * self.gas_temperatures[self.gas_no_agn]
+            ).sum()
+
+    @lazy_property
+    def gas_no_cool_no_agn(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_no_cool & self.gas_no_agn
+
+    @lazy_property
+    def Tgas_no_cool_no_agn(self):
+        if self.Ngas == 0:
+            return None
+        mass_gas_no_cool_no_agn = self.gas_masses[self.gas_no_cool_no_agn]
+        Mgas_no_cool_no_agn = mass_gas_no_cool_no_agn.sum()
+        if Mgas_no_cool_no_agn > 0:
+            return (
+                (mass_gas_no_cool_no_agn / Mgas_no_cool_no_agn)
+                * self.gas_temperatures[self.gas_no_cool_no_agn]
+            ).sum()
+
+    @lazy_property
+    def Ekin_gas(self):
+        if self.Ngas == 0:
+            return None
+        # below we need to force conversion to np.float64 before summing up particles
+        # to avoid overflow
+        ekin_gas = self.gas_masses * ((self.gas_vel - self.vcom_gas[None, :]) ** 2).sum(
+            axis=1
+        )
+        ekin_gas = unyt.unyt_array(
+            ekin_gas.value, dtype=np.float64, units=ekin_gas.units
+        )
+        return 0.5 * ekin_gas.sum()
+
+    @lazy_property
+    def gas_densities(self):
+        if self.Ngas == 0:
+            return None
+        return self.data["PartType0"]["Densities"][self.gas_selection]
+
+    @lazy_property
+    def Etherm_gas(self):
+        if self.Ngas == 0:
+            return None
+        etherm_gas = (
+            1.5
+            * self.gas_masses
+            * self.data["PartType0"]["Pressures"][self.gas_selection]
+            / self.gas_densities
+        )
+        etherm_gas = unyt.unyt_array(
+            etherm_gas.value, dtype=np.float64, units=etherm_gas.units
+        )
+        return etherm_gas.sum()
+
+    @lazy_property
+    def DopplerB(self):
+        if self.Ngas == 0:
+            return None
+        ne = self.data["PartType0"]["ElectronNumberDensities"][self.gas_selection]
+        # note: the positions where relative to the centre, so we have
+        # to make them absolute again before subtracting the observer
+        # position
+        relpos = self.gas_pos + self.centre[None, :] - self.observer_position[None, :]
+        distance = np.sqrt((relpos**2).sum(axis=1))
+        # we need to exclude particles at zero distance
+        # (we assume those have no relative velocity)
+        vr = unyt.unyt_array(
+            np.zeros(self.gas_vel.shape[0]),
+            dtype=self.gas_vel.dtype,
+            units=self.gas_vel.units,
+        )
+        has_distance = distance > 0.0
+        vr[has_distance] = (
+            self.gas_vel[has_distance, 0] * relpos[has_distance, 0]
+            + self.gas_vel[has_distance, 1] * relpos[has_distance, 1]
+            + self.gas_vel[has_distance, 2] * relpos[has_distance, 2]
+        ) / distance[has_distance]
+        fac = unyt.sigma_thompson / unyt.c
+        volumes = self.gas_masses / self.gas_densities
+        area = np.pi * self.SO_r**2
+        return (fac * ne * vr * (volumes / area)).sum()
+
+    @lazy_property
+    def Ndm(self):
+        return self.dm_selection.sum()
+
+    @lazy_property
+    def Nstar(self):
+        return self.star_selection.sum()
+
+    @lazy_property
+    def Mstar_init(self):
+        if self.Nstar == 0:
+            return None
+        return self.data["PartType4"]["InitialMasses"][self.star_selection].sum()
+
+    @lazy_property
+    def Mstarmetal(self):
+        if self.Nstar == 0:
+            return None
+        return (
+            self.star_masses
+            * self.data["PartType4"]["MetalMassFractions"][self.star_selection]
+        ).sum()
+
+    @lazy_property
+    def MstarO(self):
+        if self.Nstar == 0:
+            return None
+        return (
+            self.star_masses
+            * self.data["PartType4"]["SmoothedElementMassFractions"][
+                self.star_selection
+            ][:, indexO]
+        ).sum()
+
+    @lazy_property
+    def MstarFe(self):
+        if self.Nstar == 0:
+            return None
+        return (
+            self.star_masses
+            * self.data["PartType4"]["SmoothedElementMassFractions"][
+                self.star_selection
+            ][:, indexFe]
+        ).sum()
+
+    @lazy_property
+    def StellarLuminosity(self):
+        if self.Nstar == 0:
+            return None
+        return self.data["PartType4"]["Luminosities"][self.star_selection].sum(axis=0)
+
+    @lazy_property
+    def Ekin_star(self):
+        if self.Nstar == 0:
+            return None
+        # below we need to force conversion to np.float64 before summing up particles
+        # to avoid overflow
+        ekin_star = self.star_masses * (
+            (self.star_vel - self.vcom_star[None, :]) ** 2
+        ).sum(axis=1)
+        ekin_star = unyt.unyt_array(
+            ekin_star.value, dtype=np.float64, units=ekin_star.units
+        )
+        return 0.5 * ekin_star.sum()
+
+    @lazy_property
+    def Nbh(self):
+        return self.bh_selection.sum()
+
+    @lazy_property
+    def Mbh_subgrid(self):
+        if self.Nbh == 0:
+            return None
+        return self.data["PartType5"]["SubgridMasses"][self.bh_selection].sum()
+
+    @lazy_property
+    def agn_eventa(self):
+        if self.Nbh == 0:
+            return None
+        return self.data["PartType5"]["LastAGNFeedbackScaleFactors"][self.bh_selection]
+
+    @lazy_property
+    def BHlasteventa(self):
+        if self.Nbh == 0:
+            return None
+        return np.max(self.agn_eventa)
+
+    @lazy_property
+    def iBHmax(self):
+        if self.Nbh == 0:
+            return None
+        return np.argmax(self.data["PartType5"]["SubgridMasses"][self.bh_selection])
+
+    @lazy_property
+    def BHmaxM(self):
+        if self.Nbh == 0:
+            return None
+        return self.data["PartType5"]["SubgridMasses"][self.bh_selection][self.iBHmax]
+
+    @lazy_property
+    def BHmaxID(self):
+        if self.Nbh == 0:
+            return None
+        return self.data["PartType5"]["ParticleIDs"][self.bh_selection][self.iBHmax]
+
+    @lazy_property
+    def BHmaxpos(self):
+        if self.Nbh == 0:
+            return None
+        return self.data["PartType5"]["Coordinates"][self.bh_selection][self.iBHmax]
+
+    @lazy_property
+    def BHmaxvel(self):
+        if self.Nbh == 0:
+            return None
+        return self.data["PartType5"]["Velocities"][self.bh_selection][self.iBHmax]
+
+    @lazy_property
+    def BHmaxAR(self):
+        if self.Nbh == 0:
+            return None
+        return self.data["PartType5"]["AccretionRates"][self.bh_selection][self.iBHmax]
+
+    @lazy_property
+    def BHmaxlasteventa(self):
+        if self.Nbh == 0:
+            return None
+        return self.agn_eventa[self.iBHmax]
+
+    @lazy_property
+    def Nnu(self):
+        if "PartType6" in self.data:
+            pos = self.data["PartType6"]["Coordinates"] - self.centre[None, :]
+            nur = np.sqrt(np.sum(pos**2, axis=1))
+            self.nu_selection = nur < self.SO_r
+            return self.nu_selection.sum()
+        else:
+            return unyt.unyt_array(0, dtype=np.uint32, units="dimensionless")
+
+    @lazy_property
+    def Mnu(self):
+        if self.Nnu == 0:
+            return None
+        return self.data["PartType6"]["Masses"][self.nu_selection].sum()
+
+    @lazy_property
+    def MnuNS(self):
+        if self.Nnu == 0:
+            return None
+        return (
+            self.data["PartType6"]["Masses"][self.nu_selection]
+            * self.data["PartType6"]["Weights"][self.nu_selection]
+        ).sum() + self.nu_density * self.SO_volume
+
+
 class SOProperties(HaloProperty):
 
     # Arrays which must be read in for this calculation.
@@ -296,6 +1121,7 @@ class SOProperties(HaloProperty):
         self,
         cellgrid,
         recently_heated_gas_filter,
+        category_filter,
         SOval,
         type="mean",
     ):
@@ -306,6 +1132,7 @@ class SOProperties(HaloProperty):
         self.type = type
 
         self.filter = recently_heated_gas_filter
+        self.category_filter = category_filter
 
         self.observer_position = cellgrid.observer_position
 
@@ -384,10 +1211,9 @@ class SOProperties(HaloProperty):
         Input particle data arrays are unyt_arrays.
         """
 
-        # Find the halo centre of potential
-        centre = input_halo["cofp"]
+        registry = input_halo["cofp"].units.registry
 
-        reg = centre.units.registry
+        do_calculation = self.category_filter.get_filters(halo_result)
 
         SO = {}
         # declare all the variables we will compute
@@ -395,477 +1221,83 @@ class SOProperties(HaloProperty):
         # all variables are defined with physical units and an appropriate dtype
         # we need to use the custom unit registry so that everything can be converted
         # back to snapshot units in the end
-        for name, _, shape, dtype, unit, _, _ in self.property_list:
+        for prop in self.property_list:
+            # skip non-DMO properties in DMO run mode
+            is_dmo = prop[8]
+            if do_calculation["DMO"] and not is_dmo:
+                continue
+            name = prop[0]
+            shape = prop[2]
+            dtype = prop[3]
+            unit = prop[4]
             if shape > 1:
                 val = [0] * shape
             else:
                 val = 0
-            SO[name] = unyt.unyt_array(val, dtype=dtype, units=unit, registry=reg)
+            SO[name] = unyt.unyt_array(val, dtype=dtype, units=unit, registry=registry)
 
         # SOs only exist for central galaxies
-        if input_halo["Structuretype"] != 10:
-            for name, outputname, _, _, _, description, _ in self.property_list:
-                halo_result.update(
-                    {
-                        f"SO/{self.SO_name}/{outputname}": (
-                            SO[name],
-                            description.format(label=self.label),
-                        )
-                    }
+        if input_halo["Structuretype"] == 10:
+
+            types_present = [type for type in self.particle_properties if type in data]
+
+            part_props = SOParticleData(
+                input_halo,
+                data,
+                types_present,
+                self.filter,
+                self.nu_density,
+                self.observer_position,
+            )
+
+            # we need to make sure the physical radius uses the correct unit
+            # registry, since we use it to set the SO radius in some cases
+            physical_radius = unyt.unyt_quantity(
+                self.physical_radius_mpc, units=unyt.Mpc, registry=registry
+            )
+            try:
+                SO_exists = part_props.compute_SO_radius_and_mass(
+                    self.reference_density, physical_radius
                 )
-            return
-
-        # Make an array of particle masses, radii and positions
-        mass = []
-        radius = []
-        position = []
-        velocity = []
-        types = []
-        groupnr = []
-        for ptype in data:
-            if ptype == "PartType6":
-                continue
-            mass.append(data[ptype][mass_dataset(ptype)])
-            pos = data[ptype]["Coordinates"] - centre[None, :]
-            position.append(pos)
-            r = np.sqrt(np.sum(pos**2, axis=1))
-            radius.append(r)
-            velocity.append(data[ptype]["Velocities"])
-            typearr = np.zeros(r.shape, dtype="U9")
-            typearr[:] = ptype
-            types.append(typearr)
-            groupnr.append(data[ptype]["GroupNr_bound"])
-        mass = unyt.array.uconcatenate(mass)
-        radius = unyt.array.uconcatenate(radius)
-        position = unyt.array.uconcatenate(position)
-        velocity = unyt.array.uconcatenate(velocity)
-        types = np.concatenate(types)
-        groupnr = unyt.array.uconcatenate(groupnr)
-
-        # figure out which particles in the list are bound to a halo that is not the
-        # central halo
-        is_bound_to_satellite = (groupnr >= 0) & (groupnr != input_halo["index"])
-
-        # add neutrinos
-        if "PartType6" in data:
-            numass = data["PartType6"]["Masses"] * data["PartType6"]["Weights"]
-            pos = data["PartType6"]["Coordinates"] - centre[None, :]
-            nur = np.sqrt(np.sum(pos**2, axis=1))
-            all_mass = unyt.array.uconcatenate([mass, numass])
-            all_r = unyt.array.uconcatenate([radius, nur])
-        else:
-            all_mass = mass
-            all_r = radius
-
-        # Sort by radius
-        order = np.argsort(all_r)
-        ordered_radius = all_r[order]
-        cumulative_mass = np.cumsum(all_mass[order], dtype=np.float64).astype(
-            mass.dtype
-        )
-        # add mean neutrino mass
-        cumulative_mass += self.nu_density * 4.0 / 3.0 * np.pi * ordered_radius**3
-
-        # Compute density within radius of each particle.
-        # Will need to skip any at zero radius.
-        # Note that because of the definition of the centre of potential, the first
-        # particle *should* be at r=0. We need to manually exclude it, in case round
-        # off error places it at a very small non-zero radius.
-        nskip = max(1, np.argmax(ordered_radius > 0.0 * ordered_radius.units))
-        ordered_radius = ordered_radius[nskip:]
-        cumulative_mass = cumulative_mass[nskip:]
-        nr_parts = len(ordered_radius)
-        density = cumulative_mass / (4.0 / 3.0 * np.pi * ordered_radius**3)
-
-        # Check if we ever reach the density threshold
-        if self.reference_density > 0.0 * self.reference_density:
-            if nr_parts > 0:
-                try:
-                    SO_r, SO_mass, SO_volume = find_SO_radius_and_mass(
-                        ordered_radius,
-                        density,
-                        cumulative_mass,
-                        self.reference_density,
-                    )
-                    SO["r"] += SO_r
-                    SO["Mtot"] += SO_mass
-                except ReadRadiusTooSmallError:
-                    raise ReadRadiusTooSmallError("SO radius multiple was too small!")
-            else:
-                SO_volume = 4.0 * np.pi / 3.0 * SO["r"] ** 3
-        elif self.physical_radius_mpc > 0.0:
-            SO["r"] += self.physical_radius_mpc * unyt.Mpc
-            SO_volume = 4.0 * np.pi / 3.0 * SO["r"] ** 3
-            if nr_parts > 0:
-                # find the enclosed mass using interpolation
-                outside_radius = ordered_radius > SO["r"]
-                if not np.any(outside_radius):
-                    # all particles are within the radius, we cannot interpolate
-                    SO["Mtot"] += cumulative_mass[-1]
-                else:
-                    i = np.argmax(outside_radius)
-                    if i == 0:
-                        # we only have particles in the centre, so we cannot interpolate
-                        SO["Mtot"] += cumulative_mass[i]
-                    else:
-                        r1 = ordered_radius[i - 1]
-                        r2 = ordered_radius[i]
-                        M1 = cumulative_mass[i - 1]
-                        M2 = cumulative_mass[i]
-                        SO["Mtot"] += M1 + (SO["r"] - r1) / (r2 - r1) * (M2 - M1)
-
-        else:
-            # if we get here, we must be in the case where physical_radius_mpc is supposed to be 0
-            # that can only happen if we are looking at a multiple of some radius
-            # in that case, SO["r"] should remain 0
-            # in any other case, something went wrong
-            if not hasattr(self, "multiple"):
-                raise RuntimeError(
-                    "Physical radius was set to 0! This should not happen!"
+            except ReadRadiusTooSmallError:
+                raise ReadRadiusTooSmallError(
+                    f"Need more particles to determine SO radius and mass!"
                 )
 
-        # the second condition is necessary to deal with physical SO radii and
-        # no particles
-        if SO["r"] > 0.0 * radius.units and SO["Mtot"] > 0.0 * mass.units:
+            if SO_exists:
 
-            gas_selection = radius[types == "PartType0"] < SO["r"]
-            dm_selection = radius[types == "PartType1"] < SO["r"]
-            star_selection = radius[types == "PartType4"] < SO["r"]
-            bh_selection = radius[types == "PartType5"] < SO["r"]
-
-            all_selection = radius < SO["r"]
-            mass = mass[all_selection]
-            radius = radius[all_selection]
-            position = position[all_selection]
-            velocity = velocity[all_selection]
-            types = types[all_selection]
-            is_bound_to_satellite = is_bound_to_satellite[all_selection]
-
-            # note that we cannot divide by mSO here, since that was based on an interpolation
-            Mtotpart = mass.sum()
-            mass_frac = mass / Mtotpart
-            SO["com"] += (mass_frac[:, None] * position).sum(axis=0)
-            SO["com"] += centre
-            SO["vcom"] += (mass_frac[:, None] * velocity).sum(axis=0)
-            if Mtotpart > 0.0 * Mtotpart.units:
-                _, vmax = get_vmax(mass, radius)
-                if vmax > 0.0 * vmax.units:
-                    vrel = velocity - SO["vcom"][None, :]
-                    Ltot = unyt.array.unorm(
-                        (mass[:, None] * unyt.array.ucross(position, vrel)).sum(axis=0)
-                    )
-                    SO["spin_parameter"] += Ltot / (
-                        np.sqrt(2.0) * Mtotpart * SO["r"] * vmax
-                    )
-                SO["TotalAxisLengths"] += get_axis_lengths(mass, position)
-
-            SO["Mfrac_satellites"] += mass[is_bound_to_satellite].sum() / SO["Mtot"]
-
-            gas_masses = mass[types == "PartType0"]
-            gas_pos = position[types == "PartType0"]
-            gas_vel = velocity[types == "PartType0"]
-            SO["Mgas"] += gas_masses.sum()
-            if SO["Mgas"] > 0.0 * SO["Mgas"].units:
-                frac_mgas = gas_masses / SO["Mgas"]
-                SO["com_gas"] += (frac_mgas[:, None] * gas_pos).sum(axis=0)
-                SO["com_gas"] += centre
-                SO["vcom_gas"] += (frac_mgas[:, None] * gas_vel).sum(axis=0)
-
-                Lgas, _, Mcountrot = get_angular_momentum_and_kappa_corot(
-                    gas_masses,
-                    gas_pos,
-                    gas_vel,
-                    ref_velocity=SO["vcom_gas"],
-                    do_counterrot_mass=True,
-                )
-                SO["Lgas"] += Lgas
-                SO["DtoTgas"] += 1.0 - 2.0 * Mcountrot / SO["Mgas"]
-                """
-                SO["veldisp_matrix_gas"] += get_velocity_dispersion_matrix(
-                    frac_mgas, gas_vel, SO["vcom_gas"]
-                )
-                """
-                SO["GasAxisLengths"] += get_axis_lengths(gas_masses, gas_pos)
-
-            dm_masses = mass[types == "PartType1"]
-            dm_pos = position[types == "PartType1"]
-            dm_vel = velocity[types == "PartType1"]
-            SO["Mdm"] += dm_masses.sum()
-            if SO["Mdm"] > 0.0 * SO["Mdm"].units:
-                frac_mdm = dm_masses / SO["Mdm"]
-                vcom_dm = (frac_mdm[:, None] * dm_vel).sum(axis=0)
-
-                SO["Ldm"] += get_angular_momentum(
-                    dm_masses, dm_pos, dm_vel, ref_velocity=vcom_dm
-                )
-                """
-                SO["veldisp_matrix_dm"] += get_velocity_dispersion_matrix(
-                    frac_mdm, dm_vel, vcom_dm
-                )
-                """
-                SO["DMAxisLengths"] += get_axis_lengths(dm_masses, dm_pos)
-
-            star_masses = mass[types == "PartType4"]
-            star_pos = position[types == "PartType4"]
-            star_vel = velocity[types == "PartType4"]
-            SO["Mstar"] += star_masses.sum()
-            if SO["Mstar"] > 0.0 * SO["Mstar"].units:
-                frac_mstar = star_masses / SO["Mstar"]
-                SO["com_star"] += (frac_mstar[:, None] * star_pos).sum(axis=0)
-                SO["com_star"] += centre
-                SO["vcom_star"] += (frac_mstar[:, None] * star_vel).sum(axis=0)
-
-                Lstar, _, Mcountrot = get_angular_momentum_and_kappa_corot(
-                    star_masses,
-                    star_pos,
-                    star_vel,
-                    ref_velocity=SO["vcom_star"],
-                    do_counterrot_mass=True,
-                )
-                SO["Lstar"] += Lstar
-                SO["DtoTstar"] += 1.0 - 2.0 * Mcountrot / SO["Mstar"]
-                """
-                SO["veldisp_matrix_star"] += get_velocity_dispersion_matrix(
-                    frac_mstar, star_vel, SO["vcom_star"]
-                )
-                """
-                SO["StellarAxisLengths"] += get_axis_lengths(star_masses, star_pos)
-
-            baryon_masses = mass[(types == "PartType0") | (types == "PartType4")]
-            baryon_pos = position[(types == "PartType0") | (types == "PartType4")]
-            baryon_vel = velocity[(types == "PartType0") | (types == "PartType4")]
-            Mbaryons = baryon_masses.sum()
-            if Mbaryons > 0.0 * Mbaryons.units:
-                baryon_vcom = ((baryon_masses / Mbaryons)[:, None] * baryon_vel).sum(
-                    axis=0
-                )
-                baryon_relvel = baryon_vel - baryon_vcom[None, :]
-                SO["Lbaryons"] += (
-                    baryon_masses[:, None]
-                    * unyt.array.ucross(baryon_pos, baryon_relvel)
-                ).sum(axis=0)
-                SO["BaryonAxisLengths"] += get_axis_lengths(baryon_masses, baryon_pos)
-
-            SO["Mbh_dynamical"] += mass[types == "PartType5"].sum()
-
-            # gas specific properties. We (can) only do these if we have gas.
-            # (remember that "PartType0" might not be part of 'data' at all)
-            if np.any(gas_selection):
-                SO["Ngas"] = (
-                    gas_selection.sum(dtype=SO["Ngas"].dtype) * SO["Ngas"].units
-                )
-
-                SO["Mgasmetal"] += (
-                    gas_masses * data["PartType0"]["MetalMassFractions"][gas_selection]
-                ).sum()
-
-                SO["MgasO"] += (
-                    gas_masses
-                    * data["PartType0"]["SmoothedElementMassFractions"][gas_selection][
-                        :, indexO
-                    ]
-                ).sum()
-                SO["MgasFe"] += (
-                    gas_masses
-                    * data["PartType0"]["SmoothedElementMassFractions"][gas_selection][
-                        :, indexFe
-                    ]
-                ).sum()
-
-                gas_temperatures = data["PartType0"]["Temperatures"][gas_selection]
-                SO["Tgas"] += (gas_temperatures * (gas_masses / SO["Mgas"])).sum()
-                Tgas_selection = gas_temperatures > 1.0e5 * unyt.K
-                SO["Mhotgas"] += gas_masses[Tgas_selection].sum()
-
-                if np.any(Tgas_selection):
-                    SO["Tgas_no_cool"] += (
-                        gas_temperatures[Tgas_selection] * gas_masses[Tgas_selection]
-                    ).sum() / SO["Mhotgas"]
-
-                SFR = data["PartType0"]["StarFormationRates"][gas_selection]
-                is_SFR = SFR > 0.0
-                SO["SFR"] += SFR[is_SFR].sum()
-
-                xraylum = data["PartType0"]["XrayLuminosities"][gas_selection]
-                xrayphlum = data["PartType0"]["XrayPhotonLuminosities"][gas_selection]
-                SO["Xraylum"] += xraylum.sum()
-                SO["Xrayphlum"] += xrayphlum.sum()
-
-                compY = data["PartType0"]["ComptonYParameters"][gas_selection]
-                # unyt has some internal issue that causes an overflow when
-                # converting from compY.units to SO["compY"].units.
-                # we avoid this issue by manually converting the unit
-                unit = 1.0 * compY.units
-                new_unit = unit.to(SO["compY"].units)
-                SO["compY"] += compY.sum().value * new_unit
-
-                last_agn_gas = data["PartType0"]["LastAGNFeedbackScaleFactors"][
-                    gas_selection
-                ]
-                no_agn = ~self.filter.is_recently_heated(last_agn_gas, gas_temperatures)
-                if np.any(no_agn):
-                    SO["Xraylum_no_agn"] += xraylum[no_agn].sum()
-                    SO["Xrayphlum_no_agn"] += xrayphlum[no_agn].sum()
-                    SO["compY_no_agn"] += compY[no_agn].sum().value * new_unit
-                    mass_gas_no_agn = gas_masses[no_agn]
-                    Mgas_no_agn = mass_gas_no_agn.sum()
-                    if Mgas_no_agn > 0.0:
-                        SO["Tgas_no_agn"] += (
-                            (mass_gas_no_agn / Mgas_no_agn) * gas_temperatures[no_agn]
-                        ).sum()
-
-                no_cool_no_agn = Tgas_selection & no_agn
-                if np.any(no_cool_no_agn):
-                    mass_gas_no_cool_no_agn = gas_masses[no_cool_no_agn]
-                    Mgas_no_cool_no_agn = mass_gas_no_cool_no_agn.sum()
-                    if Mgas_no_cool_no_agn > 0.0:
-                        SO["Tgas_no_cool_no_agn"] += (
-                            (mass_gas_no_cool_no_agn / Mgas_no_cool_no_agn)
-                            * gas_temperatures[no_cool_no_agn]
-                        ).sum()
-
-                # below we need to force conversion to np.float64 before summing up particles
-                # to avoid overflow
-                vgas = velocity[types == "PartType0"]
-                ekin_gas = gas_masses * ((vgas - SO["vcom_gas"][None, :]) ** 2).sum(
-                    axis=1
-                )
-                ekin_gas = unyt.unyt_array(
-                    ekin_gas.value, dtype=np.float64, units=ekin_gas.units
-                )
-                SO["Ekin_gas"] += 0.5 * ekin_gas.sum()
-                gas_densities = data["PartType0"]["Densities"][gas_selection]
-                etherm_gas = (
-                    1.5
-                    * gas_masses
-                    * data["PartType0"]["Pressures"][gas_selection]
-                    / gas_densities
-                )
-                etherm_gas = unyt.unyt_array(
-                    etherm_gas.value, dtype=np.float64, units=etherm_gas.units
-                )
-                SO["Etherm_gas"] += etherm_gas.sum()
-
-                ne = data["PartType0"]["ElectronNumberDensities"][gas_selection]
-                # note: the positions where relative to the centre, so we have
-                # to make them absolute again before subtracting the observer
-                # position
-                relpos = (
-                    position[types == "PartType0"]
-                    + centre[None, :]
-                    - self.observer_position[None, :]
-                )
-                distance = np.sqrt((relpos**2).sum(axis=1))
-                # we need to exclude particles at zero distance
-                # (we assume those have no relative velocity)
-                vr = unyt.unyt_array(
-                    np.zeros(vgas.shape[0]), dtype=vgas.dtype, units=vgas.units
-                )
-                has_distance = distance > 0.0
-                vr[has_distance] = (
-                    vgas[has_distance, 0] * relpos[has_distance, 0]
-                    + vgas[has_distance, 1] * relpos[has_distance, 1]
-                    + vgas[has_distance, 2] * relpos[has_distance, 2]
-                ) / distance[has_distance]
-                fac = unyt.sigma_thompson / unyt.c
-                volumes = gas_masses / gas_densities
-                area = np.pi * SO["r"] ** 2
-                SO["DopplerB"] += (fac * ne * vr * (volumes / area)).sum()
-
-            if np.any(dm_selection):
-                SO["Ndm"] = dm_selection.sum(dtype=SO["Ndm"].dtype) * SO["Ndm"].units
-
-            # star specific properties
-            if np.any(star_selection):
-                SO["Nstar"] = (
-                    star_selection.sum(dtype=SO["Nstar"].dtype) * SO["Nstar"].units
-                )
-
-                SO["Mstar_init"] += data["PartType4"]["InitialMasses"][
-                    star_selection
-                ].sum()
-                SO["Mstarmetal"] += (
-                    star_masses
-                    * data["PartType4"]["MetalMassFractions"][star_selection]
-                ).sum()
-
-                SO["MstarO"] += (
-                    star_masses
-                    * data["PartType4"]["SmoothedElementMassFractions"][star_selection][
-                        :, indexO
-                    ]
-                ).sum()
-                SO["MstarFe"] += (
-                    star_masses
-                    * data["PartType4"]["SmoothedElementMassFractions"][star_selection][
-                        :, indexFe
-                    ]
-                ).sum()
-
-                SO["StellarLuminosity"] += data["PartType4"]["Luminosities"][
-                    star_selection
-                ].sum()
-
-                # below we need to force conversion to np.float64 before summing up particles
-                # to avoid overflow
-                ekin_star = star_masses * (
-                    (velocity[types == "PartType4"] - SO["vcom_star"][None, :]) ** 2
-                ).sum(axis=1)
-                ekin_star = unyt.unyt_array(
-                    ekin_star.value, dtype=np.float64, units=ekin_star.units
-                )
-                SO["Ekin_star"] += 0.5 * ekin_star.sum()
-
-            # BH specific properties
-            if np.any(bh_selection):
-                SO["Nbh"] = bh_selection.sum(dtype=SO["Nbh"].dtype) * SO["Nbh"].units
-
-                SO["Mbh_subgrid"] += data["PartType5"]["SubgridMasses"][
-                    bh_selection
-                ].sum()
-                agn_eventa = data["PartType5"]["LastAGNFeedbackScaleFactors"][
-                    bh_selection
-                ]
-
-                SO["BHlasteventa"] += np.max(agn_eventa)
-
-                iBHmax = np.argmax(data["PartType5"]["SubgridMasses"][bh_selection])
-                SO["BHmaxM"] += data["PartType5"]["SubgridMasses"][bh_selection][iBHmax]
-                # unyt annoyingly converts to a floating point type if you use '+='
-                # the only way to avoid this is by directly setting the data for the unyt_array
-                # however, that is unsafe and results in a warning
-                # the only option left is to replace the array with a new copy
-                SO["BHmaxID"] = unyt.unyt_array(
-                    data["PartType5"]["ParticleIDs"][bh_selection][iBHmax].value,
-                    dtype=SO["BHmaxID"].dtype,
-                    units=SO["BHmaxID"].units,
-                )
-                SO["BHmaxpos"] += data["PartType5"]["Coordinates"][bh_selection][iBHmax]
-                SO["BHmaxvel"] += data["PartType5"]["Velocities"][bh_selection][iBHmax]
-                SO["BHmaxAR"] += data["PartType5"]["AccretionRates"][bh_selection][
-                    iBHmax
-                ]
-                SO["BHmaxlasteventa"] += agn_eventa[iBHmax]
-
-            # Neutrino specific properties
-            if "PartType6" in data:
-                pos = data["PartType6"]["Coordinates"] - centre[None, :]
-                nur = np.sqrt(np.sum(pos**2, axis=1))
-                nu_selection = nur < SO["r"]
-                SO["Mnu"] += data["PartType6"]["Masses"][nu_selection].sum()
-                SO["MnuNS"] += (
-                    data["PartType6"]["Masses"][nu_selection]
-                    * data["PartType6"]["Weights"][nu_selection]
-                ).sum()
-                SO["MnuNS"] += self.nu_density * SO_volume
-                if np.any(nu_selection):
-                    SO["Nnu"] = (
-                        nu_selection.sum(dtype=SO["Nnu"].dtype) * SO["Nnu"].units
-                    )
+                for prop in self.property_list:
+                    # skip non-DMO properties in DMO run mode
+                    is_dmo = prop[8]
+                    if do_calculation["DMO"] and not is_dmo:
+                        continue
+                    name = prop[0]
+                    dtype = prop[3]
+                    unit = prop[4]
+                    category = prop[6]
+                    if do_calculation[category]:
+                        val = getattr(part_props, name)
+                        if val is not None:
+                            if unit == "dimensionless":
+                                SO[name] = unyt.unyt_array(
+                                    val.astype(dtype),
+                                    dtype=dtype,
+                                    units=unit,
+                                    registry=registry,
+                                )
+                            else:
+                                SO[name] += val
 
         # Return value should be a dict containing unyt_arrays and descriptions.
         # The dict keys will be used as HDF5 dataset names in the output.
-        for name, outputname, _, _, _, description, _ in self.property_list:
+        for prop in self.property_list:
+            # skip non-DMO properties in DMO run mode
+            is_dmo = prop[8]
+            if do_calculation["DMO"] and not is_dmo:
+                continue
+            name = prop[0]
+            outputname = prop[1]
+            description = prop[5]
             halo_result.update(
                 {
                     f"SO/{self.SO_name}/{outputname}": (
@@ -886,7 +1318,13 @@ class RadiusMultipleSOProperties(SOProperties):
     radius_name = PropertyTable.full_property_list["r"][0]
 
     def __init__(
-        self, cellgrid, recently_heated_gas_filter, SOval, multiple, type="mean"
+        self,
+        cellgrid,
+        recently_heated_gas_filter,
+        category_filter,
+        SOval,
+        multiple,
+        type="mean",
     ):
         if not type in ["mean", "crit"]:
             raise AttributeError(
@@ -894,7 +1332,9 @@ class RadiusMultipleSOProperties(SOProperties):
             )
 
         # initialise the SOProperties object using a conservative physical radius estimate
-        super().__init__(cellgrid, recently_heated_gas_filter, 3000.0, "physical")
+        super().__init__(
+            cellgrid, recently_heated_gas_filter, category_filter, 3000.0, "physical"
+        )
 
         # overwrite the name, SO_name and label
         self.SO_name = f"{multiple:.0f}xR_{SOval:.0f}_{type}"
@@ -929,27 +1369,67 @@ def test_SO_properties():
 
     dummy_halos = DummyHaloGenerator(4251)
     filter = RecentlyHeatedGasFilter(dummy_halos.get_cell_grid())
+    cat_filter = CategoryFilter()
 
     property_calculator_50kpc = SOProperties(
-        dummy_halos.get_cell_grid(), filter, 50.0, "physical"
+        dummy_halos.get_cell_grid(), filter, cat_filter, 50.0, "physical"
     )
     property_calculator_2500mean = SOProperties(
-        dummy_halos.get_cell_grid(), filter, 2500.0, "mean"
+        dummy_halos.get_cell_grid(), filter, cat_filter, 2500.0, "mean"
     )
     property_calculator_2500crit = SOProperties(
-        dummy_halos.get_cell_grid(), filter, 2500.0, "crit"
+        dummy_halos.get_cell_grid(), filter, cat_filter, 2500.0, "crit"
     )
     property_calculator_BN98 = SOProperties(
-        dummy_halos.get_cell_grid(), filter, 0.0, "BN98"
+        dummy_halos.get_cell_grid(), filter, cat_filter, 0.0, "BN98"
     )
     property_calculator_5x2500mean = RadiusMultipleSOProperties(
-        dummy_halos.get_cell_grid(), filter, 2500.0, 5.0, "mean"
+        dummy_halos.get_cell_grid(), filter, cat_filter, 2500.0, 5.0, "mean"
     )
 
     for i in range(100):
-        input_halo, data, rmax, Mtot, Npart = dummy_halos.get_random_halo(
-            [2, 10, 100, 1000, 10000], has_neutrinos=True
-        )
+        (
+            input_halo,
+            data,
+            rmax,
+            Mtot,
+            Npart,
+            particle_numbers,
+        ) = dummy_halos.get_random_halo([2, 10, 100, 1000, 10000], has_neutrinos=True)
+        halo_result_template = {
+            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}": (
+                unyt.unyt_array(
+                    particle_numbers["PartType0"],
+                    dtype=PropertyTable.full_property_list["Ngas"][2],
+                    units="dimensionless",
+                ),
+                "Dummy Ngas for filter",
+            ),
+            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}": (
+                unyt.unyt_array(
+                    particle_numbers["PartType1"],
+                    dtype=PropertyTable.full_property_list["Ndm"][2],
+                    units="dimensionless",
+                ),
+                "Dummy Ndm for filter",
+            ),
+            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}": (
+                unyt.unyt_array(
+                    particle_numbers["PartType4"],
+                    dtype=PropertyTable.full_property_list["Nstar"][2],
+                    units="dimensionless",
+                ),
+                "Dummy Nstar for filter",
+            ),
+            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}": (
+                unyt.unyt_array(
+                    particle_numbers["PartType5"],
+                    dtype=PropertyTable.full_property_list["Nbh"][2],
+                    units="dimensionless",
+                ),
+                "Dummy Nbh for filter",
+            ),
+        }
         rho_ref = Mtot / (4.0 / 3.0 * np.pi * rmax**3)
 
         # force the SO radius to be outside the search sphere and check that
@@ -964,7 +1444,7 @@ def test_SO_properties():
         ]:
             fail = False
             try:
-                halo_result = {}
+                halo_result = dict(halo_result_template)
                 prop_calc.calculate(input_halo, rmax, data, halo_result)
             except ReadRadiusTooSmallError:
                 fail = True
@@ -979,7 +1459,7 @@ def test_SO_properties():
         # required radius
         fail = False
         try:
-            halo_result = {}
+            halo_result = dict(halo_result_template)
             property_calculator_5x2500mean.calculate(
                 input_halo, rmax, data, halo_result
             )
@@ -990,12 +1470,15 @@ def test_SO_properties():
         # force the radius multiple to trip over the search radius
         fail = False
         try:
-            halo_result = {
-                f"SO/2500_mean/{property_calculator_5x2500mean.radius_name}": (
-                    0.1 * rmax,
-                    "Dummy value.",
-                )
-            }
+            halo_result = dict(halo_result_template)
+            halo_result.update(
+                {
+                    f"SO/2500_mean/{property_calculator_5x2500mean.radius_name}": (
+                        0.1 * rmax,
+                        "Dummy value.",
+                    )
+                }
+            )
             property_calculator_5x2500mean.calculate(
                 input_halo, 0.2 * rmax, data, halo_result
             )
@@ -1016,7 +1499,7 @@ def test_SO_properties():
             ("5xR_2500_mean", property_calculator_5x2500mean),
         ]:
 
-            halo_result = {}
+            halo_result = dict(halo_result_template)
             # make sure the radius multiple is found this time
             if SO_name == "5xR_2500_mean":
                 halo_result[
@@ -1038,15 +1521,11 @@ def test_SO_properties():
             assert input_halo_copy == input_halo
             assert input_data_copy == input_data
 
-            for (
-                _,
-                outputname,
-                size,
-                dtype,
-                unit_string,
-                _,
-                _,
-            ) in prop_calc.property_list:
+            for prop in prop_calc.property_list:
+                outputname = prop[1]
+                size = prop[2]
+                dtype = prop[3]
+                unit_string = prop[4]
                 full_name = f"SO/{SO_name}/{outputname}"
                 assert full_name in halo_result
                 result = halo_result[full_name][0]
