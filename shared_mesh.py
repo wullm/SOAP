@@ -20,6 +20,13 @@ class SharedMesh:
         
         comm_rank = comm.Get_rank()
 
+        # Catch the case where there are zero particles
+        if pos.full.shape[0] == 0:
+            self.empty = True
+            return
+        else:
+            self.empty = False
+
         # First, we need to establish a bounding box for the particles
         pos_min_local = np.amin(pos.local, axis=0)
         pos_max_local = np.amax(pos.local, axis=0)
@@ -74,9 +81,10 @@ class SharedMesh:
         self.sort_idx.sync()
 
     def free(self):
-        self.cell_count.free()
-        self.cell_offset.free()
-        self.sort_idx.free()
+        if not(self.empty):
+            self.cell_count.free()
+            self.cell_offset.free()
+            self.sort_idx.free()
 
     def query(self, pos_min, pos_max):
         """
@@ -85,6 +93,10 @@ class SharedMesh:
         different MPI ranks since it only reads the shared data.
         """
         
+        # If there are no particles, we have nothing to do
+        if self.empty:
+            return np.ndarray(0, dtype=int)
+
         # Find range of cells involved
         cell_min_idx = np.floor((pos_min-self.pos_min)/self.cell_size).value.astype(np.int32)
         cell_min_idx = np.clip(cell_min_idx, 0, self.resolution-1)
@@ -115,6 +127,10 @@ class SharedMesh:
         the mesh. This can be called independently on different MPI ranks
         since it only reads the shared data.
         """
+
+        # If there are no particles, we have nothing to do
+        if self.empty:
+            return np.ndarray(0, dtype=int)
         
         pos_min = centre - radius
         pos_max = centre + radius
@@ -157,6 +173,10 @@ class SharedMesh:
         that it will return a particle's index if any periodic copy of that
         particle is in the specified region.
         """
+
+        # If there are no particles, we have nothing to do
+        if self.empty:
+            return np.ndarray(0, dtype=int)
         
         pos_min = centre - radius
         pos_max = centre + radius
