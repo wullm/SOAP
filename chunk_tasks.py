@@ -307,7 +307,7 @@ class ChunkTask:
 
         # Return the names, dimensions and units of the quantities we computed
         # so that we can check they're consistent between chunks
-        return results.get_metadata()
+        return results.get_metadata(comm)
 
     @classmethod
     def bcast(cls, comm, instance):
