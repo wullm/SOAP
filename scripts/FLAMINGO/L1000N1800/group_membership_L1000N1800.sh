@@ -40,11 +40,14 @@ outfile="${outbase}/group_membership/group_membership_${snapnum}/vr_membership_$
 # Create output directory
 outdir=`dirname "${outfile}"`
 mkdir -p "${outdir}"
+lfs setstripe --stripe-count=-1 --stripe-size=32M ${outdir}
 
 # Copy virtual file
-cp "${basedir}/snapshots/flamingo_${snapnum}/flamingo_${snapnum}.hdf5" ${outdir}
-vfile_out=${outdir}/flamingo_${snapnum}.hdf5
-chmod u+w ${vfile_out}
+#cp "${basedir}/snapshots/flamingo_${snapnum}/flamingo_${snapnum}.hdf5" ${outdir}
+#vfile_out=${outdir}/flamingo_${snapnum}.hdf5
+#chmod u+w ${vfile_out}
 
 mpirun python3 -u -m mpi4py \
-    ./vr_group_membership.py ${swift_filename} ${vr_basename} ${outfile} --update-virtual-file=${vfile_out}
+    ./vr_group_membership.py ${swift_filename} ${vr_basename} ${outfile}
+
+#--update-virtual-file=${vfile_out}

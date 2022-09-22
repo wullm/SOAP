@@ -11,7 +11,7 @@
 #SBATCH --nodes=4
 #SBATCH --cpus-per-task=1
 #SBATCH -o ./logs/group_membership_L1000N3600_%x.%a.out
-#SBATCH -p cosma8-shm
+#SBATCH -p cosma8
 #SBATCH -A dp004
 #SBATCH --exclusive
 #SBATCH -t 0:30:00
@@ -40,6 +40,7 @@ outfile="${outbase}/group_membership/group_membership_${snapnum}/vr_membership_$
 # Create output directory
 outdir=`dirname "${outfile}"`
 mkdir -p "${outdir}"
+lfs setstripe --stripe-count=-1 --stripe-size=32M "${outdir}"
 
 # Copy virtual file
 #cp "${basedir}/snapshots/flamingo_${snapnum}/flamingo_${snapnum}.hdf5" ${outdir}

@@ -45,10 +45,10 @@ nr_chunks=1
 # Create output directory
 outdir=`dirname "${outfile}"`
 mkdir -p "${outdir}"
+lfs setstripe --stripe-count=-1 --stripe-size=32M ${outdir}
 
 mpirun python3 -u -m mpi4py ./compute_halo_properties.py \
     ${swift_filename} ${scratchdir} ${vr_basename} ${outfile} ${SLURM_ARRAY_TASK_ID} \
     --chunks=${nr_chunks} \
     --extra-input=${extra_filename} \
-    --max-ranks-reading=128 \
-    --max-halos=100
+    --max-ranks-reading=128
