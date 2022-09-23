@@ -20,20 +20,36 @@ class SharedMesh:
         
         comm_rank = comm.Get_rank()
 
-        # Catch the case where there are zero particles
+        # Catch the case where there are zero particles on any rank
         if pos.full.shape[0] == 0:
             self.empty = True
             return
         else:
             self.empty = False
 
-        # First, we need to establish a bounding box for the particles
-        pos_min_local = np.amin(pos.local, axis=0)
-        pos_max_local = np.amax(pos.local, axis=0)
-        self.pos_min = pos_min_local.copy()
+        # First, we need to establish a bounding box for the particles.
+        # Some ranks might have no particles.
+        if pos.local.shape[0] > 0:
+            # This rank has particles, so find min and max coords
+            pos_min_local = np.amin(pos.local, axis=0)
+            pos_max_local = np.amax(pos.local, axis=0)
+        else:
+            # This rank has no particles so set local min and max coordinates
+            # to maximum and minimum possible float values respectively.
+            finfo = np.finfo(pos.local.dtype)
+            pos_min_local = np.empty_like(pos.local, shape=(3,))
+            pos_min_local[:] = finfo.max
+            pos_max_local = np.empty_like(pos.local, shape=(3,))
+            pos_max_local[:] = finfo.min
+
+        # Then we can evaluate the minimum and maximum coordinates across
+        # ranks which have particles with an allreduce.
+        self.pos_min = np.empty_like(pos_min_local)
         comm.Allreduce(pos_min_local, self.pos_min, op=MPI.MIN)
-        self.pos_max = pos_max_local.copy()
+        self.pos_max = np.empty_like(pos_max_local)
         comm.Allreduce(pos_max_local, self.pos_max, op=MPI.MAX)
+        assert np.all(pos.local >= self.pos_min)
+        assert np.all(pos.local <= self.pos_max)
 
         # Determine the cell size
         self.resolution = int(resolution)
@@ -93,7 +109,7 @@ class SharedMesh:
         different MPI ranks since it only reads the shared data.
         """
         
-        # If there are no particles, we have nothing to do
+        # If there are no particles on any rank, we have nothing to do
         if self.empty:
             return np.ndarray(0, dtype=int)
 
@@ -128,7 +144,7 @@ class SharedMesh:
         since it only reads the shared data.
         """
 
-        # If there are no particles, we have nothing to do
+        # If there are no particles on any rank, we have nothing to do
         if self.empty:
             return np.ndarray(0, dtype=int)
         
@@ -174,7 +190,7 @@ class SharedMesh:
         particle is in the specified region.
         """
 
-        # If there are no particles, we have nothing to do
+        # If there are no particles on any rank, we have nothing to do
         if self.empty:
             return np.ndarray(0, dtype=int)
         
