@@ -456,6 +456,26 @@ class SubhaloParticleData:
         )
 
     @lazy_property
+    def DM_Vmax(self):
+        if self.Ndm == 0:
+            return None
+        if not hasattr(self, "DM_r_vmax"):
+            self.DM_r_vmax, self.DM_vmax = get_vmax(
+                self.mass_dm, self.radius[self.dm_mask_sh]
+            )
+        return self.DM_vmax
+
+    @lazy_property
+    def DM_R_vmax(self):
+        if self.Ndm == 0:
+            return None
+        if not hasattr(self, "DM_r_vmax"):
+            self.DM_r_vmax, self.DM_vmax = get_vmax(
+                self.mass_dm, self.radius[self.dm_mask_sh]
+            )
+        return self.DM_r_vmax
+
+    @lazy_property
     def star_mass_fraction(self):
         if self.Mstar == 0:
             return None
@@ -734,6 +754,8 @@ class SubhaloProperties(HaloProperty):
             "Mstarmetal",
             "Vmax",
             "R_vmax",
+            "DM_Vmax",
+            "DM_R_vmax",
             "spin_parameter",
             "HalfMassRadiusTot",
             "HalfMassRadiusGas",
