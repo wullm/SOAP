@@ -600,13 +600,19 @@ class SOParticleData:
         return self.gas_selection.sum()
 
     @lazy_property
-    def Mgasmetal(self):
+    def gas_metal_masses(self):
         if self.Ngas == 0:
             return None
         return (
             self.gas_masses
             * self.data["PartType0"]["MetalMassFractions"][self.gas_selection]
-        ).sum()
+        )
+
+    @lazy_property
+    def Mgasmetal(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_metal_masses.sum()
 
     @lazy_property
     def MgasO(self):
@@ -665,12 +671,31 @@ class SOParticleData:
             ).sum() / self.Mhotgas
 
     @lazy_property
-    def SFR(self):
+    def gas_SFR(self):
         if self.Ngas == 0:
             return None
         SFR = self.data["PartType0"]["StarFormationRates"][self.gas_selection]
         is_SFR = SFR > 0.0
-        return SFR[is_SFR].sum()
+        SFR[~is_SFR] = 0.0
+        return SFR
+
+    @lazy_property
+    def SFR(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_SFR.sum()
+
+    @lazy_property
+    def Mgas_SF(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_masses[self.gas_SFR > 0.0].sum()
+
+    @lazy_property
+    def Mgasmetal_SF(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_metal_masses[self.gas_SFR > 0.0].sum()
 
     @lazy_property
     def gas_xraylum(self):
@@ -1114,6 +1139,8 @@ class SOProperties(HaloProperty):
             "DtoTstar",
             "MstarO",
             "MstarFe",
+            "Mgas_SF",
+            "Mgasmetal_SF",
         ]
     ]
 
