@@ -592,20 +592,46 @@ class SubhaloParticleData:
         return self.data["PartType0"][self.grnr] == self.index
 
     @lazy_property
+    def gas_SFR(self):
+        if self.Ngas == 0:
+            return None
+        # remember: SFR < 0. is not SFR at all!
+        all_SFR = self.data["PartType0"]["StarFormationRates"][self.gas_mask_all]
+        all_SFR[all_SFR < 0.0] = 0.0
+        return all_SFR
+
+    @lazy_property
     def SFR(self):
         if self.Ngas == 0:
             return None
-        all_SFR = self.data["PartType0"]["StarFormationRates"][self.gas_mask_all]
-        return all_SFR[all_SFR > 0.0].sum()
+        return self.gas_SFR.sum()
 
     @lazy_property
-    def Mgasmetal(self):
+    def gas_metal_mass(self):
         if self.Ngas == 0:
             return None
         return (
             self.mass_gas
             * self.data["PartType0"]["MetalMassFractions"][self.gas_mask_all]
-        ).sum()
+        )
+
+    @lazy_property
+    def Mgasmetal(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_metal_mass.sum()
+
+    @lazy_property
+    def Mgas_SF(self):
+        if self.Ngas == 0:
+            return None
+        return self.mass_gas[self.gas_SFR > 0.0].sum()
+
+    @lazy_property
+    def Mgasmetal_SF(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_metal_mass[self.gas_SFR > 0.0].sum()
 
     @lazy_property
     def gas_temp(self):
@@ -774,6 +800,8 @@ class SubhaloProperties(HaloProperty):
             "DtoTstar",
             "stellar_age_mw",
             "stellar_age_lw",
+            "Mgas_SF",
+            "Mgasmetal_SF",
         ]
     ]
 
