@@ -669,7 +669,7 @@ class ApertureParticleData:
 
     @lazy_property
     def gasmetalfrac_SF(self):
-        if self.Ngas == 0:
+        if self.Ngas == 0 or self.Mgas_SF == 0.0:
             return None
         return self.gas_Mgasmetal[self.is_SFR].sum() / self.Mgas_SF
 
@@ -692,7 +692,7 @@ class ApertureParticleData:
 
     @lazy_property
     def gasOfrac_SF(self):
-        if self.Ngas == 0:
+        if self.Ngas == 0 or self.Mgas_SF == 0.0:
             return None
         return self.gas_MgasO[self.is_SFR].sum() / self.Mgas_SF
 
@@ -715,7 +715,7 @@ class ApertureParticleData:
 
     @lazy_property
     def gasFefrac_SF(self):
-        if self.Ngas == 0:
+        if self.Ngas == 0 or self.Mgas_SF == 0.0:
             return None
         return self.gas_MgasFe[self.is_SFR].sum() / self.Mgas_SF
 

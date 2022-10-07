@@ -693,7 +693,7 @@ class SOParticleData:
 
     @lazy_property
     def gasmetalfrac_SF(self):
-        if self.Ngas == 0:
+        if self.Ngas == 0 or self.Mgas_SF == 0.0:
             return None
         return self.gas_metal_masses[self.gas_SFR > 0.0].sum() / self.Mgas_SF
 
