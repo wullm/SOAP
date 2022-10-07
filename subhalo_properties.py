@@ -203,13 +203,13 @@ class SubhaloParticleData:
         return self.stellar_luminosities.sum(axis=0)
 
     @lazy_property
-    def Mstarmetal(self):
+    def starmetalfrac(self):
         if self.Nstar == 0:
             return None
         return (
             self.mass_star
             * self.data["PartType4"]["MetalMassFractions"][self.star_mask_all]
-        ).sum()
+        ).sum() / self.Mstar
 
     @lazy_property
     def stellar_ages(self):
@@ -616,10 +616,10 @@ class SubhaloParticleData:
         )
 
     @lazy_property
-    def Mgasmetal(self):
+    def gasmetalfrac(self):
         if self.Ngas == 0:
             return None
-        return self.gas_metal_mass.sum()
+        return self.gas_metal_mass.sum() / self.Mgas
 
     @lazy_property
     def Mgas_SF(self):
@@ -628,10 +628,10 @@ class SubhaloParticleData:
         return self.mass_gas[self.gas_SFR > 0.0].sum()
 
     @lazy_property
-    def Mgasmetal_SF(self):
+    def gasmetalfrac_SF(self):
         if self.Ngas == 0:
             return None
-        return self.gas_metal_mass[self.gas_SFR > 0.0].sum()
+        return self.gas_metal_mass[self.gas_SFR > 0.0].sum() / self.Mgas_SF
 
     @lazy_property
     def gas_temp(self):
@@ -770,14 +770,14 @@ class SubhaloProperties(HaloProperty):
             "kappa_corot_star",
             "Lbaryons",
             "kappa_corot_baryons",
-            "Mgasmetal",
+            "gasmetalfrac",
             "Tgas",
             "Tgas_no_cool",
             "Tgas_no_agn",
             "Tgas_no_cool_no_agn",
             "SFR",
             "StellarLuminosity",
-            "Mstarmetal",
+            "starmetalfrac",
             "Vmax",
             "R_vmax",
             "DM_Vmax",
@@ -801,7 +801,7 @@ class SubhaloProperties(HaloProperty):
             "stellar_age_mw",
             "stellar_age_lw",
             "Mgas_SF",
-            "Mgasmetal_SF",
+            "gasmetalfrac_SF",
         ]
     ]
 

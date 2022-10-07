@@ -609,13 +609,13 @@ class SOParticleData:
         )
 
     @lazy_property
-    def Mgasmetal(self):
+    def gasmetalfrac(self):
         if self.Ngas == 0:
             return None
-        return self.gas_metal_masses.sum()
+        return self.gas_metal_masses.sum() / self.Mgas
 
     @lazy_property
-    def MgasO(self):
+    def gasOfrac(self):
         if self.Ngas == 0:
             return None
         return (
@@ -623,10 +623,10 @@ class SOParticleData:
             * self.data["PartType0"]["SmoothedElementMassFractions"][
                 self.gas_selection
             ][:, indexO]
-        ).sum()
+        ).sum() / self.Mgas
 
     @lazy_property
-    def MgasFe(self):
+    def gasFefrac(self):
         if self.Ngas == 0:
             return None
         return (
@@ -634,7 +634,7 @@ class SOParticleData:
             * self.data["PartType0"]["SmoothedElementMassFractions"][
                 self.gas_selection
             ][:, indexFe]
-        ).sum()
+        ).sum() / self.Mgas
 
     @lazy_property
     def gas_temperatures(self):
@@ -692,10 +692,10 @@ class SOParticleData:
         return self.gas_masses[self.gas_SFR > 0.0].sum()
 
     @lazy_property
-    def Mgasmetal_SF(self):
+    def gasmetalfrac_SF(self):
         if self.Ngas == 0:
             return None
-        return self.gas_metal_masses[self.gas_SFR > 0.0].sum()
+        return self.gas_metal_masses[self.gas_SFR > 0.0].sum() / self.Mgas_SF
 
     @lazy_property
     def gas_xraylum(self):
@@ -879,16 +879,16 @@ class SOParticleData:
         return self.data["PartType4"]["InitialMasses"][self.star_selection].sum()
 
     @lazy_property
-    def Mstarmetal(self):
+    def starmetalfrac(self):
         if self.Nstar == 0:
             return None
         return (
             self.star_masses
             * self.data["PartType4"]["MetalMassFractions"][self.star_selection]
-        ).sum()
+        ).sum() / self.Mstar
 
     @lazy_property
-    def MstarO(self):
+    def starOfrac(self):
         if self.Nstar == 0:
             return None
         return (
@@ -896,10 +896,10 @@ class SOParticleData:
             * self.data["PartType4"]["SmoothedElementMassFractions"][
                 self.star_selection
             ][:, indexO]
-        ).sum()
+        ).sum() / self.Mstar
 
     @lazy_property
-    def MstarFe(self):
+    def starFefrac(self):
         if self.Nstar == 0:
             return None
         return (
@@ -907,7 +907,7 @@ class SOParticleData:
             * self.data["PartType4"]["SmoothedElementMassFractions"][
                 self.star_selection
             ][:, indexFe]
-        ).sum()
+        ).sum() / self.Mstar
 
     @lazy_property
     def StellarLuminosity(self):
@@ -1087,7 +1087,7 @@ class SOProperties(HaloProperty):
             "com_gas",
             "vcom_gas",
             #            "veldisp_matrix_gas",
-            "Mgasmetal",
+            "gasmetalfrac",
             "Mhotgas",
             "Tgas",
             "Tgas_no_cool",
@@ -1110,7 +1110,7 @@ class SOProperties(HaloProperty):
             #            "veldisp_matrix_star",
             "Lstar",
             "Mstar_init",
-            "Mstarmetal",
+            "starmetalfrac",
             "StellarLuminosity",
             "Ekin_star",
             "Lbaryons",
@@ -1133,14 +1133,13 @@ class SOProperties(HaloProperty):
             "StellarAxisLengths",
             "BaryonAxisLengths",
             "DopplerB",
-            "MgasO",
-            "MgasFe",
+            "gasOfrac",
+            "gasFefrac",
             "DtoTgas",
             "DtoTstar",
-            "MstarO",
-            "MstarFe",
-            "Mgas_SF",
-            "Mgasmetal_SF",
+            "starOfrac",
+            "starFefrac",
+            "gasmetalfrac_SF",
         ]
     ]
 
