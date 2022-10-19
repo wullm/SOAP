@@ -179,6 +179,11 @@ class SWIFTCellGrid:
                     "InternalCodeUnits"
                 ].attrs[name][0]
 
+            # Store SWIFT header
+            self.swift_header_group = {}
+            for name in infile["Header"].attrs:
+               self.swift_header_group[name] = infile["Header"].attrs[name]
+
             # Read the critical density and attach units
             # This is in internal units, which may not be the same as snapshot units.
             critical_density = float(
@@ -583,6 +588,11 @@ class SWIFTCellGrid:
             units.attrs[name] = [
                 value,
             ]
+
+        # Write header
+        header = group.create_group("Header")
+        for name, value in self.swift_header_group.items():
+            header.attrs[name] = value
 
     def complete_radius_from_mask(self, mask):
         """

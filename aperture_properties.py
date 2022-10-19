@@ -228,7 +228,7 @@ class ApertureParticleData:
         return self.stellar_luminosities.sum(axis=0)
 
     @lazy_property
-    def Mstarmetal(self):
+    def starmetalfrac(self):
         if self.Nstar == 0:
             return None
         return (
@@ -236,7 +236,7 @@ class ApertureParticleData:
             * self.data["PartType4"]["MetalMassFractions"][self.star_mask_all][
                 self.star_mask_ap
             ]
-        ).sum()
+        ).sum() / self.Mstar
 
     @lazy_property
     def stellar_MstarO(self):
@@ -250,10 +250,10 @@ class ApertureParticleData:
         )
 
     @lazy_property
-    def MstarO(self):
+    def starOfrac(self):
         if self.Nstar == 0:
             return None
-        return self.stellar_MstarO.sum()
+        return self.stellar_MstarO.sum() / self.Mstar
 
     @lazy_property
     def stellar_MstarFe(self):
@@ -267,10 +267,10 @@ class ApertureParticleData:
         )
 
     @lazy_property
-    def MstarFe(self):
+    def starFefrac(self):
         if self.Nstar == 0:
             return None
-        return self.stellar_MstarFe.sum()
+        return self.stellar_MstarFe.sum() / self.Mstar
 
     @lazy_property
     def stellar_ages(self):
@@ -668,16 +668,16 @@ class ApertureParticleData:
         )
 
     @lazy_property
-    def Mgasmetal_SF(self):
-        if self.Ngas == 0:
+    def gasmetalfrac_SF(self):
+        if self.Ngas == 0 or self.Mgas_SF == 0.0:
             return None
-        return self.gas_Mgasmetal[self.is_SFR].sum()
+        return self.gas_Mgasmetal[self.is_SFR].sum() / self.Mgas_SF
 
     @lazy_property
-    def Mgasmetal(self):
+    def gasmetalfrac(self):
         if self.Ngas == 0:
             return None
-        return self.gas_Mgasmetal.sum()
+        return self.gas_Mgasmetal.sum() / self.Mgas
 
     @lazy_property
     def gas_MgasO(self):
@@ -691,16 +691,16 @@ class ApertureParticleData:
         )
 
     @lazy_property
-    def MgasO_SF(self):
-        if self.Ngas == 0:
+    def gasOfrac_SF(self):
+        if self.Ngas == 0 or self.Mgas_SF == 0.0:
             return None
-        return self.gas_MgasO[self.is_SFR].sum()
+        return self.gas_MgasO[self.is_SFR].sum() / self.Mgas_SF
 
     @lazy_property
-    def MgasO(self):
+    def gasOfrac(self):
         if self.Ngas == 0:
             return None
-        return self.gas_MgasO.sum()
+        return self.gas_MgasO.sum() / self.Mgas
 
     @lazy_property
     def gas_MgasFe(self):
@@ -714,16 +714,16 @@ class ApertureParticleData:
         )
 
     @lazy_property
-    def MgasFe_SF(self):
-        if self.Ngas == 0:
+    def gasFefrac_SF(self):
+        if self.Ngas == 0 or self.Mgas_SF == 0.0:
             return None
-        return self.gas_MgasFe[self.is_SFR].sum()
+        return self.gas_MgasFe[self.is_SFR].sum() / self.Mgas_SF
 
     @lazy_property
-    def MgasFe(self):
+    def gasFefrac(self):
         if self.Ngas == 0:
             return None
-        return self.gas_MgasFe.sum()
+        return self.gas_MgasFe.sum() / self.Mgas
 
     @lazy_property
     def gas_temp(self):
@@ -873,17 +873,17 @@ class ApertureProperties(HaloProperty):
             "Ekin_gas",
             "Ekin_star",
             "Mgas_SF",
-            "Mgasmetal",
-            "Mgasmetal_SF",
-            "MgasO",
-            "MgasO_SF",
-            "MgasFe",
-            "MgasFe_SF",
+            "gasmetalfrac",
+            "gasmetalfrac_SF",
+            "gasOfrac",
+            "gasOfrac_SF",
+            "gasFefrac",
+            "gasFefrac_SF",
             "Tgas",
             "Tgas_no_agn",
             "SFR",
             "StellarLuminosity",
-            "Mstarmetal",
+            "starmetalfrac",
             "HalfMassRadiusGas",
             "HalfMassRadiusDM",
             "HalfMassRadiusStar",
@@ -895,8 +895,8 @@ class ApertureProperties(HaloProperty):
             "BaryonAxisLengths",
             "DtoTgas",
             "DtoTstar",
-            "MstarO",
-            "MstarFe",
+            "starOfrac",
+            "starFefrac",
             "stellar_age_mw",
             "stellar_age_lw",
         ]

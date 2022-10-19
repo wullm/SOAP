@@ -20,7 +20,7 @@ def sub_snapnum(filename, snapnum):
 
 
 def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
-                   ref_metadata, nr_chunks, comm_world):
+                   ref_metadata, nr_chunks, comm_world, category_filter):
     """
     Combine the per-chunk output files into a single, sorted output
     """
@@ -64,6 +64,8 @@ def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
                 # Add units and description
                 attrs = swift_units.attributes_from_units(unit)
                 attrs["Description"] = description
+                mask_metadata = category_filter.get_filter_metadata(name)
+                attrs.update(mask_metadata)
                 for attr_name, attr_value in attrs.items():
                     dataset.attrs[attr_name] = attr_value
             outfile.close()

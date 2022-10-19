@@ -600,16 +600,22 @@ class SOParticleData:
         return self.gas_selection.sum()
 
     @lazy_property
-    def Mgasmetal(self):
+    def gas_metal_masses(self):
         if self.Ngas == 0:
             return None
         return (
             self.gas_masses
             * self.data["PartType0"]["MetalMassFractions"][self.gas_selection]
-        ).sum()
+        )
 
     @lazy_property
-    def MgasO(self):
+    def gasmetalfrac(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_metal_masses.sum() / self.Mgas
+
+    @lazy_property
+    def gasOfrac(self):
         if self.Ngas == 0:
             return None
         return (
@@ -617,10 +623,10 @@ class SOParticleData:
             * self.data["PartType0"]["SmoothedElementMassFractions"][
                 self.gas_selection
             ][:, indexO]
-        ).sum()
+        ).sum() / self.Mgas
 
     @lazy_property
-    def MgasFe(self):
+    def gasFefrac(self):
         if self.Ngas == 0:
             return None
         return (
@@ -628,7 +634,7 @@ class SOParticleData:
             * self.data["PartType0"]["SmoothedElementMassFractions"][
                 self.gas_selection
             ][:, indexFe]
-        ).sum()
+        ).sum() / self.Mgas
 
     @lazy_property
     def gas_temperatures(self):
@@ -665,12 +671,31 @@ class SOParticleData:
             ).sum() / self.Mhotgas
 
     @lazy_property
-    def SFR(self):
+    def gas_SFR(self):
         if self.Ngas == 0:
             return None
         SFR = self.data["PartType0"]["StarFormationRates"][self.gas_selection]
         is_SFR = SFR > 0.0
-        return SFR[is_SFR].sum()
+        SFR[~is_SFR] = 0.0
+        return SFR
+
+    @lazy_property
+    def SFR(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_SFR.sum()
+
+    @lazy_property
+    def Mgas_SF(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_masses[self.gas_SFR > 0.0].sum()
+
+    @lazy_property
+    def gasmetalfrac_SF(self):
+        if self.Ngas == 0 or self.Mgas_SF == 0.0:
+            return None
+        return self.gas_metal_masses[self.gas_SFR > 0.0].sum() / self.Mgas_SF
 
     @lazy_property
     def gas_xraylum(self):
@@ -854,16 +879,16 @@ class SOParticleData:
         return self.data["PartType4"]["InitialMasses"][self.star_selection].sum()
 
     @lazy_property
-    def Mstarmetal(self):
+    def starmetalfrac(self):
         if self.Nstar == 0:
             return None
         return (
             self.star_masses
             * self.data["PartType4"]["MetalMassFractions"][self.star_selection]
-        ).sum()
+        ).sum() / self.Mstar
 
     @lazy_property
-    def MstarO(self):
+    def starOfrac(self):
         if self.Nstar == 0:
             return None
         return (
@@ -871,10 +896,10 @@ class SOParticleData:
             * self.data["PartType4"]["SmoothedElementMassFractions"][
                 self.star_selection
             ][:, indexO]
-        ).sum()
+        ).sum() / self.Mstar
 
     @lazy_property
-    def MstarFe(self):
+    def starFefrac(self):
         if self.Nstar == 0:
             return None
         return (
@@ -882,7 +907,7 @@ class SOParticleData:
             * self.data["PartType4"]["SmoothedElementMassFractions"][
                 self.star_selection
             ][:, indexFe]
-        ).sum()
+        ).sum() / self.Mstar
 
     @lazy_property
     def StellarLuminosity(self):
@@ -1062,7 +1087,7 @@ class SOProperties(HaloProperty):
             "com_gas",
             "vcom_gas",
             #            "veldisp_matrix_gas",
-            "Mgasmetal",
+            "gasmetalfrac",
             "Mhotgas",
             "Tgas",
             "Tgas_no_cool",
@@ -1085,7 +1110,7 @@ class SOProperties(HaloProperty):
             #            "veldisp_matrix_star",
             "Lstar",
             "Mstar_init",
-            "Mstarmetal",
+            "starmetalfrac",
             "StellarLuminosity",
             "Ekin_star",
             "Lbaryons",
@@ -1108,12 +1133,13 @@ class SOProperties(HaloProperty):
             "StellarAxisLengths",
             "BaryonAxisLengths",
             "DopplerB",
-            "MgasO",
-            "MgasFe",
+            "gasOfrac",
+            "gasFefrac",
             "DtoTgas",
             "DtoTstar",
-            "MstarO",
-            "MstarFe",
+            "starOfrac",
+            "starFefrac",
+            "gasmetalfrac_SF",
         ]
     ]
 
