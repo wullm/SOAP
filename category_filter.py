@@ -58,6 +58,17 @@ class CategoryFilter:
             Nbh = halo_result[bh_filter_name][0].value
         return self.get_filters_direct(Ngas, Ndm, Nstar, Nbh)
 
+    def get_compression_metadata(self, property_output_name):
+        base_output_name = property_output_name.split("/")[-1]
+        compression = None
+        for _, prop in PropertyTable.full_property_list.items():
+            if prop[0] == base_output_name:
+                compression = prop[6]
+        if compression is None:
+            return {"Lossy Compression Algorithm": "None", "Is Compressed": False}
+        else:
+            return {"Lossy Compression Algorithm": compression, "Is Compressed": False}
+
     def get_filter_metadata(self, property_output_name):
         base_output_name = property_output_name.split("/")[-1]
         category = None
