@@ -38,11 +38,11 @@ class CategoryFilter:
     def get_filters_direct(self, Ngas, Ndm, Nstar, Nbh):
         return {
             "basic": True,
-            "general": Ngas + Ndm + Nstar + Nbh > self.Ngeneral,
-            "gas": Ngas > self.Ngas,
-            "dm": Ndm > self.Ndm,
-            "star": Nstar > self.Nstar,
-            "baryon": Ngas + Nstar > self.Nbaryon,
+            "general": Ngas + Ndm + Nstar + Nbh >= self.Ngeneral,
+            "gas": Ngas >= self.Ngas,
+            "dm": Ndm >= self.Ndm,
+            "star": Nstar >= self.Nstar,
+            "baryon": Ngas + Nstar >= self.Nbaryon,
             "DMO": self.dmo,
         }
 
