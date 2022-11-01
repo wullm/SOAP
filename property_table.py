@@ -765,7 +765,7 @@ class PropertyTable:
             3,
             np.float64,
             "Mpc",
-            "Centre of potential, as identified by VR. Used as reference for all relative positions.",
+            "Centre of potential, as identified by VR. Used as reference for all relative positions. Equal to the position of the most bound particle in the subhalo.",
             "VR",
             "DScale5",
             True,
