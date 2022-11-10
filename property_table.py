@@ -2,6 +2,22 @@
 
 import numpy as np
 import unyt
+import subprocess
+import datetime
+import os
+
+
+def get_version_string():
+    handle = subprocess.run("git describe --always", shell=True, stdout=subprocess.PIPE)
+    if handle.returncode != 0:
+        git_version = "Unknown SOAP version"
+    else:
+        git_version = handle.stdout.decode("utf-8").strip()
+        git_version = f"SOAP version ``{git_version}''"
+    timestamp = datetime.datetime.now().strftime("%A %-d %B %Y, %H:%M:%S")
+    username = os.getlogin()
+    hostname = os.uname().nodename
+    return f"{git_version} -- Compiled by user ``{username}'' on {hostname} on {timestamp}."
 
 
 class PropertyTable:
@@ -72,6 +88,7 @@ class PropertyTable:
 
     compression_description = {
         "FMantissa9": "$1.36693{\\rm{}e}10 \\rightarrow{} 1.367{\\rm{}e}10$",
+        "DMantissa9": "$1.36693{\\rm{}e}10 \\rightarrow{} 1.367{\\rm{}e}10$",
         "DScale5": "10 pc accurate",
         "DScale1": "0.1 km/s accurate",
         "Nbit40": "Store less bits",
@@ -147,7 +164,7 @@ class PropertyTable:
             "kpc",
             "Position of most massive black hole.",
             "general",
-            "FMantissa9",
+            "DScale5",
             False,
         ),
         "BHmaxvel": (
@@ -217,7 +234,7 @@ class PropertyTable:
             "erg",
             "Total kinetic energy of the gas, relative to the gas centre of mass velocity.",
             "gas",
-            "FMantissa9",
+            "DMantissa9",
             False,
         ),
         "Ekin_star": (
@@ -227,7 +244,7 @@ class PropertyTable:
             "erg",
             "Total kinetic energy of the stars, relative to the stellar centre of mass velocity.",
             "star",
-            "FMantissa9",
+            "DMantissa9",
             False,
         ),
         "Etherm_gas": (
@@ -237,7 +254,7 @@ class PropertyTable:
             "erg",
             "Total thermal energy of the gas.",
             "gas",
-            "FMantissa9",
+            "DMantissa9",
             False,
         ),
         "GasAxisLengths": (
@@ -765,7 +782,7 @@ class PropertyTable:
             3,
             np.float64,
             "Mpc",
-            "Centre of potential, as identified by VR. Used as reference for all relative positions.",
+            "Centre of potential, as identified by VR. Used as reference for all relative positions. Equal to the position of the most bound particle in the subhalo.",
             "VR",
             "DScale5",
             True,
@@ -827,7 +844,7 @@ class PropertyTable:
             "erg/s",
             "Total rest-frame Xray luminosity in three bands.",
             "gas",
-            "FMantissa9",
+            "DMantissa9",
             False,
         ),
         "Xraylum_no_agn": (
@@ -837,7 +854,7 @@ class PropertyTable:
             "erg/s",
             "Total rest-frame Xray luminosity in three bands. Excludes gas that was recently heated by AGN.",
             "gas",
-            "FMantissa9",
+            "DMantissa9",
             False,
         ),
         "Xrayphlum": (
@@ -847,7 +864,7 @@ class PropertyTable:
             "1/s",
             "Total rest-frame Xray photon luminosity in three bands.",
             "gas",
-            "FMantissa9",
+            "DMantissa9",
             False,
         ),
         "Xrayphlum_no_agn": (
@@ -857,7 +874,7 @@ class PropertyTable:
             "1/s",
             "Total rest-frame Xray photon luminosity in three bands. Exclude gas that was recently heated by AGN.",
             "gas",
-            "FMantissa9",
+            "DMantissa9",
             False,
         ),
         "com": (
@@ -897,7 +914,7 @@ class PropertyTable:
             "cm**2",
             "Total Compton y parameter.",
             "gas",
-            "FMantissa9",
+            "DMantissa9",
             False,
         ),
         "compY_no_agn": (
@@ -907,7 +924,7 @@ class PropertyTable:
             "cm**2",
             "Total Compton y parameter. Excludes gas that was recently heated by AGN.",
             "gas",
-            "FMantissa9",
+            "DMantissa9",
             False,
         ),
         "kappa_corot_baryons": (
@@ -1189,7 +1206,7 @@ class PropertyTable:
             )
         print("}")
 
-    def print_table(self, tablefile, footnotefile):
+    def print_table(self, tablefile, footnotefile, timestampfile):
         prop_names = sorted(
             self.properties.keys(),
             key=lambda key: (
@@ -1269,6 +1286,8 @@ Name & Shape & Type & Units & SH & ES & IS & EP & SO & Category & Compression\\\
         tablestr += """\\end{longtable}
 \\end{landscape}"""
         tailstr = "\\end{document}"
+        with open(timestampfile, "w") as ofile:
+            ofile.write(get_version_string())
         with open(tablefile, "w") as ofile:
             ofile.write(tablestr)
         with open(footnotefile, "w") as ofile:
@@ -1305,4 +1324,8 @@ if __name__ == "__main__":
     if False:
         table.print_dictionary()
     else:
-        table.print_table("documentation/table.tex", "documentation/footnotes.tex")
+        table.print_table(
+            "documentation/table.tex",
+            "documentation/footnotes.tex",
+            "documentation/timestamp.tex",
+        )
