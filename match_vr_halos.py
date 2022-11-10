@@ -284,8 +284,9 @@ if __name__ == "__main__":
 
     # Write the output
     def write_output_field(name, data, description):
-        phdf5.collective_write(outfile, name, data, comm)
-        outfile[name].attrs["Description"] = description
+        dataset = phdf5.collective_write(outfile, name, data, comm)
+        dataset.attrs["Description"] = description
+
     message("Writing output")
     with h5py.File(args.output_file, "w", driver="mpio", comm=comm) as outfile:
         # Write input parameters
