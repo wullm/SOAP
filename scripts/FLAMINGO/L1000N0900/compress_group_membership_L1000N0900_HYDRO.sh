@@ -4,7 +4,7 @@
 
 #SBATCH --ntasks=128
 #SBATCH --cpus-per-task=1
-#SBATCH -J L1000N1800_HYDRO_JETS-compression-membership
+#SBATCH -J L1000N0900_HYDRO_FIDUCIAL-compression-membership
 #SBATCH -o logs/job_compression_membership.%a.dump
 #SBATCH -e logs/job_compression_membership.%a.err
 #SBATCH -p cosma8
@@ -29,10 +29,10 @@ input_filename="SOAP/membership_${snapnum}/membership_${snapnum}"
 # compressed membership file basename
 output_filename="SOAP_compressed/membership_${snapnum}/membership_${snapnum}"
 
-# run h5repack in parallel using 32 processes on files 0 to 63
+# run h5repack in parallel using 32 processes on files 0 to 31
 # make sure to update the 'seq' arguments when there are more/less membership
 # files
-seq 0 64 | parallel -j 32 \
+seq 0 31 | parallel -j 32 \
   h5repack \
     -i "${input_filename}.{}.hdf5" \
     -o "${output_filename}.{}.hdf5" \
