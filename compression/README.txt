@@ -11,3 +11,7 @@ The script requires two additional data files, also found in this directory:
  - a file that contains updated lossy compression filter names for some of the
    datasets, to deal with a bug in an earlier SOAP version. This should no
    longer be necessary, but is good to have just in case.
+
+This directory additionally contains a script that can be used to generate an
+empty SOAP catalogue for snapshots that have no halos, since SOAP will not run
+on those snapshots.
