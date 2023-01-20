@@ -939,6 +939,7 @@ class SubhaloProperties(HaloProperty):
             )
             if do_calculation[category]:
                 val = getattr(part_props, name)
+                assert subhalo[name].shape == val.shape, f"Attempting to store {name} with wrong dimensions"
                 if val is not None:
                     if unit == "dimensionless":
                         subhalo[name] = unyt.unyt_array(

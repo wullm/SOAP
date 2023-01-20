@@ -1292,6 +1292,7 @@ class SOProperties(HaloProperty):
                     if do_calculation[category]:
                         val = getattr(part_props, name)
                         if val is not None:
+                            assert SO[name].shape == val.shape, f"Attempting to store {name} with wrong dimensions"
                             if unit == "dimensionless":
                                 SO[name] = unyt.unyt_array(
                                     val.astype(dtype),
