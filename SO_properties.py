@@ -291,6 +291,8 @@ class SOParticleData:
             self.star_selection = self.radius[self.types == "PartType4"] < self.SO_r
             self.bh_selection = self.radius[self.types == "PartType5"] < self.SO_r
 
+            self.gas_selection_core_excision = (self.radius[self.types == "PartType0"] > 0.15 * self.SO_r) & (self.radius[self.types == "PartType0"] < self.SO_r)
+
             self.all_selection = self.radius < self.SO_r
             self.mass = self.mass[self.all_selection]
             self.radius = self.radius[self.all_selection]
