@@ -291,10 +291,6 @@ class SOParticleData:
             self.star_selection = self.radius[self.types == "PartType4"] < self.SO_r
             self.bh_selection = self.radius[self.types == "PartType5"] < self.SO_r
 
-            self.gas_selection_core_excision = (
-                self.radius[self.types == "PartType0"] > 0.15 * self.SO_r
-            ) & (self.radius[self.types == "PartType0"] < self.SO_r)
-
             self.all_selection = self.radius < self.SO_r
             self.mass = self.mass[self.all_selection]
             self.radius = self.radius[self.all_selection]
@@ -641,10 +637,31 @@ class SOParticleData:
         return (self.gas_temperatures * (self.gas_masses / self.Mgas)).sum()
 
     @lazy_property
+    def Tgas_cy_weighted(self):
+        if self.Ngas == 0:
+            return None
+        return (
+            self.gas_temperatures
+            * (
+                self.gas_compY[self.gas_no_agn].value
+                / self.gas_compY[self.gas_no_agn].sum().value
+            )
+        ).sum()
+
+    @lazy_property
     def gas_no_cool(self):
         if self.Ngas == 0:
             return None
         return self.gas_temperatures > 1.0e5 * unyt.K
+
+    @lazy_property
+    def gas_selection_core_excision(self):
+        if self.Ngas == 0:
+            return None
+        return (
+            self.radius[self.types == "PartType0"][self.gas_selection]
+            > 0.15 * self.SO_r
+        )
 
     @lazy_property
     def Mhotgas(self):
@@ -1084,7 +1101,7 @@ class SOProperties(HaloProperty):
             "Tgas_no_cool",
             "Tgas_no_agn",
             "Tgas_no_cool_no_agn",
-            "Xraylum",
+            "Tgas_cy_weighted" "Tgas_cy_weghted_no_agn" "Xraylum",
             "Xrayphlum",
             "compY",
             "Xraylum_no_agn",
