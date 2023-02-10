@@ -291,7 +291,9 @@ class SOParticleData:
             self.star_selection = self.radius[self.types == "PartType4"] < self.SO_r
             self.bh_selection = self.radius[self.types == "PartType5"] < self.SO_r
 
-            self.gas_selection_core_excision = (self.radius[self.types == "PartType0"] > 0.15 * self.SO_r) & (self.radius[self.types == "PartType0"] < self.SO_r)
+            self.gas_selection_core_excision = (
+                self.radius[self.types == "PartType0"] > 0.15 * self.SO_r
+            ) & (self.radius[self.types == "PartType0"] < self.SO_r)
 
             self.all_selection = self.radius < self.SO_r
             self.mass = self.mass[self.all_selection]
@@ -1010,7 +1012,6 @@ class SOParticleData:
 
 
 class SOProperties(HaloProperty):
-
     # Arrays which must be read in for this calculation.
     # Note that if there are no particles of a given type in the
     # snapshot, that type will not be read in and will not have
@@ -1254,7 +1255,6 @@ class SOProperties(HaloProperty):
 
         # SOs only exist for central galaxies
         if input_halo["Structuretype"] == 10:
-
             types_present = [type for type in self.particle_properties if type in data]
 
             part_props = SOParticleData(
@@ -1281,7 +1281,6 @@ class SOProperties(HaloProperty):
                 )
 
             if SO_exists:
-
                 for prop in self.property_list:
                     # skip non-DMO properties in DMO run mode
                     is_dmo = prop[8]
@@ -1291,10 +1290,14 @@ class SOProperties(HaloProperty):
                     dtype = prop[3]
                     unit = prop[4]
                     category = prop[6]
+                    if ("CoreExcised" in name) & (self.SO_name != "500_crit"):
+                        continue
                     if do_calculation[category]:
                         val = getattr(part_props, name)
                         if val is not None:
-                            assert SO[name].shape == val.shape, f"Attempting to store {name} with wrong dimensions"
+                            assert (
+                                SO[name].shape == val.shape
+                            ), f"Attempting to store {name} with wrong dimensions"
                             if unit == "dimensionless":
                                 SO[name] = unyt.unyt_array(
                                     val.astype(dtype),
@@ -1315,6 +1318,8 @@ class SOProperties(HaloProperty):
             name = prop[0]
             outputname = prop[1]
             description = prop[5]
+            if ("CoreExcised" in name) & (self.SO_name != "500_crit"):
+                continue
             halo_result.update(
                 {
                     f"SO/{self.SO_name}/{outputname}": (
@@ -1328,7 +1333,6 @@ class SOProperties(HaloProperty):
 
 
 class RadiusMultipleSOProperties(SOProperties):
-
     # since the halo_result dictionary contains the name of the dataset as it
     # appears in the output, we have to get that name from the property table
     # to access the radius
@@ -1363,7 +1367,6 @@ class RadiusMultipleSOProperties(SOProperties):
         self.multiple = multiple
 
     def calculate(self, input_halo, search_radius, data, halo_result):
-
         # find the actual physical radius we want
         key = f"SO/{self.requested_SOval:.0f}_{self.requested_type}/{self.radius_name}"
         if not key in halo_result:
@@ -1381,7 +1384,6 @@ class RadiusMultipleSOProperties(SOProperties):
 
 
 def test_SO_properties():
-
     from dummy_halo_generator import DummyHaloGenerator
 
     dummy_halos = DummyHaloGenerator(4251)
@@ -1515,7 +1517,6 @@ def test_SO_properties():
             ("BN98", property_calculator_BN98),
             ("5xR_2500_mean", property_calculator_5x2500mean),
         ]:
-
             halo_result = dict(halo_result_template)
             # make sure the radius multiple is found this time
             if SO_name == "5xR_2500_mean":
