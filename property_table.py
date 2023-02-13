@@ -756,7 +756,7 @@ class PropertyTable:
             "FMantissa9",
             False,
         ),
-        "Tgas_cy_weighted_core_excised": (
+        "Tgas_cy_weighted_core_excision": (
             "GasComptonYTemperature",
             1,
             np.float32,
@@ -766,7 +766,7 @@ class PropertyTable:
             "FMantissa9",
             False,
         ),
-        "Tgas_cy_weighted_core_excised_no_agn": (
+        "Tgas_cy_weighted_core_excision_no_agn": (
             "GasComptonYTemperature",
             1,
             np.float32,
@@ -776,7 +776,7 @@ class PropertyTable:
             "FMantissa9",
             False,
         ),
-        "Tgas_core_excised": (
+        "Tgas_core_excision": (
             "GasTemperatureCoreExcision",
             1,
             np.float32,
@@ -786,7 +786,7 @@ class PropertyTable:
             "FMantissa9",
             False,
         ),
-        "Tgas_no_cool_core_excised": (
+        "Tgas_no_cool_core_excision": (
             "GasTemperatureWithoutCoolGasCoreExcision",
             1,
             np.float32,
@@ -796,7 +796,7 @@ class PropertyTable:
             "FMantissa9",
             False,
         ),
-        "Tgas_no_agn_core_excised": (
+        "Tgas_no_agn_core_excision": (
             "GasTemperatureWithoutRecentAGNHeatingCoreExcision",
             1,
             np.float32,
@@ -806,7 +806,7 @@ class PropertyTable:
             "FMantissa9",
             False,
         ),
-        "Tgas_no_cool_no_agn_core_excised": (
+        "Tgas_no_cool_no_agn_core_excision": (
             "GasTemperatureWithoutCoolGasAndRecentAGNHeatingCoreExcision",
             1,
             np.float32,

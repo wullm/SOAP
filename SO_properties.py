@@ -657,7 +657,7 @@ class SOParticleData:
         ).sum()
 
     @lazy_property
-    def Tgas_cy_weighted_core_excised(self):
+    def Tgas_cy_weighted_core_excision(self):
         if self.Ngas == 0:
             return None
         return (
@@ -669,7 +669,7 @@ class SOParticleData:
         ).sum()
 
     @lazy_property
-    def Tgas_cy_weighted_core_excised_no_agn(self):
+    def Tgas_cy_weighted_core_excision_no_agn(self):
         if self.Ngas == 0:
             return None
         return (
@@ -738,10 +738,7 @@ class SOParticleData:
     def gas_selection_core_excision(self):
         if self.Ngas == 0:
             return None
-        return (
-            self.radius[self.types == "PartType0"][self.gas_selection]
-            > 0.15 * self.SO_r
-        )
+        return self.radius[self.types == "PartType0"] > 0.15 * self.SO_r
 
     @lazy_property
     def gas_selection_no_agn_core_excision(self):
@@ -1336,14 +1333,14 @@ class SOProperties(HaloProperty):
             "Tgas_no_cool",
             "Tgas_no_agn",
             "Tgas_no_cool_no_agn",
-            "Tgas_core_excised",
-            "Tgas_no_cool_core_excised",
-            "Tgas_no_agn_core_excised",
-            "Tgas_no_cool_no_agn_core_excised",
+            "Tgas_core_excision",
+            "Tgas_no_cool_core_excision",
+            "Tgas_no_agn_core_excision",
+            "Tgas_no_cool_no_agn_core_excision",
             "Tgas_cy_weighted",
             "Tgas_cy_weighted_no_agn",
-            "Tgas_cy_weighted_core_excised",
-            "Tgas_cy_weighted_core_excised_no_agn",
+            "Tgas_cy_weighted_core_excision",
+            "Tgas_cy_weighted_core_excision_no_agn",
             "Xraylum",
             "SpectroscopicLikeTemperature",
             "SpectroscopicLikeTemperature_no_agn",
