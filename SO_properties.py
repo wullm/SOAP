@@ -641,10 +641,90 @@ class SOParticleData:
         if self.Ngas == 0:
             return None
         return (
-            self.gas_temperatures
+            self.gas_temperatures * (self.gas_compY.value / self.gas_compY.sum().value)
+        ).sum()
+
+    @lazy_property
+    def Tgas_cy_weighted_no_agn(self):
+        if self.Ngas == 0:
+            return None
+        return (
+            self.gas_temperatures[self.gas_no_agn]
             * (
                 self.gas_compY[self.gas_no_agn].value
                 / self.gas_compY[self.gas_no_agn].sum().value
+            )
+        ).sum()
+
+    @lazy_property
+    def Tgas_cy_weighted_core_excised(self):
+        if self.Ngas == 0:
+            return None
+        return (
+            self.gas_temperatures[self.gas_selection_core_excision]
+            * (
+                self.gas_compY[self.gas_selection_core_excision].value
+                / self.gas_compY[self.gas_selection_core_excision].sum().value
+            )
+        ).sum()
+
+    @lazy_property
+    def Tgas_cy_weighted_core_excised_no_agn(self):
+        if self.Ngas == 0:
+            return None
+        return (
+            self.gas_temperatures[self.gas_selection_no_agn_core_excision]
+            * (
+                self.gas_compY[self.gas_selection_no_agn_core_excision].value
+                / self.gas_compY[self.gas_selection_no_agn_core_excision].sum().value
+            )
+        ).sum()
+
+    @lazy_property
+    def Tgas_core_excision(self):
+        if self.Ngas == 0:
+            return None
+        return (
+            self.gas_temperatures[self.gas_selection_core_excision]
+            * (
+                self.gas_masses[self.gas_selection_core_excision]
+                / self.gas_masses[self.gas_selection_core_excision].sum()
+            )
+        ).sum()
+
+    @lazy_property
+    def Tgas_no_agn_core_excision(self):
+        if self.Ngas == 0:
+            return None
+        return (
+            self.gas_temperatures[self.gas_selection_no_agn_core_excision]
+            * (
+                self.gas_masses[self.gas_selection_no_agn_core_excision]
+                / self.gas_masses[self.gas_selection_no_agn_core_excision].sum()
+            )
+        ).sum()
+
+    @lazy_property
+    def Tgas_no_cool_core_excision(self):
+        if self.Ngas == 0:
+            return None
+        return (
+            self.gas_temperatures[self.gas_selection_core_excision_no_cool]
+            * (
+                self.gas_masses[self.gas_selection_core_excision_no_cool]
+                / self.gas_masses[self.gas_selection_core_excision_no_cool].sum()
+            )
+        ).sum()
+
+    @lazy_property
+    def Tgas_no_cool_no_agn_core_excision(self):
+        if self.Ngas == 0:
+            return None
+        return (
+            self.gas_temperatures[self.gas_selection_core_excision_no_cool_no_agn]
+            * (
+                self.gas_masses[self.gas_selection_core_excision_no_cool_no_agn]
+                / self.gas_masses[self.gas_selection_core_excision_no_cool_no_agn].sum()
             )
         ).sum()
 
@@ -815,19 +895,19 @@ class SOParticleData:
                 (mass_gas_no_cool_no_agn / Mgas_no_cool_no_agn)
                 * self.gas_temperatures[self.gas_no_cool_no_agn]
             ).sum()
-    
+
     @lazy_property
     def XrayLum_core_excision(self):
         if self.Ngas == 0:
             return None
-        return self.gas_xraylum[self.gas_selection_core_excision].sum(axis = 0)
-    
+        return self.gas_xraylum[self.gas_selection_core_excision].sum(axis=0)
+
     @lazy_property
     def Xrayphlum_core_excision(self):
         if self.Ngas == 0:
             return None
-        return self.gas_xrayphlum[self.gas_selection_core_excision].sum(axis = 0)
-    
+        return self.gas_xrayphlum[self.gas_selection_core_excision].sum(axis=0)
+
     def XrayLum_no_agn_core_excision(self):
         if self.Ngas == 0:
             return None
@@ -837,66 +917,126 @@ class SOParticleData:
     def Xrayphlum_no_agn_core_excision(self):
         if self.Ngas == 0:
             return None
-        return self.gas_xrayphlum[self.gas_selection_no_agn_core_excision].sum(axis = 0)
+        return self.gas_xrayphlum[self.gas_selection_no_agn_core_excision].sum(axis=0)
 
     @lazy_property
     def gas_selection_xray_temperature(self):
         if self.Ngas == 0:
             return None
-        return (
-            self.gas_temperature[self.gas_temperatures]
-            > 10**6 * K
-        )
-    
+        return self.gas_temperature[self.gas_temperatures] > 1e6 * unyt.K
+
     @lazy_property
     def gas_no_agn_xray_temperature(self):
         if self.Ngas == 0:
             return None
         return self.gas_no_agn & self.gas_selection_xray_temperature
-    
+
     @lazy_property
     def gas_selection_core_excision_xray_temperature(self):
         if self.Ngas == 0:
             return None
-        return self.gas_selection_core_excision & self.gas_selection_xray_temperature  
+        return self.gas_selection_core_excision & self.gas_selection_xray_temperature
+
+    @lazy_property
+    def gas_selection_core_excision_no_cool(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_selection_core_excision & self.gas_no_cool
+
+    @lazy_property
+    def gas_selection_core_excision_no_cool_no_agn(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_selection_core_excision & self.gas_no_cool & self.gas_no_agn
 
     @lazy_property
     def gas_selection_core_excision_no_agn_xray_temperature(self):
         if self.Ngas == 0:
             return None
-        return self.gas_selection_core_excision & self.gas_no_agn & self.gas_selection_xray_temperature           
+        return (
+            self.gas_selection_core_excision
+            & self.gas_no_agn
+            & self.gas_selection_xray_temperature
+        )
 
-    
     @lazy_property
     def SpectroscopicLikeTemperature(self):
         if self.Ngas == 0:
             return None
-        nominator = np.sum( self.gas_electron_number_densities[self.gas_selection_xray_temperature] * self.gas.masses[self.gas_selection_xray_temperature] * self.gas_temperatures[self.gas_selection_xray_temperature]**(1/4) )
-        denominator = np.sum( self.gas_electron_number_densities[self.gas_selection_xray_temperature] * self.gas.masses[self.gas_selection_xray_temperature] * self.gas_temperatures[self.gas_selection_xray_temperature]**(-3/4) )
+        nominator = np.sum(
+            self.gas_electron_number_densities[self.gas_selection_xray_temperature]
+            * self.gas.masses[self.gas_selection_xray_temperature]
+            * self.gas_temperatures[self.gas_selection_xray_temperature] ** (1 / 4)
+        )
+        denominator = np.sum(
+            self.gas_electron_number_densities[self.gas_selection_xray_temperature]
+            * self.gas.masses[self.gas_selection_xray_temperature]
+            * self.gas_temperatures[self.gas_selection_xray_temperature] ** (-3 / 4)
+        )
         return nominator / denominator
 
     @lazy_property
     def SpectroscopicLikeTemperature_no_agn(self):
         if self.Ngas == 0:
             return None
-        nominator = np.sum( self.gas_electron_number_densities[self.gas_no_agn_xray_temperature] * self.gas.masses[self.gas_no_agn_xray_temperature] * self.gas_temperatures[self.gas_no_agn_xray_temperature]**(1/4) )
-        denominator = np.sum( self.gas_electron_number_densities[self.gas_no_agn_xray_temperature] * self.gas.masses[self.gas_no_agn_xray_temperature] * self.gas_temperatures[self.gas_no_agn_xray_temperature]**(-3/4) )
+        nominator = np.sum(
+            self.gas_electron_number_densities[self.gas_no_agn_xray_temperature]
+            * self.gas.masses[self.gas_no_agn_xray_temperature]
+            * self.gas_temperatures[self.gas_no_agn_xray_temperature] ** (1 / 4)
+        )
+        denominator = np.sum(
+            self.gas_electron_number_densities[self.gas_no_agn_xray_temperature]
+            * self.gas.masses[self.gas_no_agn_xray_temperature]
+            * self.gas_temperatures[self.gas_no_agn_xray_temperature] ** (-3 / 4)
+        )
         return nominator / denominator
 
     @lazy_property
     def SpectroscopicLikeTemperature_core_excision(self):
         if self.Ngas == 0:
             return None
-        nominator = np.sum( self.gas_electron_number_densities[self.gas_selection_core_excision_xray_temperature] * self.gas.masses[self.gas_selection_core_excision_xray_temperature] * self.gas_temperatures[self.gas_selection_core_excision_xray_temperature]**(1/4) )
-        denominator = np.sum( self.gas_electron_number_densities[self.gas_selection_core_excision_xray_temperature] * self.gas.masses[self.gas_selection_core_excision_xray_temperature] * self.gas_temperatures[self.gas_selection_core_excision_xray_temperature]**(-3/4) )
+        nominator = np.sum(
+            self.gas_electron_number_densities[
+                self.gas_selection_core_excision_xray_temperature
+            ]
+            * self.gas.masses[self.gas_selection_core_excision_xray_temperature]
+            * self.gas_temperatures[self.gas_selection_core_excision_xray_temperature]
+            ** (1 / 4)
+        )
+        denominator = np.sum(
+            self.gas_electron_number_densities[
+                self.gas_selection_core_excision_xray_temperature
+            ]
+            * self.gas.masses[self.gas_selection_core_excision_xray_temperature]
+            * self.gas_temperatures[self.gas_selection_core_excision_xray_temperature]
+            ** (-3 / 4)
+        )
         return nominator / denominator
 
     @lazy_property
     def SpectroscopicLikeTemperature_no_agn_core_excision(self):
         if self.Ngas == 0:
             return None
-        nominator = np.sum( self.gas_electron_number_densities[self.gas_selection_core_excision_no_agn_xray_temperature] * self.gas.masses[self.gas_selection_core_excision_no_agn_xray_temperature] * self.gas_temperatures[self.gas_selection_core_excision_no_agn_xray_temperature]**(1/4) )
-        denominator = np.sum( self.gas_electron_number_densities[self.gas_selection_core_excision_no_agn_xray_temperature] * self.gas.masses[self.gas_selection_core_excision_no_agn_xray_temperature] * self.gas_temperatures[self.gas_selection_core_excision_no_agn_xray_temperature]**(-3/4) )
+        nominator = np.sum(
+            self.gas_electron_number_densities[
+                self.gas_selection_core_excision_no_agn_xray_temperature
+            ]
+            * self.gas.masses[self.gas_selection_core_excision_no_agn_xray_temperature]
+            * self.gas_temperatures[
+                self.gas_selection_core_excision_no_agn_xray_temperature
+            ]
+            ** (1 / 4)
+        )
+        denominator = np.sum(
+            self.gas_electron_number_densities[
+                self.gas_selection_core_excision_no_agn_xray_temperature
+            ]
+            * self.gas.masses[self.gas_selection_core_excision_no_agn_xray_temperature]
+            * self.gas_temperatures[
+                self.gas_selection_core_excision_no_agn_xray_temperature
+            ]
+            ** (-3 / 4)
+        )
         return nominator / denominator
 
     @lazy_property
@@ -918,7 +1058,7 @@ class SOParticleData:
         if self.Ngas == 0:
             return None
         return self.data["PartType0"]["Densities"][self.gas_selection]
-    
+
     @lazy_property
     def gas_electron_number_densities(self):
         if self.Ngas == 0:
@@ -1196,7 +1336,15 @@ class SOProperties(HaloProperty):
             "Tgas_no_cool",
             "Tgas_no_agn",
             "Tgas_no_cool_no_agn",
-            "Tgas_cy_weighted" "Tgas_cy_weghted_no_agn" "Xraylum",
+            "Tgas_core_excised",
+            "Tgas_no_cool_core_excised",
+            "Tgas_no_agn_core_excised",
+            "Tgas_no_cool_no_agn_core_excised",
+            "Tgas_cy_weighted",
+            "Tgas_cy_weighted_no_agn",
+            "Tgas_cy_weighted_core_excised",
+            "Tgas_cy_weighted_core_excised_no_agn",
+            "Xraylum",
             "SpectroscopicLikeTemperature",
             "SpectroscopicLikeTemperature_no_agn",
             "SpectroscopicLikeTemperature_core_excision",

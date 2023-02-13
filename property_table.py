@@ -21,7 +21,6 @@ def get_version_string():
 
 
 class PropertyTable:
-
     categories = ["basic", "general", "gas", "dm", "star", "baryon", "VR"]
     explanation = {
         "footnote_MBH.tex": ["BHmaxM"],
@@ -737,6 +736,86 @@ class PropertyTable:
             "FMantissa9",
             False,
         ),
+        "Tgas_cy_weighted": (
+            "GasComptonYTemperature",
+            1,
+            np.float32,
+            "K",
+            "ComptonY-weighted mean gas temperature.",
+            "gas",
+            "FMantissa9",
+            False,
+        ),
+        "Tgas_cy_weighted_no_agn": (
+            "GasComptonYTemperatureWithoutRecentAGNHeating",
+            1,
+            np.float32,
+            "K",
+            "ComptonY-weighted mean gas temperature, excluding gas that was recently heated by AGN.",
+            "gas",
+            "FMantissa9",
+            False,
+        ),
+        "Tgas_cy_weighted_core_excised": (
+            "GasComptonYTemperature",
+            1,
+            np.float32,
+            "K",
+            "ComptonY-weighted mean gas temperature, excluding the inner 0.15 R500.",
+            "gas",
+            "FMantissa9",
+            False,
+        ),
+        "Tgas_cy_weighted_core_excised_no_agn": (
+            "GasComptonYTemperature",
+            1,
+            np.float32,
+            "K",
+            "ComptonY-weighted mean gas temperature, excluding the inner 0.15 R500 and gas that was recently heated by AGN.",
+            "gas",
+            "FMantissa9",
+            False,
+        ),
+        "Tgas_core_excised": (
+            "GasTemperatureCoreExcision",
+            1,
+            np.float32,
+            "K",
+            "Mass-weighted mean gas temperature, excluding the inner 0.15 R500.",
+            "gas",
+            "FMantissa9",
+            False,
+        ),
+        "Tgas_no_cool_core_excised": (
+            "GasTemperatureWithoutCoolGasCoreExcision",
+            1,
+            np.float32,
+            "K",
+            "Mass-weighted mean gas temperature, excluding the inner 0.15 R500 and gas below 1e5 K.",
+            "gas",
+            "FMantissa9",
+            False,
+        ),
+        "Tgas_no_agn_core_excised": (
+            "GasTemperatureWithoutRecentAGNHeatingCoreExcision",
+            1,
+            np.float32,
+            "K",
+            "Mass-weighted mean gas temperature, excluding the inner 0.15 R500, and gas that was recently heated by AGN.",
+            "gas",
+            "FMantissa9",
+            False,
+        ),
+        "Tgas_no_cool_no_agn_core_excised": (
+            "GasTemperatureWithoutCoolGasAndRecentAGNHeatingCoreExcision",
+            1,
+            np.float32,
+            "K",
+            "Mass-weighted mean gas temperature, excluding the inner 0.15 R500, gas below 1e5 K and gas that was recently heated by AGN.",
+            "gas",
+            "FMantissa9",
+            False,
+        ),
         "TotalAxisLengths": (
             "TotalAxisLengths",
             3,
@@ -1387,7 +1466,6 @@ class DummyProperties:
 
 
 if __name__ == "__main__":
-
     from aperture_properties import ExclusiveSphereProperties, InclusiveSphereProperties
     from projected_aperture_properties import ProjectedApertureProperties
     from SO_properties import SOProperties
