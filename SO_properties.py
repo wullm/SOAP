@@ -894,7 +894,7 @@ class SOParticleData:
             ).sum()
 
     @lazy_property
-    def XrayLum_core_excision(self):
+    def Xraylum_core_excision(self):
         if self.Ngas == 0:
             return None
         return self.gas_xraylum[self.gas_selection_core_excision].sum(axis=0)
@@ -905,10 +905,11 @@ class SOParticleData:
             return None
         return self.gas_xrayphlum[self.gas_selection_core_excision].sum(axis=0)
 
-    def XrayLum_no_agn_core_excision(self):
+    @lazy_property
+    def Xraylum_no_agn_core_excision(self):
         if self.Ngas == 0:
             return None
-        return self.gas_xrayphlum[self.gas_selection_no_agn_core_excision]
+        return self.gas_xraylum[self.gas_selection_no_agn_core_excision].sum(axis=0)
 
     @lazy_property
     def Xrayphlum_no_agn_core_excision(self):
@@ -920,7 +921,7 @@ class SOParticleData:
     def gas_selection_xray_temperature(self):
         if self.Ngas == 0:
             return None
-        return self.gas_temperature[self.gas_temperatures] > 1e6 * unyt.K
+        return self.gas_temperatures > 1e6 * unyt.K
 
     @lazy_property
     def gas_no_agn_xray_temperature(self):
@@ -962,12 +963,12 @@ class SOParticleData:
             return None
         nominator = np.sum(
             self.gas_electron_number_densities[self.gas_selection_xray_temperature]
-            * self.gas.masses[self.gas_selection_xray_temperature]
+            * self.gas_masses[self.gas_selection_xray_temperature]
             * self.gas_temperatures[self.gas_selection_xray_temperature] ** (1 / 4)
         )
         denominator = np.sum(
             self.gas_electron_number_densities[self.gas_selection_xray_temperature]
-            * self.gas.masses[self.gas_selection_xray_temperature]
+            * self.gas_masses[self.gas_selection_xray_temperature]
             * self.gas_temperatures[self.gas_selection_xray_temperature] ** (-3 / 4)
         )
         return nominator / denominator
@@ -978,12 +979,12 @@ class SOParticleData:
             return None
         nominator = np.sum(
             self.gas_electron_number_densities[self.gas_no_agn_xray_temperature]
-            * self.gas.masses[self.gas_no_agn_xray_temperature]
+            * self.gas_masses[self.gas_no_agn_xray_temperature]
             * self.gas_temperatures[self.gas_no_agn_xray_temperature] ** (1 / 4)
         )
         denominator = np.sum(
             self.gas_electron_number_densities[self.gas_no_agn_xray_temperature]
-            * self.gas.masses[self.gas_no_agn_xray_temperature]
+            * self.gas_masses[self.gas_no_agn_xray_temperature]
             * self.gas_temperatures[self.gas_no_agn_xray_temperature] ** (-3 / 4)
         )
         return nominator / denominator
@@ -996,7 +997,7 @@ class SOParticleData:
             self.gas_electron_number_densities[
                 self.gas_selection_core_excision_xray_temperature
             ]
-            * self.gas.masses[self.gas_selection_core_excision_xray_temperature]
+            * self.gas_masses[self.gas_selection_core_excision_xray_temperature]
             * self.gas_temperatures[self.gas_selection_core_excision_xray_temperature]
             ** (1 / 4)
         )
@@ -1004,7 +1005,7 @@ class SOParticleData:
             self.gas_electron_number_densities[
                 self.gas_selection_core_excision_xray_temperature
             ]
-            * self.gas.masses[self.gas_selection_core_excision_xray_temperature]
+            * self.gas_masses[self.gas_selection_core_excision_xray_temperature]
             * self.gas_temperatures[self.gas_selection_core_excision_xray_temperature]
             ** (-3 / 4)
         )
@@ -1018,7 +1019,7 @@ class SOParticleData:
             self.gas_electron_number_densities[
                 self.gas_selection_core_excision_no_agn_xray_temperature
             ]
-            * self.gas.masses[self.gas_selection_core_excision_no_agn_xray_temperature]
+            * self.gas_masses[self.gas_selection_core_excision_no_agn_xray_temperature]
             * self.gas_temperatures[
                 self.gas_selection_core_excision_no_agn_xray_temperature
             ]
@@ -1028,7 +1029,7 @@ class SOParticleData:
             self.gas_electron_number_densities[
                 self.gas_selection_core_excision_no_agn_xray_temperature
             ]
-            * self.gas.masses[self.gas_selection_core_excision_no_agn_xray_temperature]
+            * self.gas_masses[self.gas_selection_core_excision_no_agn_xray_temperature]
             * self.gas_temperatures[
                 self.gas_selection_core_excision_no_agn_xray_temperature
             ]
