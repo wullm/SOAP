@@ -664,6 +664,12 @@ class SOParticleData:
         )
 
     @lazy_property
+    def gas_selection_no_agn_core_excision(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_no_agn & self.gas_selection_core_excision
+
+    @lazy_property
     def Mhotgas(self):
         if self.Ngas == 0:
             return None
@@ -809,6 +815,89 @@ class SOParticleData:
                 (mass_gas_no_cool_no_agn / Mgas_no_cool_no_agn)
                 * self.gas_temperatures[self.gas_no_cool_no_agn]
             ).sum()
+    
+    @lazy_property
+    def XrayLum_core_excision(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_xraylum[self.gas_selection_core_excision].sum(axis = 0)
+    
+    @lazy_property
+    def Xrayphlum_core_excision(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_xrayphlum[self.gas_selection_core_excision].sum(axis = 0)
+    
+    def XrayLum_no_agn_core_excision(self):
+        if self.Ngas == 0:
+            return None
+        return self.xraylum[self.gas_selection_no_agn_core_excision]
+
+    @lazy_property
+    def Xrayphlum_no_agn_core_excision(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_xrayphlum[self.gas_selection_no_agn_core_excision].sum(axis = 0)
+
+    @lazy_property
+    def gas_selection_xray_temperature(self):
+        if self.Ngas == 0:
+            return None
+        return (
+            self.gas_temperature[self.gas_temperatures]
+            > 10**6 * K
+        )
+    
+    @lazy_property
+    def gas_no_agn_xray_temperature(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_no_agn & self.gas_selection_xray_temperature
+    
+    @lazy_property
+    def gas_selection_core_excision_xray_temperature(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_selection_core_excision & self.gas_selection_xray_temperature  
+
+    @lazy_property
+    def gas_selection_core_excision_no_agn_xray_temperature(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_selection_core_excision & self.gas_no_agn & self.gas_selection_xray_temperature           
+
+    
+    @lazy_property
+    def SpectroscopicLikeTemperature(self):
+        if self.Ngas == 0:
+            return None
+        nominator = np.sum( self.gas_electron_number_densities[self.gas_selection_xray_temperature] * self.gas.masses[self.gas_selection_xray_temperature] * self.gas_temperatures[self.gas_selection_xray_temperature]**(1/4) )
+        denominator = np.sum( self.gas_electron_number_densities[self.gas_selection_xray_temperature] * self.gas.masses[self.gas_selection_xray_temperature] * self.gas_temperatures[self.gas_selection_xray_temperature]**(-3/4) )
+        return nominator / denominator
+
+    @lazy_property
+    def SpectroscopicLikeTemperature_no_agn(self):
+        if self.Ngas == 0:
+            return None
+        nominator = np.sum( self.gas_electron_number_densities[self.gas_no_agn_xray_temperature] * self.gas.masses[self.gas_no_agn_xray_temperature] * self.gas_temperatures[self.gas_no_agn_xray_temperature]**(1/4) )
+        denominator = np.sum( self.gas_electron_number_densities[self.gas_no_agn_xray_temperature] * self.gas.masses[self.gas_no_agn_xray_temperature] * self.gas_temperatures[self.gas_no_agn_xray_temperature]**(-3/4) )
+        return nominator / denominator
+
+    @lazy_property
+    def SpectroscopicLikeTemperature_core_excision(self):
+        if self.Ngas == 0:
+            return None
+        nominator = np.sum( self.gas_electron_number_densities[self.gas_selection_core_excision_xray_temperature] * self.gas.masses[self.gas_selection_core_excision_xray_temperature] * self.gas_temperatures[self.gas_selection_core_excision_xray_temperature]**(1/4) )
+        denominator = np.sum( self.gas_electron_number_densities[self.gas_selection_core_excision_xray_temperature] * self.gas.masses[self.gas_selection_core_excision_xray_temperature] * self.gas_temperatures[self.gas_selection_core_excision_xray_temperature]**(-3/4) )
+        return nominator / denominator
+
+    @lazy_property
+    def SpectroscopicLikeTemperature_no_agn_core_excision(self):
+        if self.Ngas == 0:
+            return None
+        nominator = np.sum( self.gas_electron_number_densities[self.gas_selection_core_excision_no_agn_xray_temperature] * self.gas.masses[self.gas_selection_core_excision_no_agn_xray_temperature] * self.gas_temperatures[self.gas_selection_core_excision_no_agn_xray_temperature]**(1/4) )
+        denominator = np.sum( self.gas_electron_number_densities[self.gas_selection_core_excision_no_agn_xray_temperature] * self.gas.masses[self.gas_selection_core_excision_no_agn_xray_temperature] * self.gas_temperatures[self.gas_selection_core_excision_no_agn_xray_temperature]**(-3/4) )
+        return nominator / denominator
 
     @lazy_property
     def Ekin_gas(self):
@@ -829,6 +918,12 @@ class SOParticleData:
         if self.Ngas == 0:
             return None
         return self.data["PartType0"]["Densities"][self.gas_selection]
+    
+    @lazy_property
+    def gas_electron_number_densities(self):
+        if self.Ngas == 0:
+            return None
+        return self.data["PartType0"]["ElectronNumberDensities"][self.gas_selection]
 
     @lazy_property
     def Etherm_gas(self):
@@ -1102,10 +1197,18 @@ class SOProperties(HaloProperty):
             "Tgas_no_agn",
             "Tgas_no_cool_no_agn",
             "Tgas_cy_weighted" "Tgas_cy_weghted_no_agn" "Xraylum",
+            "SpectroscopicLikeTemperature",
+            "SpectroscopicLikeTemperature_no_agn",
+            "SpectroscopicLikeTemperature_core_excision",
+            "SpectroscopicLikeTemperature_no_agn_core_excision",
             "Xrayphlum",
             "compY",
             "Xraylum_no_agn",
             "Xrayphlum_no_agn",
+            "Xraylum_core_excision",
+            "Xraylum_no_agn_core_excision",
+            "Xrayphlum_core_excision",
+            "Xrayphlum_no_agn_core_excision",
             "compY_no_agn",
             "Ekin_gas",
             "Etherm_gas",
