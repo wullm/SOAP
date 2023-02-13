@@ -908,7 +908,7 @@ class SOParticleData:
     def XrayLum_no_agn_core_excision(self):
         if self.Ngas == 0:
             return None
-        return self.xraylum[self.gas_selection_no_agn_core_excision]
+        return self.gas_xrayphlum[self.gas_selection_no_agn_core_excision]
 
     @lazy_property
     def Xrayphlum_no_agn_core_excision(self):
