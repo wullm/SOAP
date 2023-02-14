@@ -738,7 +738,7 @@ class SOParticleData:
     def gas_selection_core_excision(self):
         if self.Ngas == 0:
             return None
-        return self.radius[self.types == "PartType0"] > 0.15 * self.SO_r
+        return self.radius[self.types == "PartType0"] > self.core_excision_fraction * self.SO_r
 
     @lazy_property
     def gas_selection_no_agn_core_excision(self):
@@ -1309,96 +1309,102 @@ class SOProperties(HaloProperty):
         "PartType6": ["Coordinates", "Masses", "Weights"],
     }
 
-    # get the properties we want from the table
-    property_list = [
-        (prop, *PropertyTable.full_property_list[prop])
-        for prop in [
-            "r",
-            "Mtot",
-            "Ngas",
-            "Ndm",
-            "Nstar",
-            "Nbh",
-            "Nnu",
-            "com",
-            "vcom",
-            "Mfrac_satellites",
-            "Mgas",
-            "Lgas",
-            "com_gas",
-            "vcom_gas",
-            #            "veldisp_matrix_gas",
-            "gasmetalfrac",
-            "Mhotgas",
-            "Tgas",
-            "Tgas_no_cool",
-            "Tgas_no_agn",
-            "Tgas_no_cool_no_agn",
-            "Tgas_core_excision",
-            "Tgas_no_cool_core_excision",
-            "Tgas_no_agn_core_excision",
-            "Tgas_no_cool_no_agn_core_excision",
-            "Tgas_cy_weighted",
-            "Tgas_cy_weighted_no_agn",
-            "Tgas_cy_weighted_core_excision",
-            "Tgas_cy_weighted_core_excision_no_agn",
-            "Xraylum",
-            "SpectroscopicLikeTemperature",
-            "SpectroscopicLikeTemperature_no_agn",
-            "SpectroscopicLikeTemperature_core_excision",
-            "SpectroscopicLikeTemperature_no_agn_core_excision",
-            "Xrayphlum",
-            "compY",
-            "Xraylum_no_agn",
-            "Xrayphlum_no_agn",
-            "Xraylum_core_excision",
-            "Xraylum_no_agn_core_excision",
-            "Xrayphlum_core_excision",
-            "Xrayphlum_no_agn_core_excision",
-            "compY_no_agn",
-            "Ekin_gas",
-            "Etherm_gas",
-            "Mdm",
-            "Ldm",
-            #            "veldisp_matrix_dm",
-            "Mstar",
-            "com_star",
-            "vcom_star",
-            #            "veldisp_matrix_star",
-            "Lstar",
-            "Mstar_init",
-            "starmetalfrac",
-            "StellarLuminosity",
-            "Ekin_star",
-            "Lbaryons",
-            "Mbh_dynamical",
-            "Mbh_subgrid",
-            "BHlasteventa",
-            "BHmaxM",
-            "BHmaxID",
-            "BHmaxpos",
-            "BHmaxvel",
-            "BHmaxAR",
-            "BHmaxlasteventa",
-            "MnuNS",
-            "Mnu",
-            "spin_parameter",
-            "SFR",
-            "TotalAxisLengths",
-            "GasAxisLengths",
-            "DMAxisLengths",
-            "StellarAxisLengths",
-            "BaryonAxisLengths",
-            "DopplerB",
-            "gasOfrac",
-            "gasFefrac",
-            "DtoTgas",
-            "DtoTstar",
-            "starOfrac",
-            "starFefrac",
-            "gasmetalfrac_SF",
-        ]
-    ]
+    def get_property_names(self):
+        """
+        Return the names of properties we're going to compute.
+        Valid names are defined in property_table.py.
+        """
+        property_names = [
+                "r",
+                "Mtot",
+                "Ngas",
+                "Ndm",
+                "Nstar",
+                "Nbh",
+                "Nnu",
+                "com",
+                "vcom",
+                "Mfrac_satellites",
+                "Mgas",
+                "Lgas",
+                "com_gas",
+                "vcom_gas",
+                #            "veldisp_matrix_gas",
+                "gasmetalfrac",
+                "Mhotgas",
+                "Tgas",
+                "Tgas_no_cool",
+                "Tgas_no_agn",
+                "Tgas_no_cool_no_agn",
+                "Tgas_cy_weighted",
+                "Tgas_cy_weighted_no_agn",
+                "Xraylum",
+                "SpectroscopicLikeTemperature",
+                "SpectroscopicLikeTemperature_no_agn",
+                "Xrayphlum",
+                "compY",
+                "Xraylum_no_agn",
+                "Xrayphlum_no_agn",
+                "compY_no_agn",
+                "Ekin_gas",
+                "Etherm_gas",
+                "Mdm",
+                "Ldm",
+                #            "veldisp_matrix_dm",
+                "Mstar",
+                "com_star",
+                "vcom_star",
+                #            "veldisp_matrix_star",
+                "Lstar",
+                "Mstar_init",
+                "starmetalfrac",
+                "StellarLuminosity",
+                "Ekin_star",
+                "Lbaryons",
+                "Mbh_dynamical",
+                "Mbh_subgrid",
+                "BHlasteventa",
+                "BHmaxM",
+                "BHmaxID",
+                "BHmaxpos",
+                "BHmaxvel",
+                "BHmaxAR",
+                "BHmaxlasteventa",
+                "MnuNS",
+                "Mnu",
+                "spin_parameter",
+                "SFR",
+                "TotalAxisLengths",
+                "GasAxisLengths",
+                "DMAxisLengths",
+                "StellarAxisLengths",
+                "BaryonAxisLengths",
+                "DopplerB",
+                "gasOfrac",
+                "gasFefrac",
+                "DtoTgas",
+                "DtoTstar",
+                "starOfrac",
+                "starFefrac",
+                "gasmetalfrac_SF",
+            ]
+        if self.core_excise_fraction is not None:
+            property_names += [
+                "Tgas_core_excision",
+                "Tgas_no_cool_core_excision",
+                "Tgas_no_agn_core_excision",
+                "Tgas_no_cool_no_agn_core_excision",
+                "Tgas_cy_weighted_core_excision",
+                "Tgas_cy_weighted_core_excision_no_agn",
+                "SpectroscopicLikeTemperature_core_excision",
+                "SpectroscopicLikeTemperature_no_agn_core_excision",
+                "Xraylum_core_excision",
+                "Xraylum_no_agn_core_excision",
+                "Xrayphlum_core_excision",
+                "Xrayphlum_no_agn_core_excision",
+            ]
+
+        return property_names
 
     def __init__(
         self,
@@ -1407,17 +1413,20 @@ class SOProperties(HaloProperty):
         category_filter,
         SOval,
         type="mean",
+        core_excision_fraction=None,
     ):
         super().__init__(cellgrid)
 
         if not type in ["mean", "crit", "physical", "BN98"]:
             raise AttributeError(f"Unknown SO type: {type}!")
         self.type = type
-
+        self.core_excision_fraction=core_excision_fraction
         self.filter = recently_heated_gas_filter
         self.category_filter = category_filter
-
         self.observer_position = cellgrid.observer_position
+
+        # Look up the properties to compute in the property table
+        self.property_list = [(prop, *PropertyTable.full_property_list[prop]) for prop in self.get_property_names()]
 
         # in the neutrino model, the mean neutrino density is implicitly
         # assumed to be based on Omega_nu_0 and critical_density_0
@@ -1556,8 +1565,6 @@ class SOProperties(HaloProperty):
                     dtype = prop[3]
                     unit = prop[4]
                     category = prop[6]
-                    if ("CoreExcised" in name) & (self.SO_name != "500_crit"):
-                        continue
                     if do_calculation[category]:
                         val = getattr(part_props, name)
                         if val is not None:
@@ -1584,8 +1591,6 @@ class SOProperties(HaloProperty):
             name = prop[0]
             outputname = prop[1]
             description = prop[5]
-            if ("CoreExcised" in name) & (self.SO_name != "500_crit"):
-                continue
             halo_result.update(
                 {
                     f"SO/{self.SO_name}/{outputname}": (

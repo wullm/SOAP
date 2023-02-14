@@ -166,7 +166,8 @@ def compute_halo_properties():
             cellgrid, recently_heated_gas_filter, category_filter, 200.0, "crit"
         ),
         SO_properties.SOProperties(
-            cellgrid, recently_heated_gas_filter, category_filter, 500.0, "crit"
+            cellgrid, recently_heated_gas_filter, category_filter, 500.0, "crit",
+            core_excision_fraction=0.15
         ),
         SO_properties.SOProperties(
             cellgrid, recently_heated_gas_filter, category_filter, 1000.0, "crit"
