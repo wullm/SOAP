@@ -1468,6 +1468,12 @@ class SOProperties(HaloProperty):
         elif type == "BN98":
             self.name = "SO_BN98"
 
+        # Make a string describing the excised core radius, if any.
+        if core_excision_fraction is not None:
+            self.core_excision_string = f"{core_excision_fraction}*R{self.name[3:]}"
+        else:
+            self.core_excision_string = None
+
         # set some variables that are used during the calculation and that do not change
         if self.type == "crit":
             self.reference_density = (
@@ -1598,7 +1604,7 @@ class SOProperties(HaloProperty):
                 {
                     f"SO/{self.SO_name}/{outputname}": (
                         SO[name],
-                        description.format(label=self.label),
+                        description.format(label=self.label, core_excision=self.core_excision_string),
                     )
                 }
             )
