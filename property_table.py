@@ -1469,14 +1469,14 @@ class DummyProperties:
 if __name__ == "__main__":
     from aperture_properties import ExclusiveSphereProperties, InclusiveSphereProperties
     from projected_aperture_properties import ProjectedApertureProperties
-    from SO_properties import SOProperties
+    from SO_properties import CoreExcisedSOProperties
     from subhalo_properties import SubhaloProperties
 
     table = PropertyTable()
     table.add_properties(ExclusiveSphereProperties)
     table.add_properties(InclusiveSphereProperties)
     table.add_properties(ProjectedApertureProperties)
-    table.add_properties(SOProperties)
+    table.add_properties(CoreExcisedSOProperties)
     table.add_properties(SubhaloProperties)
     table.add_properties(DummyProperties)
 
