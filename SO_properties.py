@@ -165,6 +165,7 @@ class SOParticleData:
         recently_heated_gas_filter,
         nu_density,
         observer_position,
+        core_excision_fraction,
     ):
         self.input_halo = input_halo
         self.data = data
@@ -172,6 +173,7 @@ class SOParticleData:
         self.recently_heated_gas_filter = recently_heated_gas_filter
         self.nu_density = nu_density
         self.observer_position = observer_position
+        self.core_excision_fraction = core_excision_fraction
         self.compute_basics()
 
     def compute_basics(self):
@@ -1388,7 +1390,7 @@ class SOProperties(HaloProperty):
                 "starFefrac",
                 "gasmetalfrac_SF",
             ]
-        if self.core_excise_fraction is not None:
+        if self.core_excision_fraction is not None:
             property_names += [
                 "Tgas_core_excision",
                 "Tgas_no_cool_core_excision",
@@ -1539,6 +1541,7 @@ class SOProperties(HaloProperty):
                 self.filter,
                 self.nu_density,
                 self.observer_position,
+                self.core_excision_fraction,
             )
 
             # we need to make sure the physical radius uses the correct unit
