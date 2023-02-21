@@ -757,7 +757,7 @@ class PropertyTable:
             False,
         ),
         "Tgas_cy_weighted_core_excision": (
-            "GasComptonYTemperature",
+            "GasComptonYTemperatureCoreExcision",
             1,
             np.float32,
             "K",
@@ -767,7 +767,7 @@ class PropertyTable:
             False,
         ),
         "Tgas_cy_weighted_core_excision_no_agn": (
-            "GasComptonYTemperature",
+            "GasComptonYTemperatureWithoutRecentAGNHeatingCoreExcision",
             1,
             np.float32,
             "K",
