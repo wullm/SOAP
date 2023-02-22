@@ -782,8 +782,6 @@ class SOParticleData:
 
     @lazy_property
     def gas_selection_core_excision(self):
-        if self.Ngas == 0:
-            return None
         return (
             self.radius[self.types == "PartType0"]
             > self.core_excision_fraction * self.SO_r
@@ -791,8 +789,6 @@ class SOParticleData:
 
     @lazy_property
     def gas_selection_no_agn_core_excision(self):
-        if self.Ngas == 0:
-            return None
         return self.gas_no_agn & self.gas_selection_core_excision
 
     @lazy_property
@@ -968,8 +964,6 @@ class SOParticleData:
 
     @lazy_property
     def gas_selection_xray_temperature(self):
-        if self.Ngas == 0:
-            return None
         return self.gas_temperatures > 1e6 * unyt.K
 
     @lazy_property
@@ -980,26 +974,18 @@ class SOParticleData:
 
     @lazy_property
     def gas_selection_core_excision_xray_temperature(self):
-        if self.Ngas_core_excision_xray_temperature == 0:
-            return None
         return self.gas_selection_core_excision & self.gas_selection_xray_temperature
 
     @lazy_property
     def gas_selection_core_excision_no_cool(self):
-        if self.Ngas == 0:
-            return None
         return self.gas_selection_core_excision & self.gas_no_cool
 
     @lazy_property
     def gas_selection_core_excision_no_cool_no_agn(self):
-        if self.Ngas == 0:
-            return None
         return self.gas_selection_core_excision & self.gas_no_cool & self.gas_no_agn
 
     @lazy_property
     def gas_selection_core_excision_no_agn_xray_temperature(self):
-        if self.Ngas == 0:
-            return None
         return (
             self.gas_selection_core_excision
             & self.gas_no_agn
