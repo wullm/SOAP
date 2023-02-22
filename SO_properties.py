@@ -994,7 +994,7 @@ class SOParticleData:
 
     @lazy_property
     def SpectroscopicLikeTemperature(self):
-        if self.Ngas == 0:
+        if self.Ngas_xray_temperature == 0:
             return None
         nominator = np.sum(
             self.gas_electron_number_densities[self.gas_selection_xray_temperature]
@@ -1010,7 +1010,7 @@ class SOParticleData:
 
     @lazy_property
     def SpectroscopicLikeTemperature_no_agn(self):
-        if self.Ngas_no_agn == 0:
+        if self.Ngas_xray_temperature_no_agn == 0:
             return None
         nominator = np.sum(
             self.gas_electron_number_densities[self.gas_no_agn_xray_temperature]
@@ -1026,7 +1026,7 @@ class SOParticleData:
 
     @lazy_property
     def SpectroscopicLikeTemperature_core_excision(self):
-        if self.Ngas_core_excision == 0:
+        if self.Ngas_core_excision_xray_temperature == 0:
             return None
         nominator = np.sum(
             self.gas_electron_number_densities[
@@ -1048,7 +1048,7 @@ class SOParticleData:
 
     @lazy_property
     def SpectroscopicLikeTemperature_no_agn_core_excision(self):
-        if self.Ngas_no_agn_core_excision == 0:
+        if self.Ngas_core_excision_xray_temperature_no_agn == 0:
             return None
         nominator = np.sum(
             self.gas_electron_number_densities[
