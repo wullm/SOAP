@@ -41,6 +41,8 @@ from stellar_age_calculator import StellarAgeCalculator
 from category_filter import CategoryFilter
 from mpi_timer import MPITimer
 
+# Set numpy to raise divide by zero, overflow and invalid operation errors as exceptions
+np.seterr(divide="raise", over="raise", invalid="raise")
 
 def split_comm_world():
 
