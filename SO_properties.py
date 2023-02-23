@@ -962,8 +962,6 @@ class SOParticleData:
 
     @lazy_property
     def gas_no_agn_xray_temperature(self):
-        if self.Ngas == 0:
-            return None
         return self.gas_no_agn & self.gas_selection_xray_temperature
 
     @lazy_property
