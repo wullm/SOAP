@@ -776,8 +776,6 @@ class SOParticleData:
 
     @lazy_property
     def gas_no_cool(self):
-        if self.Ngas == 0:
-            return None
         return self.gas_temperatures > 1.0e5 * unyt.K
 
     @lazy_property
@@ -882,8 +880,6 @@ class SOParticleData:
 
     @lazy_property
     def gas_no_agn(self):
-        if self.Ngas == 0:
-            return None
         last_agn_gas = self.data["PartType0"]["LastAGNFeedbackScaleFactors"][
             self.gas_selection
         ]
@@ -922,8 +918,6 @@ class SOParticleData:
 
     @lazy_property
     def gas_no_cool_no_agn(self):
-        if self.Ngas == 0:
-            return None
         return self.gas_no_cool & self.gas_no_agn
 
     @lazy_property
