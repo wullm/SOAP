@@ -988,8 +988,6 @@ class SOParticleData:
 
     @lazy_property
     def SpectroscopicLikeTemperature(self):
-        if self.Ngas_xray_temperature == 0:
-            return None
         nominator = np.sum(
             self.gas_electron_number_densities[self.gas_selection_xray_temperature]
             * self.gas_masses[self.gas_selection_xray_temperature]
@@ -1000,12 +998,12 @@ class SOParticleData:
             * self.gas_masses[self.gas_selection_xray_temperature]
             * self.gas_temperatures[self.gas_selection_xray_temperature] ** (-3 / 4)
         )
+        if denominator == 0:
+            return None
         return nominator / denominator
 
     @lazy_property
     def SpectroscopicLikeTemperature_no_agn(self):
-        if self.Ngas_xray_temperature_no_agn == 0:
-            return None
         nominator = np.sum(
             self.gas_electron_number_densities[self.gas_no_agn_xray_temperature]
             * self.gas_masses[self.gas_no_agn_xray_temperature]
@@ -1016,12 +1014,12 @@ class SOParticleData:
             * self.gas_masses[self.gas_no_agn_xray_temperature]
             * self.gas_temperatures[self.gas_no_agn_xray_temperature] ** (-3 / 4)
         )
+        if denominator == 0:
+            return None
         return nominator / denominator
 
     @lazy_property
     def SpectroscopicLikeTemperature_core_excision(self):
-        if self.Ngas_core_excision_xray_temperature == 0:
-            return None
         nominator = np.sum(
             self.gas_electron_number_densities[
                 self.gas_selection_core_excision_xray_temperature
@@ -1038,12 +1036,12 @@ class SOParticleData:
             * self.gas_temperatures[self.gas_selection_core_excision_xray_temperature]
             ** (-3 / 4)
         )
+        if denominator == 0:
+            return None
         return nominator / denominator
 
     @lazy_property
     def SpectroscopicLikeTemperature_no_agn_core_excision(self):
-        if self.Ngas_core_excision_xray_temperature_no_agn == 0:
-            return None
         nominator = np.sum(
             self.gas_electron_number_densities[
                 self.gas_selection_core_excision_no_agn_xray_temperature
@@ -1064,6 +1062,8 @@ class SOParticleData:
             ]
             ** (-3 / 4)
         )
+        if denominator == 0:
+            return None
         return nominator / denominator
 
     @lazy_property
