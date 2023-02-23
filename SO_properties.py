@@ -685,7 +685,7 @@ class SOParticleData:
     @lazy_property
     def Tgas_cy_weighted(self):
         gas_compY_sum = self.gas_compY.sum()
-        if gas_compY_sum = 0:
+        if gas_compY_sum == 0:
             return None
         return (
             self.gas_temperatures * (self.gas_compY.value / gas_compY_sum.value)
@@ -862,8 +862,6 @@ class SOParticleData:
 
     @lazy_property
     def gas_compY(self):
-        if self.Ngas == 0:
-            return None
         return self.data["PartType0"]["ComptonYParameters"][self.gas_selection]
 
     @lazy_property
