@@ -672,8 +672,6 @@ class SOParticleData:
 
     @lazy_property
     def gas_temperatures(self):
-        if self.Ngas == 0:
-            return None
         return self.data["PartType0"]["Temperatures"][self.gas_selection]
 
     @lazy_property
@@ -1088,8 +1086,6 @@ class SOParticleData:
 
     @lazy_property
     def gas_electron_number_densities(self):
-        if self.Ngas == 0:
-            return None
         return self.data["PartType0"]["ElectronNumberDensities"][self.gas_selection]
 
     @lazy_property
