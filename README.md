@@ -116,6 +116,14 @@ values must be unyt_arrays or unyt_quantities.
 
 New classes must be added to halo_prop_list in compute_halo_properties.py.
 
+Adding new quantities to already defined SOAP apertures is a relatively easy bussiness. There are four steps.
+
+  * Start by adding an entry to the property tabel (https://github.com/SWIFTSIM/SOAP/blob/master/property_table.py). Here we store all the properties of the quantities (name, type, unit etc.) All entries in this tabel are checked with unit tests and added to the documentation. Adding your quantity here will make sure the code and the documentation are in line with each other
+  * Next you have to add the quantity to the type of aperture you want it to be calculated for (aperture_properties.py, SO_properties.py, subhalo_properties.py or projected_aperture_properties.py). In all these files there is a class named `property_list` which defines the subset of all properties that are calculated for this specific aperture.
+  * To calculate your quantity you have to define a `@lazy_property` with the same name in the `XXParticleData` class in the same file. There should be a lot of examples of different quantities that are already calculated. An important thing to note is that fields that are used for multiple calculations should have their own `@lazy_property` to avoid loading things multiple times, so check if the things that you need are already there.
+  * At this point everything should now work. To test the newly added quantities you can run a unit text using `python3 -W error -m pytest NAME_OF_FILE`. This checks whether the code crashes, and whether there are problems with units and overlows. This should make sure that SOAP never crashes while calculating the new properties.
+
+
 ## Units
 
 All particle data are stored in unyt arrays internally. On opening the snapshot
