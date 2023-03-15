@@ -114,6 +114,11 @@ Adding new quantities to already defined SOAP apertures is a relatively easy bus
   * To calculate your quantity you have to define a `@lazy_property` with the same name in the `XXParticleData` class in the same file. There should be a lot of examples of different quantities that are already calculated. An important thing to note is that fields that are used for multiple calculations should have their own `@lazy_property` to avoid loading things multiple times, so check if the things that you need are already there.
   * At this point everything should now work. To test the newly added quantities you can run a unit test using `python3 -W error -m pytest NAME_OF_FILE`. This checks whether the code crashes, and whether there are problems with units and overflows. This should make sure that SOAP never crashes while calculating the new properties.
 
+If SOAP does crash while evaluating your new property it will try to
+output the ID of the halo it was processing when it crashed. Then you
+can re-run that halo on a single MPI rank in the python debugger as
+described in the debugging section below.
+
 ## Units
 
 All particle data are stored in unyt arrays internally. On opening the snapshot
