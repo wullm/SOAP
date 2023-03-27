@@ -11,6 +11,8 @@ import shared_array
 import result_set
 import halo_properties
 from property_table import PropertyTable
+from xray_calculator import XrayCalculator
+
 
 # Factor by which to increase search radius when looking for density threshold
 SEARCH_RADIUS_FACTOR = 1.2
@@ -109,6 +111,17 @@ def process_single_halo(
                 offset = input_halo["cofp"] - 0.5 * boxsize
                 pos[:, :] = ((pos - offset) % boxsize) + offset
 
+            xray_calc = XrayCalculator(halo_prop.z)
+            ptype = 'PartType0'
+            table_path = 'temp_path.hdf5'
+            xray_bands = ['erosita-low', 'erosita-high', 'ROSAT']
+            observing_types = ['energies', 'energies', 'energies']
+            particle_data[ptype]["XrayLuminosities_new"] = interpolate_X_Ray(table_name, particle_data[ptype]['Densities'], particle_data[ptype]['Temperatures'], particle_data[pytpe]['SmoothedElementMassFractions'], particle_data[ptype]['Masses'], bands = xray_bands, observing_types = observing_types, fill_value = 0)
+
+            observing_types = ['photons', 'photons', 'photons']
+            particle_data[ptype]["XrayPhotonLuminosities_new"] = interpolate_X_Ray(table_name, particle_data[ptype]['Densities'], particle_data[ptype]['Temperatures'], particle_data[pytpe]['SmoothedElementMassFractions'], particle_data[ptype]['Masses'], bands = xray_bands, observing_types = observing_types, fill_value = 0)
+
+
             # Try to compute properties of this halo which haven't been done yet
             for prop_nr, halo_prop in enumerate(halo_prop_list):
                 if halo_prop_done[prop_nr]:
@@ -124,11 +137,6 @@ def process_single_halo(
                         max_physical_radius_mpc, halo_prop.physical_radius_mpc
                     )
                     break
-                except FloatingPointError as fpe:
-                    # Calculation cause a floating point exception.
-                    # Output the halo ID so we can debug this.
-                    print(f"Halo ID={input_halo['ID']} encountered a floating point error")
-                    raise
                 else:
                     # The property calculation worked!
                     halo_prop_done[prop_nr] = True
