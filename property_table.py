@@ -97,7 +97,11 @@ class PropertyTable:
             "SpectroscopicLikeTemperature_core_excision",
             "SpectroscopicLikeTemperature_no_agn_core_excision",
         ],
-        "footnote_cytemp.tex": ["Tgas_cy_weighted", "Tgas_cy_weighted_no_agn"],
+        "footnote_cytemp.tex": [
+            "Tgas_cy_weighted",
+            "Tgas_cy_weighted_no_agn",
+            "Tgas_cy_weighted_core_excision" "Tgas_cy_weighted_core_excision_no_agn",
+        ],
     }
 
     compression_description = {
