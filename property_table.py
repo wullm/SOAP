@@ -100,8 +100,15 @@ class PropertyTable:
         "footnote_cytemp.tex": [
             "Tgas_cy_weighted",
             "Tgas_cy_weighted_no_agn",
-            "Tgas_cy_weighted_core_excision" "Tgas_cy_weighted_core_excision_no_agn",
+            "Tgas_cy_weighted_core_excision",
+            "Tgas_cy_weighted_core_excision_no_agn",
         ],
+        "footnote_spectroscopicliketemperature.tex": [
+            "SpectroscopicLikeTemperature",
+            "SpectroscopicLikeTemperature_core_excision",
+            "SpectroscopicLikeTemperature_no_agn",
+            "SpectroscopicLikeTemperature_no_agn_core_excision"
+        ]
     }
 
     compression_description = {
