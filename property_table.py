@@ -83,6 +83,21 @@ class PropertyTable:
         ],
         "footnote_compY.tex": ["compY", "compY_no_agn"],
         "footnote_dopplerB.tex": ["DopplerB"],
+        "footnote_coreexcision.tex": [
+            "Tgas_cy_weighted_core_excision",
+            "Tgas_cy_weighted_core_excision_no_agn",
+            "Tgas_core_excision",
+            "Tgas_no_cool_core_excision",
+            "Tgas_no_agn_core_excision",
+            "Tgas_no_cool_no_agn_core_excision",
+            "Xraylum_core_excision",
+            "Xraylum_no_agn_core_excision",
+            "Xrayphlum_core_excision",
+            "Xrayphlum_no_agn_core_excision",
+            "SpectroscopicLikeTemperature_core_excision",
+            "SpectroscopicLikeTemperature_no_agn_core_excision",
+        ],
+        "footnote_cytemp.tex": ["Tgas_cy_weighted", "Tgas_cy_weighted_no_agn"],
     }
 
     compression_description = {
