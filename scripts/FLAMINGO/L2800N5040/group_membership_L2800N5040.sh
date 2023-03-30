@@ -6,7 +6,8 @@
 #
 # Submit with (for example):
 #
-# sbatch -J HYDRO_FIDUCIAL --array=78 ./group_membership_L2800N5040.sh
+# cd SOAP
+# sbatch -J HYDRO_FIDUCIAL --array=78 ./scripts/FLAMINGO/L2800N5040/group_membership_L2800N5040.sh
 #
 #SBATCH --nodes=16
 #SBATCH --cpus-per-task=1

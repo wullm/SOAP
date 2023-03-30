@@ -6,7 +6,8 @@
 # Job name determines which of the L2800N5040 runs we process.
 # Array job index is the snapshot number to do. Submit with (for example):
 #
-# sbatch -J HYDRO_FIDUCIAL --array=78 ./halo_properties_L2800N5040_HYDRO.sh
+# cd SOAP
+# sbatch -J HYDRO_FIDUCIAL --array=78 ./scripts/FLAMINGO/L2800N5040/halo_properties_L2800N5040_HYDRO.sh
 #
 #SBATCH --nodes=16
 #SBATCH --cpus-per-task=1

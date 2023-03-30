@@ -6,7 +6,8 @@
 # Job name determines which of the L1000N3600 runs we process.
 # Array job index is the snapshot number to do. Submit with (for example):
 #
-# sbatch -J HYDRO_FIDUCIAL --array=78 ./halo_properties_L1000N3600_HYDRO.sh
+# cd SOAP
+# sbatch -J HYDRO_FIDUCIAL --array=78 ./scripts/FLAMINGO/L1000N3600/halo_properties_L1000N3600_HYDRO.sh
 #
 #SBATCH --nodes=4
 #SBATCH --cpus-per-task=1

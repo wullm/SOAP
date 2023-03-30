@@ -6,7 +6,8 @@
 # Job name determines which of the L2800N5040 runs we process.
 # Array job index is the snapshot number to do. Submit with (for example):
 #
-# sbatch -J DMO_FIDUCIAL --array=78 ./halo_properties_L2800N5040_DMO.sh
+# cd SOAP
+# sbatch -J DMO_FIDUCIAL --array=78 ./scripts/FLAMINGO/L2800N5040/halo_properties_L2800N5040_DMO.sh
 #
 #SBATCH --nodes=16
 #SBATCH --cpus-per-task=1

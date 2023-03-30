@@ -6,7 +6,8 @@
 # Job name determines which of the L1000N0900 runs we process.
 # Array job index is the snapshot number to do. Submit with (for example):
 #
-# sbatch -J DMO_FIDUCIAL --array=77 ./halo_properties_L1000N0900_DMO.sh
+# cd SOAP
+# sbatch -J DMO_FIDUCIAL --array=77 ./scripts/FLAMINGO/L1000N0900/halo_properties_L1000N0900_DMO.sh
 #
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=1
