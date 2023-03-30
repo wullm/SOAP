@@ -147,6 +147,9 @@ flag. This specifies the VELOCIraptor IDs of the required halos. E.g.
 python3 -Werror -m pdb ./compute_halo_properties.py --halo-ids 1 2 3 ...
 ```
 
+See the scripts in `scripts/FLAMINGO/small_test` for examples showing how to
+run SOAP on a few halos from the FLAMINGO simulations.
+
 ## Profiling
 
 The code can be profiled by running with the `--profile` flag, which uses the
