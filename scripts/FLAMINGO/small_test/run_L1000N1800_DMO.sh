@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# This runs SOAP on a few halos in the L1000N1800/HYDRO_FIDUCIAL
+# This runs SOAP on a few halos in the L1000N1800/DMO_FIDUCIAL
 # box on Cosma8. It can be used as a quick test of new halo property
 # code. Takes ~2 minutes to run.
 #
@@ -14,7 +14,7 @@ module purge
 module load gnu_comp/11.1.0 openmpi/4.1.1 python/3.10.1
 
 # Which simulation to do
-sim="L1000N1800/HYDRO_FIDUCIAL"
+sim="L1000N1800/DMO_FIDUCIAL"
 
 # Location of the simulation
 basedir="/cosma8/data/dp004/flamingo/Runs/${sim}/"
@@ -26,7 +26,7 @@ vr_basename="${basedir}/VR/catalogue_%(snap_nr)04d/vr_catalogue_%(snap_nr)04d"
 snap_nr=0050
 
 # Halo IDs to do: all halos with x<10, y<10, and z<10Mpc in snap 50
-halo_ids="2209 3361 7168 12862 15350 33466 40200 41558 44560 73864 74545 77350 81089 87231 88605 99176 99726 111049 118710 118711"
+halo_ids="1201 2076 4037 7924 11522 21589 25085 29317"
 
 # Location for temporary chunk output
 scratchdir="./tmp/"
@@ -39,6 +39,6 @@ outdir=`dirname "${outfile}"`
 mkdir -p "${outdir}"
 
 # Run SOAP on one core processing the selected halos. Use 'python3 -m pdb' to start in the debugger.
-python3 ./compute_halo_properties.py \
+python3 ./compute_halo_properties.py --dmo \
     ${swift_filename} ${scratchdir} ${vr_basename} ${outfile} ${snap_nr} \
     --chunks=1 --extra-input=${extra_filename} --halo-ids ${halo_ids}
