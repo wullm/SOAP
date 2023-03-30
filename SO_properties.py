@@ -696,10 +696,7 @@ class SOParticleData:
             return None
         return (
             self.gas_temperatures[self.gas_no_agn]
-            * (
-                self.gas_compY[self.gas_no_agn].value
-                / gas_compY_sum.value
-            )
+            * (self.gas_compY[self.gas_no_agn].value / gas_compY_sum.value)
         ).sum()
 
     @lazy_property
@@ -1019,17 +1016,13 @@ class SOParticleData:
     @lazy_property
     def SpectroscopicLikeTemperature_core_excision(self):
         nominator = np.sum(
-            self.gas_densities[
-                self.gas_selection_core_excision_xray_temperature
-            ]
+            self.gas_densities[self.gas_selection_core_excision_xray_temperature]
             * self.gas_masses[self.gas_selection_core_excision_xray_temperature]
             * self.gas_temperatures[self.gas_selection_core_excision_xray_temperature]
             ** (1 / 4)
         )
         denominator = np.sum(
-            self.gas_densities[
-                self.gas_selection_core_excision_xray_temperature
-            ]
+            self.gas_densities[self.gas_selection_core_excision_xray_temperature]
             * self.gas_masses[self.gas_selection_core_excision_xray_temperature]
             * self.gas_temperatures[self.gas_selection_core_excision_xray_temperature]
             ** (-3 / 4)
@@ -1041,9 +1034,7 @@ class SOParticleData:
     @lazy_property
     def SpectroscopicLikeTemperature_no_agn_core_excision(self):
         nominator = np.sum(
-            self.gas_densities[
-                self.gas_selection_core_excision_no_agn_xray_temperature
-            ]
+            self.gas_densities[self.gas_selection_core_excision_no_agn_xray_temperature]
             * self.gas_masses[self.gas_selection_core_excision_no_agn_xray_temperature]
             * self.gas_temperatures[
                 self.gas_selection_core_excision_no_agn_xray_temperature
@@ -1051,9 +1042,7 @@ class SOParticleData:
             ** (1 / 4)
         )
         denominator = np.sum(
-            self.gas_densities[
-                self.gas_selection_core_excision_no_agn_xray_temperature
-            ]
+            self.gas_densities[self.gas_selection_core_excision_no_agn_xray_temperature]
             * self.gas_masses[self.gas_selection_core_excision_no_agn_xray_temperature]
             * self.gas_temperatures[
                 self.gas_selection_core_excision_no_agn_xray_temperature
