@@ -159,7 +159,7 @@ class SOCatalogue:
                 local_halo[name] = local_halo[name][keep,...]
 
         # For testing: limit number of halos processed
-        if comm_rank == 0 and max_halos > 0:
+        if max_halos > 0:
             nr_halos_local = len(local_halo["ID"])
             nr_halos_prev = comm.scan(nr_halos_local) - nr_halos_local
             nr_keep_local = max_halos - nr_halos_prev
