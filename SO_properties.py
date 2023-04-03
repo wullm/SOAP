@@ -10,7 +10,7 @@ from kinematic_properties import (
     get_angular_momentum,
     get_angular_momentum_and_kappa_corot,
     get_vmax,
-    get_axis_lengths,
+    get_inertia_tensor,
 )
 from recently_heated_gas_filter import RecentlyHeatedGasFilter
 from property_table import PropertyTable
@@ -344,10 +344,10 @@ class SOParticleData:
         return None
 
     @lazy_property
-    def TotalAxisLengths(self):
+    def TotalInertiaTensor(self):
         if self.Mtotpart == 0:
             return None
-        return get_axis_lengths(self.mass, self.position)
+        return get_inertia_tensor(self.mass, self.position)
 
     @lazy_property
     def Mfrac_satellites(self):
@@ -419,10 +419,10 @@ class SOParticleData:
         return 1.0 - 2.0 * self.internal_Mcountrot_gas / self.Mgas
 
     @lazy_property
-    def GasAxisLengths(self):
+    def GasInertiaTensor(self):
         if self.Mgas == 0:
             return None
-        return get_axis_lengths(self.gas_masses, self.gas_pos)
+        return get_inertia_tensor(self.gas_masses, self.gas_pos)
 
     @lazy_property
     def dm_masses(self):
@@ -461,10 +461,10 @@ class SOParticleData:
         )
 
     @lazy_property
-    def DMAxisLengths(self):
+    def DMInertiaTensor(self):
         if self.Mdm == 0:
             return None
-        return get_axis_lengths(self.dm_masses, self.dm_pos)
+        return get_inertia_tensor(self.dm_masses, self.dm_pos)
 
     @lazy_property
     def star_masses(self):
@@ -532,10 +532,10 @@ class SOParticleData:
         return 1.0 - 2.0 * self.internal_Mcountrot_star / self.Mstar
 
     @lazy_property
-    def StellarAxisLengths(self):
+    def StellarInertiaTensor(self):
         if self.Mstar == 0:
             return None
-        return get_axis_lengths(self.star_masses, self.star_pos)
+        return get_inertia_tensor(self.star_masses, self.star_pos)
 
     @lazy_property
     def baryon_masses(self):
@@ -576,10 +576,10 @@ class SOParticleData:
         ).sum(axis=0)
 
     @lazy_property
-    def BaryonAxisLengths(self):
+    def BaryonInertiaTensor(self):
         if self.Mbaryons == 0:
             return None
-        return get_axis_lengths(self.baryon_masses, self.baryon_pos)
+        return get_inertia_tensor(self.baryon_masses, self.baryon_pos)
 
     @lazy_property
     def Mbh_dynamical(self):
@@ -696,10 +696,7 @@ class SOParticleData:
             return None
         return (
             self.gas_temperatures[self.gas_no_agn]
-            * (
-                self.gas_compY[self.gas_no_agn].value
-                / gas_compY_sum.value
-            )
+            * (self.gas_compY[self.gas_no_agn].value / gas_compY_sum.value)
         ).sum()
 
     @lazy_property
@@ -1022,17 +1019,13 @@ class SOParticleData:
     @lazy_property
     def SpectroscopicLikeTemperature_core_excision(self):
         nominator = np.sum(
-            self.gas_densities[
-                self.gas_selection_core_excision_xray_temperature
-            ]
+            self.gas_densities[self.gas_selection_core_excision_xray_temperature]
             * self.gas_masses[self.gas_selection_core_excision_xray_temperature]
             * self.gas_temperatures[self.gas_selection_core_excision_xray_temperature]
             ** (1 / 4)
         )
         denominator = np.sum(
-            self.gas_densities[
-                self.gas_selection_core_excision_xray_temperature
-            ]
+            self.gas_densities[self.gas_selection_core_excision_xray_temperature]
             * self.gas_masses[self.gas_selection_core_excision_xray_temperature]
             * self.gas_temperatures[self.gas_selection_core_excision_xray_temperature]
             ** (-3 / 4)
@@ -1044,9 +1037,7 @@ class SOParticleData:
     @lazy_property
     def SpectroscopicLikeTemperature_no_agn_core_excision(self):
         nominator = np.sum(
-            self.gas_densities[
-                self.gas_selection_core_excision_no_agn_xray_temperature
-            ]
+            self.gas_densities[self.gas_selection_core_excision_no_agn_xray_temperature]
             * self.gas_masses[self.gas_selection_core_excision_no_agn_xray_temperature]
             * self.gas_temperatures[
                 self.gas_selection_core_excision_no_agn_xray_temperature
@@ -1054,9 +1045,7 @@ class SOParticleData:
             ** (1 / 4)
         )
         denominator = np.sum(
-            self.gas_densities[
-                self.gas_selection_core_excision_no_agn_xray_temperature
-            ]
+            self.gas_densities[self.gas_selection_core_excision_no_agn_xray_temperature]
             * self.gas_masses[self.gas_selection_core_excision_no_agn_xray_temperature]
             * self.gas_temperatures[
                 self.gas_selection_core_excision_no_agn_xray_temperature
@@ -1400,11 +1389,11 @@ class SOProperties(HaloProperty):
             "Mnu",
             "spin_parameter",
             "SFR",
-            "TotalAxisLengths",
-            "GasAxisLengths",
-            "DMAxisLengths",
-            "StellarAxisLengths",
-            "BaryonAxisLengths",
+            "TotalInertiaTensor",
+            "GasInertiaTensor",
+            "DMInertiaTensor",
+            "StellarInertiaTensor",
+            "BaryonInertiaTensor",
             "DopplerB",
             "gasOfrac",
             "gasFefrac",
