@@ -111,15 +111,15 @@ def process_single_halo(
                 offset = input_halo["cofp"] - 0.5 * boxsize
                 pos[:, :] = ((pos - offset) % boxsize) + offset
 
-            xray_calc = XrayCalculator(halo_prop.z)
+            xray_calc = XrayCalculator(halo_prop_list[0].z)
             ptype = 'PartType0'
-            table_path = 'temp_path.hdf5'
+            table_path = '/cosma8/data/dp004/dc-bras1/SOAP/X_Ray_table_redshift_restframe.hdf5'
             xray_bands = ['erosita-low', 'erosita-high', 'ROSAT']
-            observing_types = ['energies', 'energies', 'energies']
-            particle_data[ptype]["XrayLuminosities_new"] = interpolate_X_Ray(table_name, particle_data[ptype]['Densities'], particle_data[ptype]['Temperatures'], particle_data[pytpe]['SmoothedElementMassFractions'], particle_data[ptype]['Masses'], bands = xray_bands, observing_types = observing_types, fill_value = 0)
+            observing_types = ['energies_intrinsic', 'energies_intrinsic', 'energies_intrinsic']
+            particle_data[ptype]["XrayLuminosities_new"] = xray_calc.interpolate_X_Ray(table_path, particle_data[ptype]['Densities'], particle_data[ptype]['Temperatures'], particle_data[ptype]['SmoothedElementMassFractions'], particle_data[ptype]['Masses'], bands = xray_bands, observing_types = observing_types, fill_value = 0)
 
-            observing_types = ['photons', 'photons', 'photons']
-            particle_data[ptype]["XrayPhotonLuminosities_new"] = interpolate_X_Ray(table_name, particle_data[ptype]['Densities'], particle_data[ptype]['Temperatures'], particle_data[pytpe]['SmoothedElementMassFractions'], particle_data[ptype]['Masses'], bands = xray_bands, observing_types = observing_types, fill_value = 0)
+            observing_types = ['photons_intrinsic', 'photons_intrinsic', 'photons_intrinsic']
+            particle_data[ptype]["XrayPhotonLuminosities_new"] = xray_calc.interpolate_X_Ray(table_path, particle_data[ptype]['Densities'], particle_data[ptype]['Temperatures'], particle_data[ptype]['SmoothedElementMassFractions'], particle_data[ptype]['Masses'], bands = xray_bands, observing_types = observing_types, fill_value = 0)
 
 
             # Try to compute properties of this halo which haven't been done yet

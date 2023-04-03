@@ -1,12 +1,10 @@
 import h5py
 import numpy as np
-from swiftsimio import load
 from numba import jit
 from unyt import g, cm, mp, erg, s
-from tqdm import tqdm
 
 class XrayCalculator:
-    def init(self, redshift):
+    def __init__(self, redshift):
         self.z_now = redshift
 
     def load_table(self, table_name, band, observing_type):
@@ -143,9 +141,10 @@ class XrayCalculator:
     def interpolate_X_Ray(self, table_name, densities, temperatures, element_mass_fractions, masses, bands = None, observing_types = None, fill_value = None):
         redshift = self.z_now
         scale_factor = 1 / (1 + redshift)
-        data_n = np.log10(element_mass_fractions.hydrogen * (1 / scale_factor**3) * densities.to(g * cm**-3) / mp)
+        data_n = np.log10(element_mass_fractions[:, 0] * (1 / scale_factor**3) * densities.to(g * cm**-3) / mp)
         data_T = np.log10(temperatures)
         volumes = (masses / ((1 / scale_factor**3) * densities)).to(cm**3)
+        print(f'{masses=}', f'{scale_factor=}', f'{densities=}', f'{volumes=}')
 
 
         if bands == None:
@@ -204,21 +203,21 @@ class XrayCalculator:
                 emissivities[~joint_mask] = fill_value
         
         # If only a single redshift is received, use it for all particles
-        if redshift.size == 1:
-            redshift = np.ones_like(data_n) * redshift
+        redshift = np.ones_like(data_n) * redshift
 
         mass_fraction = np.zeros((len(data_n[joint_mask]), 9))
 
         #get individual mass fraction
-        mass_fraction[:, 0] = element_mass_fractions.hydrogen[joint_mask]
-        mass_fraction[:, 1] = element_mass_fractions.helium[joint_mask]
-        mass_fraction[:, 2] = element_mass_fractions.carbon[joint_mask]
-        mass_fraction[:, 3] = element_mass_fractions.nitrogen[joint_mask]
-        mass_fraction[:, 4] = element_mass_fractions.oxygen[joint_mask]
-        mass_fraction[:, 5] = element_mass_fractions.neon[joint_mask]
-        mass_fraction[:, 6] = element_mass_fractions.magnesium[joint_mask]
-        mass_fraction[:, 7] = element_mass_fractions.silicon[joint_mask]
-        mass_fraction[:, 8] = element_mass_fractions.iron[joint_mask]
+        mass_fraction = element_mass_fractions
+        # mass_fraction[:, 0] = element_mass_fractions.hydrogen[joint_mask]
+        # mass_fraction[:, 1] = element_mass_fractions.helium[joint_mask]
+        # mass_fraction[:, 2] = element_mass_fractions.carbon[joint_mask]
+        # mass_fraction[:, 3] = element_mass_fractions.nitrogen[joint_mask]
+        # mass_fraction[:, 4] = element_mass_fractions.oxygen[joint_mask]
+        # mass_fraction[:, 5] = element_mass_fractions.neon[joint_mask]
+        # mass_fraction[:, 6] = element_mass_fractions.magnesium[joint_mask]
+        # mass_fraction[:, 7] = element_mass_fractions.silicon[joint_mask]
+        # mass_fraction[:, 8] = element_mass_fractions.iron[joint_mask]
 
         # Find density offsets
         idx_n, dx_n = self.get_index_1d(self.density_bins, data_n[joint_mask])
