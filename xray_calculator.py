@@ -143,8 +143,7 @@ class XrayCalculator:
         scale_factor = 1 / (1 + redshift)
         data_n = np.log10(element_mass_fractions[:, 0] * (1 / scale_factor**3) * densities.to(g * cm**-3) / mp)
         data_T = np.log10(temperatures)
-        volumes = (masses / ((1 / scale_factor**3) * densities)).to(cm**3)
-        print(f'{masses=}', f'{scale_factor=}', f'{densities=}', f'{volumes=}')
+        volumes = (masses.astype(np.float64) / ((1 / scale_factor**3) * densities.astype(np.float64))).to(cm**3)
 
 
         if bands == None:
@@ -254,4 +253,5 @@ class XrayCalculator:
             luminosities[joint_mask, i_interp] = np.power(10, emissivities[joint_mask, i_interp]) * volumes[joint_mask]
             
 
+        print(f'{luminosities=}')
         return luminosities
