@@ -11,7 +11,6 @@ import shared_array
 import result_set
 import halo_properties
 from property_table import PropertyTable
-from xray_calculator import XrayCalculator
 
 
 # Factor by which to increase search radius when looking for density threshold
@@ -34,6 +33,7 @@ def process_single_halo(
     boxsize,
     input_halo,
     target_density,
+    xray_calc
 ):
     """
     This computes properties for one halo and runs on a single
@@ -111,15 +111,14 @@ def process_single_halo(
                 offset = input_halo["cofp"] - 0.5 * boxsize
                 pos[:, :] = ((pos - offset) % boxsize) + offset
 
-            xray_calc = XrayCalculator(halo_prop_list[0].z)
+
             ptype = 'PartType0'
-            table_path = '/cosma8/data/dp004/dc-bras1/SOAP/X_Ray_table_redshift_restframe.hdf5'
             xray_bands = ['erosita-low', 'erosita-high', 'ROSAT']
             observing_types = ['energies_intrinsic', 'energies_intrinsic', 'energies_intrinsic']
-            particle_data[ptype]["XrayLuminosities_new"] = xray_calc.interpolate_X_Ray(table_path, particle_data[ptype]['Densities'], particle_data[ptype]['Temperatures'], particle_data[ptype]['SmoothedElementMassFractions'], particle_data[ptype]['Masses'], bands = xray_bands, observing_types = observing_types, fill_value = 0)
+            particle_data[ptype]["XrayLuminosities_new"] = xray_calc.interpolate_X_Ray(particle_data[ptype]['Densities'], particle_data[ptype]['Temperatures'], particle_data[ptype]['SmoothedElementMassFractions'], particle_data[ptype]['Masses'], bands = xray_bands, observing_types = observing_types, fill_value = 0)
 
             observing_types = ['photons_intrinsic', 'photons_intrinsic', 'photons_intrinsic']
-            particle_data[ptype]["XrayPhotonLuminosities_new"] = xray_calc.interpolate_X_Ray(table_path, particle_data[ptype]['Densities'], particle_data[ptype]['Temperatures'], particle_data[ptype]['SmoothedElementMassFractions'], particle_data[ptype]['Masses'], bands = xray_bands, observing_types = observing_types, fill_value = 0)
+            particle_data[ptype]["XrayPhotonLuminosities_new"] = xray_calc.interpolate_X_Ray(particle_data[ptype]['Densities'], particle_data[ptype]['Temperatures'], particle_data[ptype]['SmoothedElementMassFractions'], particle_data[ptype]['Masses'], bands = xray_bands, observing_types = observing_types, fill_value = 0)
 
 
             # Try to compute properties of this halo which haven't been done yet
@@ -210,6 +209,7 @@ def process_halos(
     boxsize,
     halo_arrays,
     results,
+    xray_calculator
 ):
     """
     This uses all of the MPI ranks on one compute node to compute halo properties
@@ -298,6 +298,7 @@ def process_halos(
                     boxsize,
                     input_halo,
                     target_density,
+                    xray_calculator
                 )
                 if halo_result is not None:
                     # Store results and flag this halo as done

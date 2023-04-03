@@ -4,12 +4,37 @@ from numba import jit
 from unyt import g, cm, mp, erg, s
 
 class XrayCalculator:
-    def __init__(self, redshift):
+    def __init__(self, redshift, table_path, bands, observing_types):
         self.z_now = redshift
 
-    def load_table(self, table_name, band, observing_type):
-        self.table = h5py.File(table_name, 'r')
-        self.X_Ray = self.table[band][observing_type][()].astype(np.float32)
+        if bands == None:
+            print('Please specify the band you would like to generate emissivities for\n \
+                Using the "band = " keyword\n\n \
+                Available options are:\n \
+                "erosita-low" (0.2-2.3 keV)\n \
+                "erosita-high" (2.3-8.0 keV)\n \
+                "ROSAT" (0.5-2.0 keV)')
+            raise KeyError
+        
+        if observing_types == None:
+            print('Please specify whether you would like to generate photon or energie emissivities\n \
+                Using the "observing_type = " keyword\n\n \
+                Available options are:\n \
+                "energies_intrinsic"\n \
+                "photons_intrinsic"')
+            raise KeyError      
+
+        if (bands != None) & (observing_types != None):
+            assert len(bands) == len(observing_types)
+
+        self.tables = self.load_all_tables(redshift, table_path, bands, observing_types)
+        self.idx_z = np.array([0, 1])
+
+    def load_all_tables(self, redshift, table_path, bands, observing_types):
+        self.table = h5py.File(table_path, 'r')
+        self.redshift_bins = self.table['/Bins/Redshift_bins'][()].astype(np.float32)
+        idx_z, self.dx_z = self.get_index_1d(self.redshift_bins, np.array([redshift]))
+
         self.He_bins = self.table['/Bins/He_bins'][()].astype(np.float32)
         self.missing_elements = self.table['/Bins/Missing_element'][()]
         self.element_masses = self.table['Bins/Element_masses'][()].astype(np.float32)
@@ -23,6 +48,38 @@ class XrayCalculator:
 
         self.log10_solar_metallicity = self.table['/Bins/Solar_metallicities/'][()].astype(np.float32)
         self.solar_metallicity = np.power(10, self.log10_solar_metallicity)
+
+
+        tables = {}
+        for band in bands:
+            tables[band] = {}
+            for observing_type in observing_types:
+                tables[band][observing_type] = self.table[band][observing_type][idx_z.astype(int), :, :, :, :].astype(np.float32)
+
+        return tables
+
+        
+    
+
+
+        
+
+    # def load_table(self, table_name, band, observing_type):
+    #     self.table = h5py.File(table_name, 'r')
+    #     self.X_Ray = self.table[band][observing_type][()].astype(np.float32)
+    #     self.He_bins = self.table['/Bins/He_bins'][()].astype(np.float32)
+    #     self.missing_elements = self.table['/Bins/Missing_element'][()]
+    #     self.element_masses = self.table['Bins/Element_masses'][()].astype(np.float32)
+
+    #     self.density_bins = self.table['/Bins/Density_bins/'][()].astype(np.float32)
+    #     self.temperature_bins = self.table['/Bins/Temperature_bins/'][()].astype(np.float32)
+    #     self.redshift_bins = self.table['/Bins/Redshift_bins'][()].astype(np.float32)
+    #     self.dn = 0.2
+    #     self.dT = 0.1
+    #     self.dz = 0.2
+
+    #     self.log10_solar_metallicity = self.table['/Bins/Solar_metallicities/'][()].astype(np.float32)
+    #     self.solar_metallicity = np.power(10, self.log10_solar_metallicity)
 
     @staticmethod
     @jit(nopython = True)
@@ -138,41 +195,12 @@ class XrayCalculator:
 
         return f_n_T_Z
 
-    def interpolate_X_Ray(self, table_name, densities, temperatures, element_mass_fractions, masses, bands = None, observing_types = None, fill_value = None):
+    def interpolate_X_Ray(self, densities, temperatures, element_mass_fractions, masses, bands = None, observing_types = None, fill_value = None):
         redshift = self.z_now
         scale_factor = 1 / (1 + redshift)
         data_n = np.log10(element_mass_fractions[:, 0] * (1 / scale_factor**3) * densities.to(g * cm**-3) / mp)
         data_T = np.log10(temperatures)
         volumes = (masses.astype(np.float64) / ((1 / scale_factor**3) * densities.astype(np.float64))).to(cm**3)
-
-
-        if bands == None:
-            print('Please specify the band you would like to generate emissivities for\n \
-                Using the "band = " keyword\n\n \
-                Available options are:\n \
-                "erosita-low" (0.2-2.3 keV)\n \
-                "erosita-high" (2.3-8.0 keV)\n \
-                "ROSAT" (0.5-2.0 keV)')
-            raise KeyError
-        
-        if observing_types == None:
-            print('Please specify whether you would like to generate photon or energie emissivities\n \
-                Using the "observing_type = " keyword\n\n \
-                Available options are:\n \
-                "energies"\n \
-                "photons"\n \
-                "energies_intrinsic"\n \
-                "photons_intrinsic"')
-            raise KeyError       
-
-        if (bands != None) & (observing_types != None):
-            assert len(bands) == len(observing_types)
-
-        place_holder_band = bands[0]
-        place_holder_observing_type = observing_types[0]
-
-        # Initialise interpolation class
-        self.load_table(table_name, place_holder_band, place_holder_observing_type)
 
         # Initialise the emissivity array which will be returned
         emissivities = np.zeros((data_n.shape[0], len(bands)), dtype = float)
@@ -241,8 +269,7 @@ class XrayCalculator:
 
         # Interpolate the table for each specified band
         for i_interp, band, observing_type in zip(range(len(bands)), bands, observing_types):
-            self.load_table(table_name, band, observing_type)
-            emissivities[joint_mask, i_interp] = self.get_table_interp(self.dn, self.dT, dx_T, dx_n, idx_T.astype(int), idx_n.astype(int), idx_he.astype(int), dx_he, idx_z.astype(int), dx_z, self.X_Ray, abundance_to_solar[:, 2:])
+            emissivities[joint_mask, i_interp] = self.get_table_interp(self.dn, self.dT, dx_T, dx_n, idx_T.astype(int), idx_n.astype(int), idx_he.astype(int), dx_he, idx_z.astype(int), dx_z, self.tables[band][observing_type], abundance_to_solar[:, 2:])
             
             # Convert from erg cm^3 s^-1 to erg cm^-3 s^-1
             # To do so we multiply by nH^2, this is the actual nH not the nearest bin

@@ -41,6 +41,9 @@ from stellar_age_calculator import StellarAgeCalculator
 from category_filter import CategoryFilter
 from mpi_timer import MPITimer
 
+from xray_calculator import XrayCalculator
+
+
 # Set numpy to raise divide by zero, overflow and invalid operation errors as exceptions
 np.seterr(divide="raise", over="raise", invalid="raise")
 
@@ -345,6 +348,13 @@ def compute_halo_properties():
         lustre.ensure_output_dir(args.output_file)
     comm_world.barrier()
 
+
+    table_path = '/cosma8/data/dp004/dc-bras1/SOAP/X_Ray_table_redshift_restframe.hdf5'
+    xray_bands = ['erosita-low', 'erosita-high', 'ROSAT', 'erosita-low', 'erosita-high', 'ROSAT']
+    observing_types = ['energies_intrinsic', 'energies_intrinsic', 'energies_intrinsic', 'photons_intrinsic', 'photons_intrinsic', 'photons_intrinsic']
+    xray_calculator = XrayCalculator(cellgrid.z, table_path, xray_bands, observing_types)
+
+
     # Read in the halo catalogue:
     # All ranks read the file(s) in then gather to rank 0. Also computes search radius for each halo.
     vr_basename = sub_snapnum(args.vr_basename, args.snapshot_nr)
@@ -414,6 +424,7 @@ def compute_halo_properties():
         timings,
         args.max_ranks_reading,
         scratch_file_format,
+        xray_calculator
     )
     metadata = task_queue.execute_tasks(
         tasks,
