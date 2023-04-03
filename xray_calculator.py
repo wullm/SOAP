@@ -253,5 +253,4 @@ class XrayCalculator:
             luminosities[joint_mask, i_interp] = np.power(10, emissivities[joint_mask, i_interp]) * volumes[joint_mask]
             
 
-        print(f'{luminosities=}')
         return luminosities
