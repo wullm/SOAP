@@ -903,7 +903,10 @@ class SOParticleData:
     def compY_no_agn(self):
         if self.Ngas_no_agn == 0:
             return None
-        return self.gas_compY[self.gas_no_agn].sum().value * self.compY_unit
+        if np.any(self.gas_no_agn):
+            return self.gas_compY[self.gas_no_agn].sum().value * self.compY_unit
+        else:
+            return None
 
     @lazy_property
     def Tgas_no_agn(self):
