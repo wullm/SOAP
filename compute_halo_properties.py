@@ -350,8 +350,8 @@ def compute_halo_properties():
 
 
     table_path = '/cosma8/data/dp004/dc-bras1/SOAP/X_Ray_table_redshift_restframe.hdf5'
-    xray_bands = ['erosita-low', 'erosita-high', 'ROSAT', 'erosita-low', 'erosita-high', 'ROSAT']
-    observing_types = ['energies_intrinsic', 'energies_intrinsic', 'energies_intrinsic', 'photons_intrinsic', 'photons_intrinsic', 'photons_intrinsic']
+    xray_bands = ['erosita-low', 'erosita-high', 'ROSAT', 'erosita-low', 'erosita-high', 'ROSAT', 'erosita-low', 'erosita-high', 'ROSAT', 'erosita-low', 'erosita-high', 'ROSAT']
+    observing_types = ['energies_intrinsic', 'energies_intrinsic', 'energies_intrinsic', 'photons_intrinsic', 'photons_intrinsic', 'photons_intrinsic', 'energies_intrinsic_restframe', 'energies_intrinsic_restframe', 'energies_intrinsic_restframe', 'photons_intrinsic_restframe', 'photons_intrinsic_restframe', 'photons_intrinsic_restframe']
     xray_calculator = XrayCalculator(cellgrid.z, table_path, xray_bands, observing_types)
 
 
