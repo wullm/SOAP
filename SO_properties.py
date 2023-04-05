@@ -1069,8 +1069,6 @@ class SOParticleData:
 
     @lazy_property
     def gas_densities(self):
-        if self.Ngas == 0:
-            return None
         return self.data["PartType0"]["Densities"][self.gas_selection]
 
     @lazy_property
