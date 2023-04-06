@@ -113,20 +113,20 @@ def process_single_halo(
 
 
             ptype = 'PartType0'
-            idx_n, dx_n, idx_T, dx_T, idx_he, dx_he, abundance_to_solar, joint_mask, volumes, data_n = xray_calc.find_indices(particle_data[ptype]['Densities'], particle_data[ptype]['Temperatures'], particle_data[ptype]['SmoothedElementMassFractions'], particle_data[ptype]['Masses'], fill_value = 0)
+            idx_table, t_z, d_z, t_T, d_T, t_nH, d_nH, t_He, d_He, abundance_to_solar, joint_mask, volumes, data_n = xray_calc.find_indices(particle_data[ptype]['Densities'], particle_data[ptype]['Temperatures'], particle_data[ptype]['SmoothedElementMassFractions'], particle_data[ptype]['Masses'], fill_value = 0)
             
             xray_bands = ['erosita-low', 'erosita-high', 'ROSAT']
             observing_types = ['energies_intrinsic', 'energies_intrinsic', 'energies_intrinsic']
-            particle_data[ptype]["XrayLuminosities_new"] = xray_calc.interpolate_X_Ray(idx_n, dx_n, idx_T, dx_T, idx_he, dx_he, abundance_to_solar, joint_mask, volumes, data_n, bands = xray_bands, observing_types = observing_types, fill_value = 0)
+            particle_data[ptype]["XrayLuminosities"] = xray_calc.interpolate_X_Ray(idx_table, t_z, d_z, t_T, d_T, t_nH, d_nH, t_He, d_He, abundance_to_solar, joint_mask, volumes, data_n, bands = xray_bands, observing_types = observing_types, fill_value = 0).to(particle_data[ptype]["XrayLuminosities"].units)
 
             observing_types = ['photons_intrinsic', 'photons_intrinsic', 'photons_intrinsic']
-            particle_data[ptype]["XrayPhotonLuminosities_new"] = xray_calc.interpolate_X_Ray(idx_n, dx_n, idx_T, dx_T, idx_he, dx_he, abundance_to_solar, joint_mask, volumes, data_n, bands = xray_bands, observing_types = observing_types, fill_value = 0)
+            particle_data[ptype]["XrayPhotonLuminosities"] = xray_calc.interpolate_X_Ray(idx_table, t_z, d_z, t_T, d_T, t_nH, d_nH, t_He, d_He, abundance_to_solar, joint_mask, volumes, data_n, bands = xray_bands, observing_types = observing_types, fill_value = 0).to(particle_data[ptype]["XrayPhotonLuminosities"].units)
 
             observing_types = ['energies_intrinsic_restframe', 'energies_intrinsic_restframe', 'energies_intrinsic_restframe']
-            particle_data[ptype]["XrayLuminositiesRestframe_new"] = xray_calc.interpolate_X_Ray(idx_n, dx_n, idx_T, dx_T, idx_he, dx_he, abundance_to_solar, joint_mask, volumes, data_n, bands = xray_bands, observing_types = observing_types, fill_value = 0)
+            particle_data[ptype]["XrayLuminositiesRestframe"] = xray_calc.interpolate_X_Ray(idx_table, t_z, d_z, t_T, d_T, t_nH, d_nH, t_He, d_He, abundance_to_solar, joint_mask, volumes, data_n, bands = xray_bands, observing_types = observing_types, fill_value = 0).to(particle_data[ptype]["XrayLuminosities"].units)
 
             observing_types = ['photons_intrinsic_restframe', 'photons_intrinsic_restframe', 'photons_intrinsic_restframe']
-            particle_data[ptype]["XrayPhotonLuminositiesRestframe_new"] = xray_calc.interpolate_X_Ray(idx_n, dx_n, idx_T, dx_T, idx_he, dx_he, abundance_to_solar, joint_mask, volumes, data_n, bands = xray_bands, observing_types = observing_types, fill_value = 0)
+            particle_data[ptype]["XrayPhotonLuminositiesRestframe"] = xray_calc.interpolate_X_Ray(idx_table, t_z, d_z, t_T, d_T, t_nH, d_nH, t_He, d_He, abundance_to_solar, joint_mask, volumes, data_n, bands = xray_bands, observing_types = observing_types, fill_value = 0).to(particle_data[ptype]["XrayPhotonLuminosities"].units)
 
 
 

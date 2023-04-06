@@ -838,10 +838,23 @@ class SOParticleData:
         return self.data["PartType0"]["XrayLuminosities"][self.gas_selection]
 
     @lazy_property
+    def gas_xraylum_restframe(self):
+        if self.Ngas == 0:
+            return None
+        print(f'{self.data["PartType0"].keys()=}')
+        return self.data["PartType0"]["XrayLuminositiesRestframe"][self.gas_selection]
+
+    @lazy_property
     def Xraylum(self):
         if self.Ngas == 0:
             return None
         return self.gas_xraylum.sum(axis=0)
+
+    @lazy_property
+    def Xraylum_restframe(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_xraylum_restframe.sum(axis=0)
 
     @lazy_property
     def gas_xrayphlum(self):
@@ -850,10 +863,23 @@ class SOParticleData:
         return self.data["PartType0"]["XrayPhotonLuminosities"][self.gas_selection]
 
     @lazy_property
+    def gas_xrayphlum_restframe(self):
+        if self.Ngas == 0:
+            return None
+        return self.data["PartType0"]["XrayPhotonLuminositiesRestframe"][self.gas_selection]
+
+
+    @lazy_property
     def Xrayphlum(self):
         if self.Ngas == 0:
             return None
         return self.gas_xrayphlum.sum(axis=0)
+
+    @lazy_property
+    def Xrayphlum_restframe(self):
+        if self.Ngas == 0:
+            return None
+        return self.gas_xrayphlum_restframe.sum(axis=0)
 
     @lazy_property
     def gas_compY(self):
@@ -895,6 +921,18 @@ class SOParticleData:
         if self.Ngas_no_agn == 0:
             return None
         return self.gas_xrayphlum[self.gas_no_agn].sum(axis=0)
+
+    @lazy_property
+    def Xraylum_restframe_no_agn(self):
+        if self.Ngas_no_agn == 0:
+            return None
+        return self.gas_xraylum_restframe[self.gas_no_agn].sum(axis=0)
+
+    @lazy_property
+    def Xrayphlum_restframe_no_agn(self):
+        if self.Ngas_no_agn == 0:
+            return None
+        return self.gas_xrayphlum_restframe[self.gas_no_agn].sum(axis=0)
 
     @lazy_property
     def compY_no_agn(self):
@@ -956,6 +994,30 @@ class SOParticleData:
             return None
         return self.gas_xrayphlum[self.gas_selection_no_agn_core_excision].sum(axis=0)
 
+    def Xraylum_restframe_core_excision(self):
+        if self.Ngas_core_excision == 0:
+            return None
+        return self.gas_xraylum_restframe[self.gas_selection_core_excision].sum(axis=0)
+
+    @lazy_property
+    def Xrayphlum_restframe_core_excision(self):
+        if self.Ngas_core_excision == 0:
+            return None
+        return self.gas_xrayphlum_restframe[self.gas_selection_core_excision].sum(axis=0)
+
+    @lazy_property
+    def Xraylum_restframe_no_agn_core_excision(self):
+        if self.Ngas_no_agn_core_excision == 0:
+            return None
+        return self.gas_xraylum_restframe[self.gas_selection_no_agn_core_excision].sum(axis=0)
+
+    @lazy_property
+    def Xrayphlum_restframe_no_agn_core_excision(self):
+        if self.Ngas_no_agn_core_excision == 0:
+            return None
+        return self.gas_xrayphlum_restframe[self.gas_selection_no_agn_core_excision].sum(axis=0)
+
+
     @lazy_property
     def gas_selection_xray_temperature(self):
         return self.gas_temperatures > 1e6 * unyt.K
@@ -986,11 +1048,22 @@ class SOParticleData:
 
     @lazy_property
     def SpectroscopicLikeTemperature(self):
-        nominator = np.sum(
-            self.gas_densities[self.gas_selection_xray_temperature]
-            * self.gas_masses[self.gas_selection_xray_temperature]
-            * self.gas_temperatures[self.gas_selection_xray_temperature] ** (1 / 4)
-        )
+        try:
+            nominator = np.sum(
+                self.gas_densities[self.gas_selection_xray_temperature]
+                * self.gas_masses[self.gas_selection_xray_temperature]
+                * self.gas_temperatures[self.gas_selection_xray_temperature] ** (1 / 4)
+            )
+        except TypeError:
+            print(f'{self.gas_densities=}')
+            print(f'{self.gas_masses=}')
+            print(f'{self.gas_temperatures=}')
+            print(f'{self.gas_selection_xray_temperature=}')
+            print(f'{self.input_halo=}')
+            print(f'{self.mass=}')
+            print(f'{self.radius=}')
+            print(f'{self.groupnr=}')
+
         denominator = np.sum(
             self.gas_densities[self.gas_selection_xray_temperature]
             * self.gas_masses[self.gas_selection_xray_temperature]
@@ -1072,8 +1145,6 @@ class SOParticleData:
 
     @lazy_property
     def gas_densities(self):
-        if self.Ngas == 0:
-            return None
         return self.data["PartType0"]["Densities"][self.gas_selection]
 
     @lazy_property
@@ -1354,12 +1425,16 @@ class SOProperties(HaloProperty):
             "Tgas_cy_weighted",
             "Tgas_cy_weighted_no_agn",
             "Xraylum",
+            "Xraylum_restframe",
             "SpectroscopicLikeTemperature",
             "SpectroscopicLikeTemperature_no_agn",
             "Xrayphlum",
+            "Xrayphlum_restframe",
             "compY",
             "Xraylum_no_agn",
             "Xrayphlum_no_agn",
+            "Xraylum_restframe_no_agn",
+            "Xrayphlum_restframe_no_agn",
             "compY_no_agn",
             "Ekin_gas",
             "Etherm_gas",
@@ -1627,6 +1702,10 @@ class CoreExcisedSOProperties(SOProperties):
             "Xraylum_no_agn_core_excision",
             "Xrayphlum_core_excision",
             "Xrayphlum_no_agn_core_excision",
+            "Xraylum_restframe_core_excision",
+            "Xraylum_restframe_no_agn_core_excision",
+            "Xrayphlum_restframe_core_excision",
+            "Xrayphlum_restframe_no_agn_core_excision",
         ]
     ]
 
