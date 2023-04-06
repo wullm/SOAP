@@ -28,9 +28,14 @@ class XrayCalculator:
             assert len(bands) == len(observing_types)
 
         self.tables = self.load_all_tables(redshift, table_path, bands, observing_types)
+        # Always only read the nearest 2 redshift bins of the table
         self.idx_z = np.array([0, 1]).astype(int)
 
     def load_all_tables(self, redshift, table_path, bands, observing_types):
+        '''
+        Load the x-ray tables for the specified bands and observing-types
+        Only read the 2 redshifts closest to the redshift of the snapshot being processed by SOAP
+        '''
         table = h5py.File(table_path, 'r')
         self.redshift_bins = table['/Bins/Redshift_bins'][()].astype(np.float32)
         idx_z, self.dx_z = self.get_index_1d(self.redshift_bins, np.array([redshift]))
@@ -61,31 +66,12 @@ class XrayCalculator:
         return tables
 
         
-    
-
-
-        
-
-    # def load_table(self, table_name, band, observing_type):
-    #     self.table = h5py.File(table_name, 'r')
-    #     self.X_Ray = self.table[band][observing_type][()].astype(np.float32)
-    #     self.He_bins = self.table['/Bins/He_bins'][()].astype(np.float32)
-    #     self.missing_elements = self.table['/Bins/Missing_element'][()]
-    #     self.element_masses = self.table['Bins/Element_masses'][()].astype(np.float32)
-
-    #     self.density_bins = self.table['/Bins/Density_bins/'][()].astype(np.float32)
-    #     self.temperature_bins = self.table['/Bins/Temperature_bins/'][()].astype(np.float32)
-    #     self.redshift_bins = self.table['/Bins/Redshift_bins'][()].astype(np.float32)
-    #     self.dn = 0.2
-    #     self.dT = 0.1
-    #     self.dz = 0.2
-
-    #     self.log10_solar_metallicity = self.table['/Bins/Solar_metallicities/'][()].astype(np.float32)
-    #     self.solar_metallicity = np.power(10, self.log10_solar_metallicity)
-
     @staticmethod
     @jit(nopython = True)
     def get_index_1d(bins, subdata):
+        '''
+        Find the closest bin index below the specified value, and the relative offset compared to that bin.
+        '''
         eps = 1e-4
         delta = (len(bins) - 1) / (bins[-1] - bins[0])
 
@@ -110,6 +96,10 @@ class XrayCalculator:
     @staticmethod
     @jit(nopython = True)
     def get_index_1d_irregular(bins, subdata):
+        '''
+        Find the closest bin index below the specified value, and the relative offset compared to that bin.
+        Unlike get_index_1d, this allows for irregular bin spacing
+        '''
         eps = 1e-6
         idx = np.zeros_like(subdata)
         dx = np.zeros_like(subdata, dtype = np.float32)
@@ -143,6 +133,11 @@ class XrayCalculator:
     @staticmethod
     # @jit(nopython = True)
     def get_table_interp(idx_table, t_z, d_z, t_T, d_T, t_nH, d_nH, t_He, d_He, X_Ray, abundance_to_solar):
+        '''
+        4D interpolate the x-ray table for each traced metal
+        Scale the metals with their respective relative solar abundances
+        Add the metals to the background case without metals
+        '''
         '''
         f_n_T_Z = np.zeros_like(idx_T)
 
@@ -224,6 +219,11 @@ class XrayCalculator:
         return f_n_T_Z
     
     def find_indices(self, densities, temperatures, element_mass_fractions, masses, fill_value = 0):
+        '''
+        Check interpolation table bounds
+        Compute all interpolation bin indices, and the offsets from those bins
+        Compute all the indices for the flattened x-ray table
+        '''
         redshift = self.z_now
         scale_factor = 1 / (1 + redshift)
         data_n = np.log10(element_mass_fractions[:, 0] * (1 / scale_factor**3) * densities.to(g * cm**-3) / mp)
@@ -321,7 +321,11 @@ class XrayCalculator:
         return idx_table, t_z, d_z, t_T, d_T, t_nH, d_nH, t_He, d_He, abundance_to_solar, joint_mask, volumes, data_n
 
     def interpolate_X_Ray(self, idx_table, t_z, d_z, t_T, d_T, t_nH, d_nH, t_He, d_He, abundance_to_solar, joint_mask, volumes, data_n, bands = None, observing_types = None, fill_value = None):
-
+        '''
+        Main function
+        Calculate the particle emissivities through interpolation
+        Convert to luminosity using the particle volume
+        '''
         # Initialise the emissivity array which will be returned
         emissivities = np.zeros((joint_mask.shape[0], len(bands)), dtype = float)
         luminosities = np.zeros_like(emissivities)
