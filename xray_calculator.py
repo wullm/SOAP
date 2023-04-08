@@ -58,9 +58,9 @@ class XrayCalculator:
             tables[band] = {}
             for observing_type in observing_types:
                 temp = table[band][observing_type][np.array([idx_z[0], idx_z[0]+1]).astype(int), :, :, :, :].astype(np.float32)
-                temp = np.swapaxes(temp, 2, 4)
-                self.table_shape = temp.shape[:-1]
-                temp = temp.reshape((temp.shape[0] * temp.shape[1] * temp.shape[2] * temp.shape[3], temp.shape[4]))
+                # temp = np.swapaxes(temp, 2, 4)
+                # self.table_shape = temp.shape[:-1]
+                # temp = temp.reshape((temp.shape[0] * temp.shape[1] * temp.shape[2] * temp.shape[3], temp.shape[4]))
                 tables[band][observing_type] = temp
 
         return tables
@@ -132,7 +132,7 @@ class XrayCalculator:
 
     @staticmethod
     # @jit(nopython = True)
-    def get_table_interp(idx_table, t_z, d_z, t_T, d_T, t_nH, d_nH, t_He, d_He, X_Ray, abundance_to_solar):
+    def get_table_interp(idx_he, idx_T, idx_n, t_z, d_z, t_T, d_T, t_nH, d_nH, t_He, d_He, X_Ray, abundance_to_solar):
         '''
         4D interpolate the x-ray table for each traced metal
         Scale the metals with their respective relative solar abundances
@@ -178,6 +178,7 @@ class XrayCalculator:
             f_n_T_Z[i] = np.log10(f_n_T_Z_temp)
         '''
 
+        '''
         # Do the actual 4D linear interpolation
         f_n_T = np.zeros((t_nH.shape[0], X_Ray.shape[1]), dtype = np.float32)
 
@@ -201,6 +202,31 @@ class XrayCalculator:
         f_n_T += (d_nH * t_He * d_T * d_z)[:, None] * X_Ray[idx_table[:, 13], :]
         f_n_T += (d_nH * d_He * t_T * d_z)[:, None] * X_Ray[idx_table[:, 14], :]
         f_n_T += (d_nH * d_He * d_T * d_z)[:, None] * X_Ray[idx_table[:, 15], :]
+        '''
+
+        f_n_T = np.zeros((t_nH.shape[0], X_Ray.shape[1]), dtype = np.float32)
+
+        f_n_T += (t_nH * t_He * t_T * t_z)[:, None] * X_Ray[0, idx_he, :, idx_T, idx_n]
+        f_n_T += (t_nH * t_He * d_T * t_z)[:, None] * X_Ray[0, idx_he, :, idx_T + 1, idx_n]
+        f_n_T += (t_nH * d_He * t_T * t_z)[:, None] * X_Ray[0, idx_he + 1, :, idx_T, idx_n]
+        f_n_T += (d_nH * t_He * t_T * t_z)[:, None] * X_Ray[0, idx_he, :, idx_T, idx_n + 1]
+
+        f_n_T += (t_nH * d_He * d_T * t_z)[:, None] * X_Ray[0, idx_he + 1, :, idx_T + 1, idx_n]
+        f_n_T += (d_nH * t_He * d_T * t_z)[:, None] * X_Ray[0, idx_he, :, idx_T + 1, idx_n + 1]
+        f_n_T += (d_nH * d_He * t_T * t_z)[:, None] * X_Ray[0, idx_he + 1, :, idx_T, idx_n + 1]
+        f_n_T += (d_nH * d_He * d_T * t_z)[:, None] * X_Ray[0, idx_he + 1, :, idx_T + 1, idx_n + 1]
+
+
+        f_n_T += (t_nH * t_He * t_T * d_z)[:, None] * X_Ray[1, idx_he, :, idx_T, idx_n]
+        f_n_T += (t_nH * t_He * d_T * d_z)[:, None] * X_Ray[1, idx_he, :, idx_T + 1, idx_n]
+        f_n_T += (t_nH * d_He * t_T * d_z)[:, None] * X_Ray[1, idx_he + 1, :, idx_T, idx_n]
+        f_n_T += (d_nH * t_He * t_T * d_z)[:, None] * X_Ray[1, idx_he, :, idx_T, idx_n + 1]
+
+        f_n_T += (t_nH * d_He * d_T * d_z)[:, None] * X_Ray[1, idx_he + 1, :, idx_T + 1, idx_n]
+        f_n_T += (d_nH * t_He * d_T * d_z)[:, None] * X_Ray[1, idx_he, :, idx_T + 1, idx_n + 1]
+        f_n_T += (d_nH * d_He * t_T * d_z)[:, None] * X_Ray[1, idx_he + 1, :, idx_T, idx_n + 1]
+        f_n_T += (d_nH * d_He * d_T * d_z)[:, None] * X_Ray[1, idx_he + 1, :, idx_T + 1, idx_n + 1]
+
 
 
         # Add each metal contribution individually
@@ -293,13 +319,13 @@ class XrayCalculator:
         t_He = 1 - dx_he
         d_He = dx_he
 
-        
+        '''
         idx_table = np.zeros((idx_he.shape[0], 16), dtype = int)
 
         # print(f'{')
         idx_table[:, 0] = np.ravel_multi_index((0, idx_he, idx_T, idx_n), self.table_shape)
         idx_table[:, 1] = np.ravel_multi_index((0, idx_he, idx_T + 1, idx_n), self.table_shape)
-        idx_table[:, 2] = np.ravel_multi_index((0, idx_he + 1, idx_T, idx_n), self.table_shape)
+        idx_table[:, 2] = np.ravel_multi_index((0, idx_he, idx_T + 1, idx_n), self.table_shape)
         idx_table[:, 3] = np.ravel_multi_index((0, idx_he, idx_T, idx_n + 1), self.table_shape)
 
         idx_table[:, 4] = np.ravel_multi_index((0, idx_he + 1, idx_T + 1, idx_n), self.table_shape)
@@ -316,11 +342,11 @@ class XrayCalculator:
         idx_table[:, 13] = np.ravel_multi_index((1, idx_he, idx_T + 1, idx_n + 1), self.table_shape)
         idx_table[:, 14] = np.ravel_multi_index((1, idx_he + 1, idx_T, idx_n + 1), self.table_shape)
         idx_table[:, 15] = np.ravel_multi_index((1, idx_he + 1, idx_T + 1, idx_n + 1), self.table_shape)
-        
+        '''
 
-        return idx_table, t_z, d_z, t_T, d_T, t_nH, d_nH, t_He, d_He, abundance_to_solar, joint_mask, volumes, data_n
+        return idx_he, idx_T, idx_n, t_z, d_z, t_T, d_T, t_nH, d_nH, t_He, d_He, abundance_to_solar, joint_mask, volumes, data_n
 
-    def interpolate_X_Ray(self, idx_table, t_z, d_z, t_T, d_T, t_nH, d_nH, t_He, d_He, abundance_to_solar, joint_mask, volumes, data_n, bands = None, observing_types = None, fill_value = None):
+    def interpolate_X_Ray(self, idx_he, idx_T, idx_n, t_z, d_z, t_T, d_T, t_nH, d_nH, t_He, d_He, abundance_to_solar, joint_mask, volumes, data_n, bands = None, observing_types = None, fill_value = None):
         '''
         Main function
         Calculate the particle emissivities through interpolation
@@ -333,7 +359,7 @@ class XrayCalculator:
 
         # Interpolate the table for each specified band
         for i_interp, band, observing_type in zip(range(len(bands)), bands, observing_types):
-            emissivities[joint_mask, i_interp] = self.get_table_interp(idx_table, t_z, d_z, t_T, d_T, t_nH, d_nH, t_He, d_He, self.tables[band][observing_type], abundance_to_solar[:, 2:])
+            emissivities[joint_mask, i_interp] = self.get_table_interp(idx_he, idx_T, idx_n, t_z, d_z, t_T, d_T, t_nH, d_nH, t_He, d_He, self.tables[band][observing_type], abundance_to_solar[:, 2:])
             
             # Convert from erg cm^3 s^-1 to erg cm^-3 s^-1
             # To do so we multiply by nH^2, this is the actual nH not the nearest bin
