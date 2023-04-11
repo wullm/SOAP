@@ -2,10 +2,12 @@
 
 import numpy as np
 import h5py
+import unyt
 
 import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.parallel_sort as psort
 
+from subhalo_rank import compute_subhalo_rank
 import swift_units
 from mpi_timer import MPITimer
 
@@ -79,6 +81,10 @@ def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
 
     # Reopen the output file in parallel mode
     outfile = h5py.File(output_file, "r+", driver="mpio", comm=comm_world)
+    
+    # Certain properties are needed to compute subhalo ranking by mass
+    props_to_keep = ("VR/ID", "BoundSubhaloProperties/TotalMass", "VR/HostHaloID")
+    props_kept = {}
 
     with MPITimer("Writing output properties", comm_world):
         # Loop over halo properties, a few at a time
@@ -95,9 +101,28 @@ def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
             for name in names:
                 data[name] = psort.fetch_elements(data[name], order, comm=comm_world)
 
+            # Keep a reference to any arrays we'll need later
+            for name in names:
+                if name in props_to_keep:
+                    props_kept[name] = data[name]
+
             # Write these properties to the output file
             for name, size, unit, description in zip(names, sizes, units, descriptions):
                 phdf5.collective_write(outfile, name, data[name], create_dataset=False, comm=comm_world)
 
             del data
+
+        # Now write out subhalo ranking by mass within host halos, if we computed all the required quantities.
+        if len(props_kept) == len(props_to_keep):
+            subhalo_rank = compute_subhalo_rank(props_kept["VR/HostHaloID"],
+                                                props_kept["VR/ID"],
+                                                props_kept["BoundSubhaloProperties/TotalMass"],
+                                                comm_world)
+            dimensionless_unit = unyt.Unit(unyt.dimensionless, registry=cellgrid.snap_unit_registry)
+            attrs = swift_units.attributes_from_units(dimensionless_unit)
+            attrs["Description"] = "Ranking by mass of each subhalo within it's field halo (most massive subhalo has rank=0)"
+            dataset = phdf5.collective_write(outfile, "VR/SubhaloRankByBoundMass", subhalo_rank, comm=comm_world)
+            for name in attrs:
+                dataset.attrs[name] = attrs[name]
+
         outfile.close()
