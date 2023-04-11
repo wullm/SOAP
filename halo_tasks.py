@@ -117,9 +117,7 @@ def process_single_halo(
             
             xray_bands = ['erosita-low', 'erosita-high', 'ROSAT']
             observing_types = ['energies_intrinsic', 'energies_intrinsic', 'energies_intrinsic']
-            print('before xrays = ', particle_data[ptype]["XrayLuminosities"])
             particle_data[ptype]["XrayLuminosities"] = xray_calc.interpolate_X_Ray(idx_he, idx_T, idx_n, t_z, d_z, t_T, d_T, t_nH, d_nH, t_He, d_He, abundance_to_solar, joint_mask, volumes, data_n, bands = xray_bands, observing_types = observing_types, fill_value = 0).to(particle_data[ptype]["XrayLuminosities"].units)
-            print('after xrays = ', particle_data[ptype]["XrayLuminosities"])
 
             observing_types = ['photons_intrinsic', 'photons_intrinsic', 'photons_intrinsic']
             particle_data[ptype]["XrayPhotonLuminosities"] = xray_calc.interpolate_X_Ray(idx_he, idx_T, idx_n, t_z, d_z, t_T, d_T, t_nH, d_nH, t_He, d_He, abundance_to_solar, joint_mask, volumes, data_n, bands = xray_bands, observing_types = observing_types, fill_value = 0).to(particle_data[ptype]["XrayPhotonLuminosities"].units)

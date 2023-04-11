@@ -58,9 +58,6 @@ class XrayCalculator:
             tables[band] = {}
             for observing_type in observing_types:
                 temp = table[band][observing_type][np.array([idx_z[0], idx_z[0]+1]).astype(int), :, :, :, :].astype(np.float32)
-                # temp = np.swapaxes(temp, 2, 4)
-                # self.table_shape = temp.shape[:-1]
-                # temp = temp.reshape((temp.shape[0] * temp.shape[1] * temp.shape[2] * temp.shape[3], temp.shape[4]))
                 tables[band][observing_type] = temp
 
         return tables
@@ -138,71 +135,6 @@ class XrayCalculator:
         Scale the metals with their respective relative solar abundances
         Add the metals to the background case without metals
         '''
-        '''
-        f_n_T_Z = np.zeros_like(idx_T)
-
-    
-        # for i in tqdm(range(len(idx_n))):
-        for i in range(len(idx_n)):
-
-            # Do the actual 4D linear interpolation
-            f_n_T = np.zeros(X_Ray.shape[2], dtype = np.float32)
-
-            f_n_T += t_nH[i] * t_He[i] * t_T[i] * t_z * X_Ray[0, idx_he[i], :, idx_T[i], idx_n[i]]
-            f_n_T += t_nH[i] * t_He[i] * d_T[i] * t_z * X_Ray[0, idx_he[i], :, idx_T[i] + 1, idx_n[i]]
-            f_n_T += t_nH[i] * d_He[i] * t_T[i] * t_z * X_Ray[0, idx_he[i] + 1, :, idx_T[i], idx_n[i]]
-            f_n_T += d_nH[i] * t_He[i] * t_T[i] * t_z * X_Ray[0, idx_he[i], :, idx_T[i], idx_n[i] + 1]
-
-            f_n_T += t_nH[i] * d_He[i] * d_T[i] * t_z * X_Ray[0, idx_he[i] + 1, :, idx_T[i] + 1, idx_n[i]]
-            f_n_T += d_nH[i] * t_He[i] * d_T[i] * t_z * X_Ray[0, idx_he[i], :, idx_T[i] + 1, idx_n[i] + 1]
-            f_n_T += d_nH[i] * d_He[i] * t_T[i] * t_z * X_Ray[0, idx_he[i] + 1, :, idx_T[i], idx_n[i] + 1]
-            f_n_T += d_nH[i] * d_He[i] * d_T[i] * t_z * X_Ray[0, idx_he[i] + 1, :, idx_T[i] + 1, idx_n[i] + 1]
-
-
-            f_n_T += t_nH[i] * t_He[i] * t_T[i] * d_z * X_Ray[1, idx_he[i], :, idx_T[i], idx_n[i]]
-            f_n_T += t_nH[i] * t_He[i] * d_T[i] * d_z * X_Ray[1, idx_he[i], :, idx_T[i] + 1, idx_n[i]]
-            f_n_T += t_nH[i] * d_He[i] * t_T[i] * d_z * X_Ray[1, idx_he[i] + 1, :, idx_T[i], idx_n[i]]
-            f_n_T += d_nH[i] * t_He[i] * t_T[i] * d_z * X_Ray[1, idx_he[i], :, idx_T[i], idx_n[i] + 1]
-
-            f_n_T += t_nH[i] * d_He[i] * d_T[i] * d_z * X_Ray[1, idx_he[i] + 1, :, idx_T[i] + 1, idx_n[i]]
-            f_n_T += d_nH[i] * t_He[i] * d_T[i] * d_z * X_Ray[1, idx_he[i], :, idx_T[i] + 1, idx_n[i] + 1]
-            f_n_T += d_nH[i] * d_He[i] * t_T[i] * d_z * X_Ray[1, idx_he[i] + 1, :, idx_T[i], idx_n[i] + 1]
-            f_n_T += d_nH[i] * d_He[i] * d_T[i] * d_z * X_Ray[1, idx_he[i] + 1, :, idx_T[i] + 1, idx_n[i] + 1]
-
-
-            # Add each metal contribution individually
-            f_n_T_Z_temp = np.power(10, f_n_T[-1])
-            for j in range(len(f_n_T) - 1):
-                f_n_T_Z_temp += np.power(10, f_n_T[j]) * abundance_to_solar[i, j]
-
-            f_n_T_Z[i] = np.log10(f_n_T_Z_temp)
-        '''
-
-        '''
-        # Do the actual 4D linear interpolation
-        f_n_T = np.zeros((t_nH.shape[0], X_Ray.shape[1]), dtype = np.float32)
-
-        f_n_T += (t_nH * t_He * t_T * t_z)[:, None] * X_Ray[idx_table[:, 0], :]
-        f_n_T += (t_nH * t_He * d_T * t_z)[:, None] * X_Ray[idx_table[:, 1], :]
-        f_n_T += (t_nH * d_He * t_T * t_z)[:, None] * X_Ray[idx_table[:, 2], :]
-        f_n_T += (d_nH * t_He * t_T * t_z)[:, None] * X_Ray[idx_table[:, 3], :]
-
-        f_n_T += (t_nH * d_He * d_T * t_z)[:, None] * X_Ray[idx_table[:, 4], :]
-        f_n_T += (d_nH * t_He * d_T * t_z)[:, None] * X_Ray[idx_table[:, 5], :]
-        f_n_T += (d_nH * d_He * t_T * t_z)[:, None] * X_Ray[idx_table[:, 6], :]
-        f_n_T += (d_nH * d_He * d_T * t_z)[:, None] * X_Ray[idx_table[:, 7], :]
-
-
-        f_n_T += (t_nH * t_He * t_T * d_z)[:, None] * X_Ray[idx_table[:, 8], :]
-        f_n_T += (t_nH * t_He * d_T * d_z)[:, None] * X_Ray[idx_table[:, 9], :]
-        f_n_T += (t_nH * d_He * t_T * d_z)[:, None] * X_Ray[idx_table[:, 10], :]
-        f_n_T += (d_nH * t_He * t_T * d_z)[:, None] * X_Ray[idx_table[:, 11], :]
-
-        f_n_T += (t_nH * d_He * d_T * d_z)[:, None] * X_Ray[idx_table[:, 12], :]
-        f_n_T += (d_nH * t_He * d_T * d_z)[:, None] * X_Ray[idx_table[:, 13], :]
-        f_n_T += (d_nH * d_He * t_T * d_z)[:, None] * X_Ray[idx_table[:, 14], :]
-        f_n_T += (d_nH * d_He * d_T * d_z)[:, None] * X_Ray[idx_table[:, 15], :]
-        '''
 
         f_n_T = np.zeros((t_nH.shape[0], X_Ray.shape[1]), dtype = np.float32)
 
@@ -231,11 +163,8 @@ class XrayCalculator:
 
         # Add each metal contribution individually
         f_n_T_Z_temp = np.power(10, f_n_T[:, -1], dtype=np.float64)
-        # print(f'{f_n_T_Z_temp.min()=}')
         for j in range(f_n_T.shape[1] - 1):
             f_n_T_Z_temp += np.power(10, f_n_T[:, j]) * abundance_to_solar[:, j]
-
-        # print(f'{f_n_T_Z_temp.min()=}', f'{np.sum(abundance_to_solar, axis = 1).min()=}')
 
         f_n_T_Z = np.log10(f_n_T_Z_temp)
         
@@ -318,31 +247,6 @@ class XrayCalculator:
         # Compute Helium offset relative to bin
         t_He = 1 - dx_he
         d_He = dx_he
-
-        '''
-        idx_table = np.zeros((idx_he.shape[0], 16), dtype = int)
-
-        # print(f'{')
-        idx_table[:, 0] = np.ravel_multi_index((0, idx_he, idx_T, idx_n), self.table_shape)
-        idx_table[:, 1] = np.ravel_multi_index((0, idx_he, idx_T + 1, idx_n), self.table_shape)
-        idx_table[:, 2] = np.ravel_multi_index((0, idx_he, idx_T + 1, idx_n), self.table_shape)
-        idx_table[:, 3] = np.ravel_multi_index((0, idx_he, idx_T, idx_n + 1), self.table_shape)
-
-        idx_table[:, 4] = np.ravel_multi_index((0, idx_he + 1, idx_T + 1, idx_n), self.table_shape)
-        idx_table[:, 5] = np.ravel_multi_index((0, idx_he, idx_T + 1, idx_n + 1), self.table_shape)
-        idx_table[:, 6] = np.ravel_multi_index((0, idx_he + 1, idx_T, idx_n + 1), self.table_shape)
-        idx_table[:, 7] = np.ravel_multi_index((0, idx_he + 1, idx_T + 1, idx_n + 1), self.table_shape)
-
-        idx_table[:, 8] = np.ravel_multi_index((1, idx_he, idx_T, idx_n), self.table_shape)
-        idx_table[:, 9] = np.ravel_multi_index((1, idx_he, idx_T + 1, idx_n), self.table_shape)
-        idx_table[:, 10] = np.ravel_multi_index((1, idx_he + 1, idx_T, idx_n), self.table_shape)
-        idx_table[:, 11] = np.ravel_multi_index((1, idx_he, idx_T, idx_n + 1), self.table_shape)
-
-        idx_table[:, 12] = np.ravel_multi_index((1, idx_he + 1, idx_T + 1, idx_n), self.table_shape)
-        idx_table[:, 13] = np.ravel_multi_index((1, idx_he, idx_T + 1, idx_n + 1), self.table_shape)
-        idx_table[:, 14] = np.ravel_multi_index((1, idx_he + 1, idx_T, idx_n + 1), self.table_shape)
-        idx_table[:, 15] = np.ravel_multi_index((1, idx_he + 1, idx_T + 1, idx_n + 1), self.table_shape)
-        '''
 
         return idx_he, idx_T, idx_n, t_z, d_z, t_T, d_T, t_nH, d_nH, t_He, d_He, abundance_to_solar, joint_mask, volumes, data_n
 
