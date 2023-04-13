@@ -1020,7 +1020,7 @@ class SOParticleData:
 
     @lazy_property
     def gas_selection_xray_temperature(self):
-        return self.gas_temperatures > 1e6 * unyt.K
+        return self.gas_temperatures > 1.16e6 * unyt.K
 
     @lazy_property
     def gas_no_agn_xray_temperature(self):
