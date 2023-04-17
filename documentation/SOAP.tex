@@ -77,6 +77,8 @@ achieved by ordering the calculations.
 \paragraph{Some properties are directly copied from the original VR catalogue.} These are stored in a
 separate group, \verb+VR+.
 
+\paragraph{Some properties (currently just the subhalo ranking by mass) are computed by SOAP from other halo properties.} These are stored in a separate group, \verb+SOAP+. This is just done for convenience; these quantities can be computed from the SOAP output alone.
+
 \paragraph{The table below summarises} the different halo types.
 
 \begin{longtable}{llcp{6cm}}
@@ -87,6 +89,7 @@ IS & \verb+InclusiveSphere/XXXkpc+ & \ding{51} & 30, 50, 100, 300, 500, 1000, 30
 EP & \verb+ProjectedAperture/XXXkpc/projP+ & \ding{53} & 10, 30, 50, 100 kpc \\
 SO & \verb+SO/XXX+ & \ding{51} & 200 mean, (50, 100, 200, 500, 1000, 2500) crit, 5$\times{}$500 crit \\
 - & \verb+VR/+ & - & Directly copied from VR output \\
+- & \verb+SOAP/+ & - & Computed from other halo properties \\
 \end{longtable}
 
 \section{Property categories}
