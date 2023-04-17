@@ -58,9 +58,9 @@ def compute_subhalo_rank(host_id, subhalo_id, subhalo_mass, comm):
     subhalo_rank = -np.ones(nr_local_subhalos, dtype=np.int32)
 
     # Find ranges of subhalos in the same host and assign ranks by mass within this MPI rank
-    unique_host, count, offset = np.unique(host_id, return_counts=True, return_index=True)
+    unique_host, offset, count = np.unique(host_id, return_counts=True, return_index=True)
     del host_id
-    for (i, n) in zip(count, offset):
+    for (i, n) in zip(offset, count):
         subhalo_rank[i:i+n] = np.arange(n, dtype=np.int32)
     assert np.all(subhalo_rank>=0)
 
@@ -117,6 +117,19 @@ if __name__ == "__main__":
     fraction = nr_field_rank_nonzero / nr_field_halos
     if comm_rank == 0:
         print(f"Fraction of field halos (hostHaloID<0) with rank>0 is {fraction:.3e}")
+
+    # Sanity check: there should be one instance of each hostHaloID with rank=0
+    all_ranks = comm.gather(subhalo_rank)
+    all_host_ids = comm.gather(host_id)
+    all_ids = comm.gather(subhalo_id)
+    if comm_rank == 0:
+        all_ranks = np.concatenate(all_ranks)
+        all_host_ids = np.concatenate(all_host_ids)
+        all_ids = np.concatenate(all_ids)
+        all_host_ids[all_host_ids<0] = all_ids[all_host_ids<0]
+        rank0 = (all_ranks == 0)
+        rank0_hosts = all_host_ids[rank0]
+        assert len(rank0_hosts) == len(np.unique(all_host_ids))
 
     # Write out the results
     with h5py.File("/snap8/scratch/dp004/jch/subhalo_rank.hdf5", "w", driver="mpio", comm=comm) as outfile:
