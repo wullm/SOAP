@@ -1087,6 +1087,16 @@ class PropertyTable:
             "FMantissa9",
             False,
         ),
+        "VRSubhaloRankByBoundMass": (
+            "SubhaloRankByBoundMass",
+            1,
+            np.float32,
+            "dimensionless",
+            "Ranking by mass of the halo within its parent field halo. Zero for the most massive halo in the field halo.",
+            "VR",
+            "None",
+            False,
+        ),
     }
 
     # we should really use removeprefix("VR") instead of [2:], but that only

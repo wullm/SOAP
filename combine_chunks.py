@@ -118,11 +118,7 @@ def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
                                                 props_kept["VR/ID"],
                                                 props_kept["BoundSubhaloProperties/TotalMass"],
                                                 comm_world)
-            dimensionless_unit = unyt.Unit(unyt.dimensionless, registry=cellgrid.snap_unit_registry)
-            attrs = swift_units.attributes_from_units(dimensionless_unit)
-            attrs["Description"] = "Ranking by mass of each subhalo within it's field halo (most massive subhalo has rank=0)"
-            dataset = phdf5.collective_write(outfile, "VR/SubhaloRankByBoundMass", subhalo_rank, comm=comm_world)
-            for name in attrs:
-                dataset.attrs[name] = attrs[name]
+            dataset = phdf5.collective_write(outfile, "VR/SubhaloRankByBoundMass", subhalo_rank,
+                                             create_dataset=False, comm=comm_world)
 
         outfile.close()
