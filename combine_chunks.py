@@ -10,6 +10,7 @@ import virgo.mpi.parallel_sort as psort
 from subhalo_rank import compute_subhalo_rank
 import swift_units
 from mpi_timer import MPITimer
+from property_table import PropertyTable
 
 
 def sub_snapnum(filename, snapnum):
@@ -41,6 +42,24 @@ def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
     # Determine total number of halos
     total_nr_halos = comm_world.allreduce(len(order))
 
+    # Get metadata for derived quantities: these don't exist in the chunk
+    # output but will be computed by combining other halo properties.
+    soap_metadata = []
+    for soapkey in PropertyTable.soap_properties:
+        props = PropertyTable.full_property_list[f"SOAP{soapkey}"]
+        name = f"SOAP/{soapkey}"
+        size = props[1]
+        if size == 1:
+            # Scalar quantity
+            size = ()
+        else:
+            # Vector quantity
+            size = (size,)
+        dtype = props[2]
+        unit = cellgrid.get_unit(props[3])
+        description = props[4]
+        soap_metadata.append((name, size, unit, dtype, description))
+
     # First MPI rank sets up the output file
     with MPITimer("Creating output file", comm_world):
         output_file = sub_snapnum(args.output_file, args.snapshot_nr)
@@ -64,7 +83,7 @@ def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
             for at, val in recently_heated_gas_metadata.items():
               recently_heated_gas_params.attrs[at] = val
             # Create datasets for all halo properties
-            for name, size, unit, dtype, description in ref_metadata:
+            for name, size, unit, dtype, description in ref_metadata+soap_metadata:
                 shape = (total_nr_halos,) + size
                 dataset = outfile.create_dataset(name, shape=shape, dtype=dtype, fillvalue=None)
                 # Add units and description
@@ -112,13 +131,15 @@ def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
 
             del data
 
+    with MPITimer("Writing subhalo ranking by mass", comm_world):
         # Now write out subhalo ranking by mass within host halos, if we computed all the required quantities.
         if len(props_kept) == len(props_to_keep):
             subhalo_rank = compute_subhalo_rank(props_kept["VR/HostHaloID"],
                                                 props_kept["VR/ID"],
                                                 props_kept["BoundSubhaloProperties/TotalMass"],
                                                 comm_world)
-            dataset = phdf5.collective_write(outfile, "VR/SubhaloRankByBoundMass", subhalo_rank,
+            dataset = phdf5.collective_write(outfile, "SOAP/SubhaloRankByBoundMass", subhalo_rank,
                                              create_dataset=False, comm=comm_world)
 
-        outfile.close()
+    # Done.
+    outfile.close()

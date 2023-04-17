@@ -22,7 +22,7 @@ def get_version_string():
 
 class PropertyTable:
 
-    categories = ["basic", "general", "gas", "dm", "star", "baryon", "VR"]
+    categories = ["basic", "general", "gas", "dm", "star", "baryon", "VR", "SOAP"]
     explanation = {
         "footnote_MBH.tex": ["BHmaxM"],
         "footnote_com.tex": ["com", "vcom"],
@@ -1087,13 +1087,13 @@ class PropertyTable:
             "FMantissa9",
             False,
         ),
-        "VRSubhaloRankByBoundMass": (
+        "SOAPSubhaloRankByBoundMass": (
             "SubhaloRankByBoundMass",
             1,
-            np.float32,
+            np.int32,
             "dimensionless",
             "Ranking by mass of the halo within its parent field halo. Zero for the most massive halo in the field halo.",
-            "VR",
+            "SOAP",
             "None",
             True,
         ),
@@ -1103,6 +1103,11 @@ class PropertyTable:
     # exists since Python 3.9
     vr_properties = [
         vrname[2:] for vrname in full_property_list.keys() if vrname.startswith("VR")
+    ]
+
+    # halo properties derived from other properties by SOAP
+    soap_properties = [
+        soapname[4:] for soapname in full_property_list.keys() if soapname.startswith("SOAP")
     ]
 
     def get_footnotes(self, name):
