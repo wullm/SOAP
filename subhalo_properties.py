@@ -10,7 +10,7 @@ from kinematic_properties import (
     get_angular_momentum,
     get_angular_momentum_and_kappa_corot,
     get_vmax,
-    get_axis_lengths,
+    get_inertia_tensor,
     get_velocity_dispersion_matrix,
 )
 from recently_heated_gas_filter import RecentlyHeatedGasFilter
@@ -353,10 +353,10 @@ class SubhaloParticleData:
         return None
 
     @lazy_property
-    def TotalAxisLengths(self):
+    def TotalInertiaTensor(self):
         if self.Mtot == 0:
             return None
-        return get_axis_lengths(self.mass, self.position)
+        return get_inertia_tensor(self.mass, self.position)
 
     @lazy_property
     def gas_mass_fraction(self):
@@ -408,10 +408,10 @@ class SubhaloParticleData:
         return 1.0 - 2.0 * self.internal_Mcountrot_gas / self.Mgas
 
     @lazy_property
-    def GasAxisLengths(self):
+    def GasInertiaTensor(self):
         if self.Mgas == 0:
             return None
-        return get_axis_lengths(self.mass_gas, self.pos_gas)
+        return get_inertia_tensor(self.mass_gas, self.pos_gas)
 
     @lazy_property
     def veldisp_matrix_gas(self):
@@ -442,10 +442,10 @@ class SubhaloParticleData:
         )
 
     @lazy_property
-    def DMAxisLengths(self):
+    def DMInertiaTensor(self):
         if self.Mdm == 0:
             return None
-        return get_axis_lengths(self.mass_dm, self.pos_dm)
+        return get_inertia_tensor(self.mass_dm, self.pos_dm)
 
     @lazy_property
     def veldisp_matrix_dm(self):
@@ -525,10 +525,10 @@ class SubhaloParticleData:
         return 1.0 - 2.0 * self.internal_Mcountrot_star / self.Mstar
 
     @lazy_property
-    def StellarAxisLengths(self):
+    def StellarInertiaTensor(self):
         if self.Mstar == 0:
             return None
-        return get_axis_lengths(self.mass_star, self.pos_star)
+        return get_inertia_tensor(self.mass_star, self.pos_star)
 
     @lazy_property
     def veldisp_matrix_star(self):
@@ -582,10 +582,10 @@ class SubhaloParticleData:
         return self.internal_kappa_bar
 
     @lazy_property
-    def BaryonAxisLengths(self):
+    def BaryonInertiaTensor(self):
         if self.Mbaryon == 0:
             return None
-        return get_axis_lengths(self.mass_baryons, self.pos_baryons)
+        return get_inertia_tensor(self.mass_baryons, self.pos_baryons)
 
     @lazy_property
     def gas_mask_all(self):
@@ -738,7 +738,6 @@ class SubhaloParticleData:
 
 
 class SubhaloProperties(HaloProperty):
-
     # get the properties we want from the table
     property_list = [
         (prop, *PropertyTable.full_property_list[prop])
@@ -788,11 +787,11 @@ class SubhaloProperties(HaloProperty):
             "HalfMassRadiusDM",
             "HalfMassRadiusStar",
             "HalfMassRadiusBaryon",
-            "TotalAxisLengths",
-            "GasAxisLengths",
-            "DMAxisLengths",
-            "StellarAxisLengths",
-            "BaryonAxisLengths",
+            "TotalInertiaTensor",
+            "GasInertiaTensor",
+            "DMInertiaTensor",
+            "StellarInertiaTensor",
+            "BaryonInertiaTensor",
             "veldisp_matrix_gas",
             "veldisp_matrix_dm",
             "veldisp_matrix_star",
@@ -938,9 +937,11 @@ class SubhaloProperties(HaloProperty):
                 val, dtype=dtype, units=unit, registry=registry
             )
             if do_calculation[category]:
-                val = getattr(part_props, name)                
+                val = getattr(part_props, name)
                 if val is not None:
-                    assert subhalo[name].shape == val.shape, f"Attempting to store {name} with wrong dimensions"
+                    assert (
+                        subhalo[name].shape == val.shape
+                    ), f"Attempting to store {name} with wrong dimensions"
                     if unit == "dimensionless":
                         subhalo[name] = unyt.unyt_array(
                             val.astype(dtype),
