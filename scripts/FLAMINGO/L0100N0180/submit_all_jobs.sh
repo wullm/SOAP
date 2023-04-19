@@ -28,15 +28,20 @@ fi
 
 name="$1"
 snaps="$2"
+echo Submitting jobs for box ${name} snapshots ${snaps}
 
 # Submit group membership jobs
 memb_jobid=`sbatch --parsable -J ${name} --array=${snaps} ./scripts/FLAMINGO/L0100N0180/group_membership_L0100N0180.sh`
+echo Group membership job ID is ${memb_jobid}
 
 # Submit halo properties jobs
 props_jobid=`sbatch --parsable -J ${name} --array=${snaps} --dependency=aftercorr:${memb_jobid} ./scripts/FLAMINGO/L0100N0180/halo_properties_L0100N0180.sh`
+echo Halo properties job ID is ${props_jobid}
 
 # Submit group membership compression jobs
 comp_memb_jobid=`sbatch --parsable -J ${name} --array=${snaps} --dependency=aftercorr:${props_jobid} ./scripts/FLAMINGO/L0100N0180/compress_group_membership_L0100N0180.sh`
+echo Membership compression job ID is ${comp_memb_jobid}
 
 # Submit halo properties compression jobs
 comp_props_jobid=`sbatch --parsable -J ${name} --array=${snaps} --dependency=aftercorr:${comp_memb_jobid} ./scripts/FLAMINGO/L0100N0180/compress_halo_properties_L0100N0180.sh`
+echo Properties compression job ID is ${comp_props_jobid}
