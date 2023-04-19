@@ -41,6 +41,12 @@ extra_filename="${outbase}/group_membership/group_membership_%(snap_nr)04d/vr_me
 vr_basename="${basedir}/VR/catalogue_%(snap_nr)04d/vr_catalogue_%(snap_nr)04d"
 outfile="${outbase}/halo_properties/halo_properties_%(snap_nr)04d.hdf5"
 
+# Check for DMO run
+dmo_flag=""
+if [[ $sim == DMO_* ]] ; then
+  dmo_flag="--dmo"
+fi
+
 nr_chunks=1
 
 # Create output directory
@@ -50,6 +56,6 @@ lfs setstripe --stripe-count=-1 --stripe-size=32M ${outdir}
 
 mpirun python3 -u -m mpi4py ./compute_halo_properties.py \
     ${swift_filename} ${scratchdir} ${vr_basename} ${outfile} ${SLURM_ARRAY_TASK_ID} \
-    --chunks=${nr_chunks} \
+    --chunks=${nr_chunks} ${dmo_flag} \
     --extra-input=${extra_filename} \
     --max-ranks-reading=128
