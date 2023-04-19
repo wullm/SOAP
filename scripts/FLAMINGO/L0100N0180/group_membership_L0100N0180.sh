@@ -7,12 +7,13 @@
 # Submit with (for example):
 #
 # cd SOAP
+# mkdir logs
 # sbatch -J HYDRO_FIDUCIAL --array=6 ./scripts/FLAMINGO/L0100N0180/group_membership_L0100N0180.sh
 #
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=1
 #SBATCH -o ./logs/group_membership_L1000N1800_%x.%a.out
-#SBATCH -p cosma8-shm
+#SBATCH -p cosma8
 #SBATCH -A dp004
 #SBATCH --exclusive
 #SBATCH -t 0:30:00
@@ -31,12 +32,12 @@ sim="L0100N0180/${SLURM_JOB_NAME}"
 basedir="/cosma8/data/dp004/flamingo/Runs/${sim}/"
 
 # Where to write the output
-outbase="/snap8/scratch/dp004/${USER}/FLAMINGO/ScienceRuns/${sim}/"
+outbase="/snap8/scratch/dp004/${USER}/FLAMINGO/ScienceRuns/${sim}/SOAP_uncompressed/"
 
 # Generate input and output file names
 swift_filename="${basedir}/snapshots/flamingo_${snapnum}.hdf5"
 vr_basename="${basedir}/VR/halos_${snapnum}"
-outfile="${outbase}/group_membership/group_membership_${snapnum}/vr_membership_${snapnum}.%(file_nr)d.hdf5"
+outfile="${outbase}/membership_${snapnum}/membership_${snapnum}.%(file_nr)d.hdf5"
 
 # Create output directory
 outdir=`dirname "${outfile}"`

@@ -7,6 +7,7 @@
 # Array job index is the snapshot number to do. Submit with (for example):
 #
 # cd SOAP
+# mkdir logs
 # sbatch -J HYDRO_FIDUCIAL --array=6 ./scripts/FLAMINGO/L0100N0180/halo_properties_L0100N0180_HYDRO.sh
 #
 #SBATCH --nodes=1
@@ -28,16 +29,16 @@ sim="L0100N0180/${SLURM_JOB_NAME}"
 basedir="/cosma8/data/dp004/flamingo/Runs/${sim}/"
 
 # Where to write the final output
-outbase="/snap8/scratch/dp004/${USER}/FLAMINGO/ScienceRuns/${sim}/"
+outbase="/snap8/scratch/dp004/${USER}/FLAMINGO/ScienceRuns/${sim}/SOAP_uncompressed/"
 
 # Location for temporary chunk output
 scratchdir="/snap8/scratch/dp004/${USER}/FLAMINGO/SOAP-tmp/${sim}/"
 
 # Generate file names for this snapshot
 swift_filename="${basedir}/snapshots/flamingo_%(snap_nr)04d.hdf5"
-extra_filename="${outbase}/group_membership/group_membership_%(snap_nr)04d/vr_membership_%(snap_nr)04d.%(file_nr)d.hdf5"
+extra_filename="${outbase}/membership_%(snap_nr)04d/membership_%(snap_nr)04d.%(file_nr)d.hdf5"
 vr_basename="${basedir}/VR/halos_%(snap_nr)04d"
-outfile="${outbase}/halo_properties/halo_properties_%(snap_nr)04d.hdf5"
+outfile="${outbase}/halo_properties_%(snap_nr)04d.hdf5"
 
 # Check for DMO run
 dmo_flag=""
