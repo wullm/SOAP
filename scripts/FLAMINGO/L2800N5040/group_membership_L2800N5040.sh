@@ -31,7 +31,7 @@ sim="L2800N5040/${SLURM_JOB_NAME}"
 basedir="/cosma8/data/dp004/flamingo/Runs/${sim}/"
 
 # Where to write the output
-outbase="/snap8/scratch/dp004/jch/FLAMINGO/ScienceRuns/${sim}/"
+outbase="/snap8/scratch/dp004/${USER}/FLAMINGO/ScienceRuns/${sim}/"
 
 # Generate input and output file names
 swift_filename="${basedir}/snapshots/flamingo_${snapnum}/flamingo_${snapnum}.%(file_nr)d.hdf5"
