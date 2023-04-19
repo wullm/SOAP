@@ -9,8 +9,6 @@
 #SBATCH -p cosma8
 #SBATCH -A dp004
 #SBATCH -t 1:00:00
-#SBATCH --mail-user=j.c.helly@durham.ac.uk
-#SBATCH --mail-type=ARRAY_TASKS,FAIL
 #
 
 module purge
@@ -31,7 +29,7 @@ for sim2 in HYDRO_FIDUCIAL HYDRO_STRONG_AGN HYDRO_WEAK_AGN ; do
   nr_particles=10
 
   # Where to put the output
-  outdir="/cosma8/data/dp004/jch/FLAMINGO/ScienceRuns/L1000N1800/${sim1}/matching/TO_${sim2}/"
+  outdir="/snap8/scratch/dp004/${USER}/FLAMINGO/ScienceRuns/L1000N1800/${sim1}/matching/TO_${sim2}/"
   \mkdir -p ${outdir}
   outfile="${outdir}/match_L1000N1800_${sim1}_${sim2}_${snapnum}.field_only.n${nr_particles}.hdf5"
 
