@@ -95,8 +95,31 @@ The `--max-ranks-reading` flag determines how many MPI ranks per node read the
 snapshot. This can be used to avoid overloading the file system. The default
 value is 32.
 
-See scripts/FLAMINGO/L1000N1800/halo_properties_L1000N1800.sh for an example
-batch script.
+### Batch scripts for running on FLAMINGO simulations on Cosma-8
+
+There are slurm scripts to run on FLAMINGO in `./scripts/FLAMINGO/`. These
+are intended to be run as array jobs where the job array indexes determine
+which snapshots to process.
+
+In order to reduce duplication only one script is provided per simulation
+box size and resolution. The simulation to process is specified by setting
+the job name with the slurm sbatch -J flag.
+
+For example, to run the group membership code on all snapshots of the 
+L1000N1800/HYDRO_FIDUCIAL simulation:
+```
+cd SOAP
+mkdir logs
+sbatch --array=0-77%4 -J HYDRO_FIDUCIAL ./scripts/FLAMINGO/L1000N1800/group_membership_L1000N1800.sh
+```
+This will write the output under `/snap8/scratch/dp004/${USER}/FLAMINGO/`.
+
+To run the halo properties code:
+```
+cd SOAP
+mkdir logs
+sbatch --array=0-77%4 -J HYDRO_FIDUCIAL ./scripts/FLAMINGO/L1000N1800/halo_properties_L1000N1800.sh
+```
 
 ## Adding quantities
 
