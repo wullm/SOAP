@@ -28,10 +28,10 @@ sim="L0100N0180/${SLURM_JOB_NAME}"
 basedir="/cosma8/data/dp004/flamingo/Runs/${sim}/"
 
 # Where to write the final output
-outbase="/snap8/scratch/dp004/jch/FLAMINGO/ScienceRuns/${sim}/"
+outbase="/snap8/scratch/dp004/${USER}/FLAMINGO/ScienceRuns/${sim}/"
 
 # Location for temporary chunk output
-scratchdir="/snap8/scratch/dp004/jch/SOAP-tmp/${sim}/"
+scratchdir="/snap8/scratch/dp004/${USER}/FLAMINGO/SOAP-tmp/${sim}/"
 
 # Generate file names for this snapshot
 swift_filename="${basedir}/snapshots/flamingo_%(snap_nr)04d.hdf5"
