@@ -7,7 +7,7 @@
 # Submit with (for example):
 #
 # cd SOAP
-# sbatch -J HYDRO_FIDUCIAL --array=78 ./scripts/FLAMINGO/L1000N1800/group_membership_L1000N1800.sh
+# sbatch -J HYDRO_FIDUCIAL --array=77 ./scripts/FLAMINGO/L1000N1800/group_membership_L1000N1800.sh
 #
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=1
