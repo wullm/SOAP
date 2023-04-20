@@ -109,8 +109,8 @@ Output locations are specified using the environment variables
 FLAMINGO_SCRATCH_DIR and FLAMINGO_OUTPUT_DIR. To write scratch files
 on /snap8 and compressed output to /cosma8:
 ```
-FLAMINGO_OUTPUT_DIR=/cosma8/data/dp004/${USER}/FLAMINGO/ScienceRuns/
-FLAMINGO_SCRATCH_DIR=/snap8/scratch/dp004/${USER}/FLAMINGO/ScienceRuns/
+export FLAMINGO_OUTPUT_DIR=/cosma8/data/dp004/${USER}/FLAMINGO/ScienceRuns/
+export FLAMINGO_SCRATCH_DIR=/snap8/scratch/dp004/${USER}/FLAMINGO/ScienceRuns/
 ```
 Then to run the group membership code on all snapshots of the 
 L1000N1800/HYDRO_FIDUCIAL simulation:
