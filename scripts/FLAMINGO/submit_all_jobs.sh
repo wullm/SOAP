@@ -67,25 +67,49 @@ script_dir="./scripts/FLAMINGO/${box}"
 if [ -d "${script_dir}" ] ; then
   echo Using batch scripts from "${script_dir}" 
 else
-  echo No script directory "${script_dir}"
+  echo No script directory "${script_dir} (maybe box size is wrong?)"
   exit 1
 fi
+echo
 
 # Submit group membership jobs
 memb_jobid=`sbatch --parsable -J ${model} --array=${snaps} ${script_dir}/group_membership_${box}.sh`
-echo Group membership job ID is ${memb_jobid}
+if [[ $? == 0 ]] ; then
+  echo Group membership job ID is ${memb_jobid}
+else
+  echo Failed to submit group membership job
+  exit 1
+fi
 
 # Submit halo properties jobs
 props_jobid=`sbatch --parsable -J ${model} --array=${snaps} --dependency=aftercorr:${memb_jobid} ${script_dir}/halo_properties_${box}.sh`
-echo Halo properties job ID is ${props_jobid}
+if [[ $? == 0 ]] ; then
+  echo Halo properties job ID is ${props_jobid}
+else
+  echo Failed to submit halo properties job
+  exit 1
+fi
 
 # Submit group membership compression jobs
 comp_memb_jobid=`sbatch --parsable -J ${model} --array=${snaps} --dependency=aftercorr:${props_jobid} ${script_dir}/compress_group_membership_${box}.sh`
-echo Membership compression job ID is ${comp_memb_jobid}
+if [[ $? == 0 ]] ; then
+  echo Membership compression job ID is ${comp_memb_jobid}
+else
+  echo Failed to submit membership compression job
+  exit 1
+fi
 
 # Submit halo properties compression jobs
 comp_props_jobid=`sbatch --parsable -J ${model} --array=${snaps} --dependency=aftercorr:${comp_memb_jobid} ${script_dir}/compress_halo_properties_${box}.sh`
-echo Properties compression job ID is ${comp_props_jobid}
+if [[ $? == 0 ]] ; then
+  echo Properties compression job ID is ${comp_props_jobid}
+else
+  echo Failed to submit properties compression job
+  exit 1
+fi
+
+echo
+squeue -j ${memb_jobid},${props_jobid},${comp_memb_jobid},${comp_props_jobid}
 
 echo
 echo See `pwd`/logs for job output when jobs start
