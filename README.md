@@ -105,16 +105,22 @@ In order to reduce duplication only one script is provided per simulation
 box size and resolution. The simulation to process is specified by setting
 the job name with the slurm sbatch -J flag.
 
-For example, to run the group membership code on all snapshots of the 
+Output locations are specified using the environment variables
+FLAMINGO_SCRATCH_DIR and FLAMINGO_OUTPUT_DIR. To write scratch files
+on /snap8 and compressed output to /cosma8:
+```
+FLAMINGO_OUTPUT_DIR=/cosma8/data/dp004/${USER}/FLAMINGO/ScienceRuns/
+FLAMINGO_SCRATCH_DIR=/snap8/scratch/dp004/${USER}/FLAMINGO/ScienceRuns/
+```
+Then to run the group membership code on all snapshots of the 
 L1000N1800/HYDRO_FIDUCIAL simulation:
 ```
 cd SOAP
 mkdir logs
 sbatch --array=0-77%4 -J HYDRO_FIDUCIAL ./scripts/FLAMINGO/L1000N1800/group_membership_L1000N1800.sh
 ```
-This will write the output under `/snap8/scratch/dp004/${USER}/FLAMINGO/`.
 
-To run the halo properties code:
+And to run the halo properties code:
 ```
 cd SOAP
 mkdir logs
