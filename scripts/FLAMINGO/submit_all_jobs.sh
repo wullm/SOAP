@@ -19,18 +19,74 @@
 export FLAMINGO_OUTPUT_DIR=/cosma8/data/dp004/${USER}/FLAMINGO/ScienceRuns/
 export FLAMINGO_SCRATCH_DIR=/snap8/scratch/dp004/${USER}/FLAMINGO/ScienceRuns/
 
-# Get command line args
-if [ "$#" -ne 2 ]; then
-    echo "Usage: submit_all_jobs.sh <run_name> <snapshots>"
-    echo
-    echo "run_name: name of simulation, e.g. L1000N1800/HYDRO_FIDUCIAL"
-    echo "snapshots: range of snapshots to do (e.g. 0-6)"
-    echo
-    exit 1
+if [[ "$#" -lt 2 ]] ; then
+  echo
+  echo "Usage: ./submit_jobs.sh --run=run_name --snapshots=snapshots  \ "
+  echo "           [--membership] [--soap] [--compress-soap] [--compress-membership]"
+  echo
+  echo "Run name should be box size and model e.g. --run=L1000N1800/HYDRO_FIDUCIAL"
+  echo "Snapshots are in format used by sbatch --array option e.g. --snapshots=0-77%4"
+  echo
+  exit 1
 fi
-run_name="${1}"
-snaps="${2}"
+
+# Get command line arguments
+do_all=1
+args=$(getopt -l"run:,snapshots:,membership,soap,compress-membership,compress-soap" -o "" -- "$@")
+eval set -- "$args"
+while [ $# -ge 1 ]; do
+  case "$1" in
+    --)
+      shift
+      break
+      ;;
+    --run)
+      run_name="$2"
+      shift 2
+      ;;
+    --snapshots)
+      snaps="$2"
+      shift 2
+      ;;
+    --membership)
+      do_membership=1
+      do_all=0
+      shift
+      ;;
+    --soap)
+      do_soap=1
+      do_all=0
+      shift
+      ;;
+    --compress-membership)
+      do_compress_membership=1
+      do_all=0
+      shift
+      ;;
+    --compress-soap)
+      do_compress_soap=1
+      do_all=0
+      shift
+      ;;
+  esac
+done
 echo
+if [[ "${do_all}" == 1 ]] ; then
+  do_membership=1
+  do_soap=1
+  do_compress_membership=1
+  do_compress_soap=1
+fi
+
+# Check we have run name and snapshots
+if [[ ! "${run_name}" ]] ; then
+  echo Please specify run, e.g. --run=L1000N1800/HYDRO_FIDUCIAL
+  exit 1
+fi
+if [[ ! "${snaps}" ]] ; then
+  echo Please specify snapshots to do, e.g. --snapshots=0-77%4
+  exit 1
+fi
 
 # Get the simulation box size (L????N????) from the run name
 box=`echo "${run_name}" | sed 's/\(L....N....\)\/.*/\1/'`
@@ -80,39 +136,57 @@ echo
 extra_args="--export=ALL,FLAMINGO_OUTPUT_DIR,FLAMINGO_SCRATCH_DIR"
 
 # Submit group membership jobs
-memb_jobid=`sbatch --parsable ${extra_args} -J ${model} --array=${snaps} ${script_dir}/group_membership_${box}.sh`
-if [[ $? == 0 ]] ; then
-  echo Group membership job ID is ${memb_jobid}
+if [[ "${do_membership}" == 1 ]] ; then
+  memb_jobid=`sbatch --parsable ${extra_args} -J ${model} --array=${snaps} ${script_dir}/group_membership_${box}.sh`
+  if [[ $? == 0 ]] ; then
+    echo Group membership job ID is ${memb_jobid}
+    # Some jobs can only run after the membership files have been created
+    require_membership_files="--dependency=aftercorr:${memb_jobid}"
+  else
+    echo Failed to submit group membership job
+    exit 1
+  fi
 else
-  echo Failed to submit group membership job
-  exit 1
+  # If we're not creating membership files, assume they already exist
+  require_membership_files=""
 fi
 
 # Submit halo properties jobs
-props_jobid=`sbatch --parsable ${extra_args} -J ${model} --array=${snaps} --dependency=aftercorr:${memb_jobid} ${script_dir}/halo_properties_${box}.sh`
-if [[ $? == 0 ]] ; then
-  echo Halo properties job ID is ${props_jobid}
+if [[ "${do_soap}" == 1 ]] ; then
+  props_jobid=`sbatch --parsable ${extra_args} -J ${model} --array=${snaps} ${require_membership_files} ${script_dir}/halo_properties_${box}.sh`
+  if [[ $? == 0 ]] ; then
+    echo Halo properties job ID is ${props_jobid}
+    # Some jobs can only run after SOAP has run
+    require_soap_output="--dependency=aftercorr:${props_jobid}"
+  else
+    echo Failed to submit halo properties job
+    exit 1
+  fi
 else
-  echo Failed to submit halo properties job
-  exit 1
+  # If we're not creating membership files, assume they already exist
+  require_soap_output=""  
 fi
 
 # Submit group membership compression jobs
-comp_memb_jobid=`sbatch --parsable ${extra_args} -J ${model} --array=${snaps} --dependency=aftercorr:${props_jobid} ${script_dir}/compress_group_membership_${box}.sh`
-if [[ $? == 0 ]] ; then
-  echo Membership compression job ID is ${comp_memb_jobid}
-else
-  echo Failed to submit membership compression job
-  exit 1
+if [[ "${do_compress_membership}" == 1 ]] ; then
+  comp_memb_jobid=`sbatch --parsable ${extra_args} -J ${model} --array=${snaps} ${require_membership_files} ${script_dir}/compress_group_membership_${box}.sh`
+  if [[ $? == 0 ]] ; then
+    echo Membership compression job ID is ${comp_memb_jobid}
+  else
+    echo Failed to submit membership compression job
+    exit 1
+  fi
 fi
 
 # Submit halo properties compression jobs
-comp_props_jobid=`sbatch --parsable ${extra_args} -J ${model} --array=${snaps} --dependency=aftercorr:${comp_memb_jobid} ${script_dir}/compress_halo_properties_${box}.sh`
-if [[ $? == 0 ]] ; then
-  echo Properties compression job ID is ${comp_props_jobid}
-else
-  echo Failed to submit properties compression job
-  exit 1
+if [[ "${do_compress_soap}" == 1 ]] ; then
+  comp_props_jobid=`sbatch --parsable ${extra_args} -J ${model} --array=${snaps} ${require_soap_output} ${script_dir}/compress_halo_properties_${box}.sh`
+  if [[ $? == 0 ]] ; then
+    echo Properties compression job ID is ${comp_props_jobid}
+  else
+    echo Failed to submit properties compression job
+    exit 1
+  fi
 fi
 
 echo
