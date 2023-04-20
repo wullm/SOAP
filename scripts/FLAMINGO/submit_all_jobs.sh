@@ -15,6 +15,10 @@
 # "DependencyNeverSatisfied", which will need to be cancelled.
 #
 
+# Set output locations
+export FLAMINGO_OUTPUT_DIR=/cosma8/data/dp004/${USER}/FLAMINGO/ScienceRuns/
+export FLAMINGO_SCRATCH_DIR=/snap8/scratch/dp004/${USER}/FLAMINGO/ScienceRuns/
+
 # Get command line args
 if [ "$#" -ne 2 ]; then
     echo "Usage: submit_all_jobs.sh <run_name> <snapshots>"
@@ -72,8 +76,11 @@ else
 fi
 echo
 
+# Extra sbatch args to set output locations
+extra_args="--export=ALL,FLAMINGO_OUTPUT_DIR,FLAMINGO_SCRATCH_DIR"
+
 # Submit group membership jobs
-memb_jobid=`sbatch --parsable -J ${model} --array=${snaps} ${script_dir}/group_membership_${box}.sh`
+memb_jobid=`sbatch --parsable ${extra_args} -J ${model} --array=${snaps} ${script_dir}/group_membership_${box}.sh`
 if [[ $? == 0 ]] ; then
   echo Group membership job ID is ${memb_jobid}
 else
@@ -82,7 +89,7 @@ else
 fi
 
 # Submit halo properties jobs
-props_jobid=`sbatch --parsable -J ${model} --array=${snaps} --dependency=aftercorr:${memb_jobid} ${script_dir}/halo_properties_${box}.sh`
+props_jobid=`sbatch --parsable ${extra_args} -J ${model} --array=${snaps} --dependency=aftercorr:${memb_jobid} ${script_dir}/halo_properties_${box}.sh`
 if [[ $? == 0 ]] ; then
   echo Halo properties job ID is ${props_jobid}
 else
@@ -91,7 +98,7 @@ else
 fi
 
 # Submit group membership compression jobs
-comp_memb_jobid=`sbatch --parsable -J ${model} --array=${snaps} --dependency=aftercorr:${props_jobid} ${script_dir}/compress_group_membership_${box}.sh`
+comp_memb_jobid=`sbatch --parsable ${extra_args} -J ${model} --array=${snaps} --dependency=aftercorr:${props_jobid} ${script_dir}/compress_group_membership_${box}.sh`
 if [[ $? == 0 ]] ; then
   echo Membership compression job ID is ${comp_memb_jobid}
 else
@@ -100,7 +107,7 @@ else
 fi
 
 # Submit halo properties compression jobs
-comp_props_jobid=`sbatch --parsable -J ${model} --array=${snaps} --dependency=aftercorr:${comp_memb_jobid} ${script_dir}/compress_halo_properties_${box}.sh`
+comp_props_jobid=`sbatch --parsable ${extra_args} -J ${model} --array=${snaps} --dependency=aftercorr:${comp_memb_jobid} ${script_dir}/compress_halo_properties_${box}.sh`
 if [[ $? == 0 ]] ; then
   echo Properties compression job ID is ${comp_props_jobid}
 else
@@ -111,6 +118,9 @@ fi
 echo
 squeue -j ${memb_jobid},${props_jobid},${comp_memb_jobid},${comp_props_jobid}
 
+echo
+echo Scratch dir: ${FLAMINGO_SCRATCH_DIR}
+echo Output dir : ${FLAMINGO_OUTPUT_DIR}
 echo
 echo See `pwd`/logs for job output when jobs start
 echo

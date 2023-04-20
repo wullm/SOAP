@@ -1,6 +1,13 @@
-#! /bin/bash
+#!/bin/bash
 #
 # Compress the membership files using h5repack, applying GZIP compression
+#
+# Output locations are specified by enviroment variables. E.g.
+#
+# export FLAMINGO_SCRATCH_DIR=/snap8/scratch/dp004/${USER}/FLAMINGO/ScienceRuns/
+# export FLAMINGO_OUTPUT_DIR=/cosma8/data/dp004/${USER}/FLAMINGO/ScienceRuns/
+#
+# To run:
 #
 # cd SOAP
 # mkdir logs
@@ -21,6 +28,22 @@ module load intel_comp/2018
 module load hdf5
 module load gnu-parallel
 
+# Get location for temporary output
+if [[ "${FLAMINGO_SCRATCH_DIR}" ]] ; then
+  scratch_dir="${FLAMINGO_SCRATCH_DIR}"
+else
+  echo Please set FLAMINGO_SCRATCH_DIR
+  exit 1
+fi
+
+# Get location for final output
+if [[ "${FLAMINGO_OUTPUT_DIR}" ]] ; then
+  output_dir="${FLAMINGO_OUTPUT_DIR}"
+else
+  echo Please set FLAMINGO_OUTPUT_DIR
+  exit 1
+fi
+
 # Which snapshot to do
 snapnum=`printf '%04d' ${SLURM_ARRAY_TASK_ID}`
 
@@ -28,10 +51,10 @@ snapnum=`printf '%04d' ${SLURM_ARRAY_TASK_ID}`
 sim="L0100N0180/${SLURM_JOB_NAME}"
 
 # Location of the input to compress
-inbase="/snap8/scratch/dp004/${USER}/FLAMINGO/ScienceRuns/${sim}/SOAP_uncompressed/"
+inbase="${scratch_dir}/${sim}/SOAP_uncompressed/"
 
 # Location of the compressed output
-outbase="/snap8/scratch/dp004/${USER}/FLAMINGO/ScienceRuns/${sim}/SOAP/"
+outbase="${output_dir}/${sim}/SOAP/"
 
 # Create the output folder if it does not exist
 outdir="${outbase}/membership_${snapnum}"

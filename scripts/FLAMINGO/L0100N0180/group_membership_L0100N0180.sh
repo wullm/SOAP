@@ -1,6 +1,11 @@
 #!/bin/bash -l
 #
 # Compute VR group membership for each particle in a snapshot.
+# Output locations are specified by enviroment variables. E.g.
+#
+# export FLAMINGO_SCRATCH_DIR=/snap8/scratch/dp004/${USER}/FLAMINGO/ScienceRuns/
+# export FLAMINGO_OUTPUT_DIR=/cosma8/data/dp004/${USER}/FLAMINGO/ScienceRuns/
+#
 # Job name determines which of the L0100N0180 runs we process.
 # Array job index is the snapshot number to do.
 #
@@ -22,6 +27,22 @@
 module purge
 module load gnu_comp/11.1.0 openmpi/4.1.1 python/3.10.1
 
+# Get location for temporary output
+if [[ "${FLAMINGO_SCRATCH_DIR}" ]] ; then
+  scratch_dir="${FLAMINGO_SCRATCH_DIR}"
+else
+  echo Please set FLAMINGO_SCRATCH_DIR
+  exit 1
+fi
+
+# Get location for final output
+if [[ "${FLAMINGO_OUTPUT_DIR}" ]] ; then
+  output_dir="${FLAMINGO_OUTPUT_DIR}"
+else
+  echo Please set FLAMINGO_OUTPUT_DIR
+  exit 1
+fi
+
 # Which snapshot to do
 snapnum=`printf '%04d' ${SLURM_ARRAY_TASK_ID}`
 
@@ -32,7 +53,7 @@ sim="L0100N0180/${SLURM_JOB_NAME}"
 basedir="/cosma8/data/dp004/flamingo/Runs/${sim}/"
 
 # Where to write the output
-outbase="/snap8/scratch/dp004/${USER}/FLAMINGO/ScienceRuns/${sim}/SOAP_uncompressed/"
+outbase="${scratch_dir}/${sim}/SOAP_uncompressed/"
 
 # Generate input and output file names
 swift_filename="${basedir}/snapshots/flamingo_${snapnum}.hdf5"
