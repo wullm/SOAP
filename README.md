@@ -121,6 +121,43 @@ mkdir logs
 sbatch --array=0-77%4 -J HYDRO_FIDUCIAL ./scripts/FLAMINGO/L1000N1800/halo_properties_L1000N1800.sh
 ```
 
+### Script for submitting multiple batch jobs
+
+There is also a script which can run the group membership code and the
+halo properties code and them compress the output from both. To use it
+on Cosma-8, starting from a fresh SOAP checkout:
+```
+git clone git@github.com:SWIFTSIM/SOAP.git
+cd SOAP/scripts/flamingo
+./submit_jobs.sh --run=L0100N0180/HYDRO_FIDUCIAL --snapshots=0-77%4
+```
+This will submit jobs with dependencies set so that they're run in the
+right order (e.g. the group membership files must be created before
+SOAP can run).
+
+Snapshots are specified using the syntax of the sbatch `--array` flag.
+
+The output location is set by the variables FLAMINGO_SCRATCH_DIR and
+FLAMINGO_OUTPUT_DIR in the submit_jobs.sh script. Uncompressed output
+is all written to the scratch directory and the final, compressed
+files are written to the output directory.
+
+The default output locations are
+```
+FLAMINGO_OUTPUT_DIR=/cosma8/data/dp004/${USER}/FLAMINGO/ScienceRuns/
+FLAMINGO_SCRATCH_DIR=/snap8/scratch/dp004/${USER}/FLAMINGO/ScienceRuns/
+```
+By default the script runs the group membership program, runs SOAP,
+compresses the group membership output and compresses the SOAP
+output. If some parts of the calculation have already been done you
+can specify which parts to run with the following flags:
+```
+--membership: run the group membership calculation
+--soap: run SOAP
+--compress-membership: compress the group membership output
+--compress-soap: compress the SOAP output
+```
+
 ## Adding quantities
 
 The property calculations are defined in these files:
