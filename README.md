@@ -142,17 +142,17 @@ right order (e.g. the group membership files must be created before
 SOAP can run).
 
 Snapshots are specified using the syntax of the sbatch `--array` flag.
+To do one snapshot you could do `--snapshots=77` or to do a range and
+limit how many run at once you could use  `--snapshots=0-77%4`.
 
-The output location is set by the variables FLAMINGO_SCRATCH_DIR and
-FLAMINGO_OUTPUT_DIR in the submit_jobs.sh script. Uncompressed output
-is all written to the scratch directory and the final, compressed
-files are written to the output directory.
+The output locations are set using environment variables. The defaults are
+```
+export FLAMINGO_OUTPUT_DIR=/cosma8/data/dp004/${USER}/FLAMINGO/SOAP-Output/
+export FLAMINGO_SCRATCH_DIR=/snap8/scratch/dp004/${USER}/FLAMINGO/SOAP-Output/
+```
+Uncompressed output is all written to the scratch directory and the
+final, compressed files are written to the output directory.
 
-The default output locations are
-```
-FLAMINGO_OUTPUT_DIR=/cosma8/data/dp004/${USER}/FLAMINGO/ScienceRuns/
-FLAMINGO_SCRATCH_DIR=/snap8/scratch/dp004/${USER}/FLAMINGO/ScienceRuns/
-```
 By default the script runs the group membership program, runs SOAP,
 compresses the group membership output and compresses the SOAP
 output. If some parts of the calculation have already been done you

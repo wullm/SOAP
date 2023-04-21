@@ -15,9 +15,13 @@
 # "DependencyNeverSatisfied", which will need to be cancelled.
 #
 
-# Set output locations
-export FLAMINGO_OUTPUT_DIR=/cosma8/data/dp004/${USER}/FLAMINGO/ScienceRuns/
-export FLAMINGO_SCRATCH_DIR=/snap8/scratch/dp004/${USER}/FLAMINGO/ScienceRuns/
+# Set default output locations
+if [[ ! "${FLAMINGO_OUTPUT_DIR}" ]] ; then
+  export FLAMINGO_OUTPUT_DIR=/cosma8/data/dp004/${USER}/FLAMINGO/SOAP-Output/
+fi
+if [[ ! "${FLAMINGO_SCRATCH_DIR}" ]] ; then
+  export FLAMINGO_SCRATCH_DIR=/snap8/scratch/dp004/${USER}/FLAMINGO/SOAP-Output/
+fi
 
 if [[ "$#" -lt 2 ]] ; then
   echo
