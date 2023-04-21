@@ -7,7 +7,7 @@
 # Run from the scripts/FLAMINGO directory. E.g.
 #
 # cd SOAP/scripts/FLAMINGO
-# ./submit_all_jobs.sh L0100N0180/HYDRO_FIDUCIAL 0-6
+# ./submit_jobs.sh --run=L0100N0180/HYDRO_FIDUCIAL --snapshots=0-6
 #
 # Submits a series of array jobs with dependencies between elements.
 #
