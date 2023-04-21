@@ -88,6 +88,17 @@ if [[ ! "${snaps}" ]] ; then
   exit 1
 fi
 
+# Make sure the run exists
+run_dir="/cosma8/data/dp004/flamingo/Runs/${run_name}"
+if [[ ! -d ${run_dir} ]] ; then
+  echo No simulation directory "${run_dir}"
+  echo
+  echo Incorrect --run argument? Should be of form "--run=L????N????/[DMO|HYDRO]_*"
+  echo E.g. --run=L1000N1800/HYDRO_FIDUCIAL
+  echo
+  exit 1
+fi
+
 # Get the simulation box size (L????N????) from the run name
 box=`echo "${run_name}" | sed 's/\(L....N....\)\/.*/\1/'`
 if [[ "$box" ]] ; then
@@ -163,7 +174,7 @@ if [[ "${do_soap}" == 1 ]] ; then
     exit 1
   fi
 else
-  # If we're not creating membership files, assume they already exist
+  # If we're not creating halo properties files, assume they already exist
   require_soap_output=""  
 fi
 
