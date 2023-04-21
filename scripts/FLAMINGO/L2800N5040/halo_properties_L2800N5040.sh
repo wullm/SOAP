@@ -67,7 +67,7 @@ if [[ $sim == DMO_* ]] ; then
   dmo_flag="--dmo"
 fi
 
-nr_chunks=1
+nr_chunks=80
 
 # Create output directory
 outdir=`dirname "${outfile}"`
