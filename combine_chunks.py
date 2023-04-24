@@ -2,12 +2,15 @@
 
 import numpy as np
 import h5py
+import unyt
 
 import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.parallel_sort as psort
 
+from subhalo_rank import compute_subhalo_rank
 import swift_units
 from mpi_timer import MPITimer
+from property_table import PropertyTable
 
 
 def sub_snapnum(filename, snapnum):
@@ -39,6 +42,24 @@ def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
     # Determine total number of halos
     total_nr_halos = comm_world.allreduce(len(order))
 
+    # Get metadata for derived quantities: these don't exist in the chunk
+    # output but will be computed by combining other halo properties.
+    soap_metadata = []
+    for soapkey in PropertyTable.soap_properties:
+        props = PropertyTable.full_property_list[f"SOAP{soapkey}"]
+        name = f"SOAP/{soapkey}"
+        size = props[1]
+        if size == 1:
+            # Scalar quantity
+            size = ()
+        else:
+            # Vector quantity
+            size = (size,)
+        dtype = props[2]
+        unit = cellgrid.get_unit(props[3])
+        description = props[4]
+        soap_metadata.append((name, size, unit, dtype, description))
+
     # First MPI rank sets up the output file
     with MPITimer("Creating output file", comm_world):
         output_file = sub_snapnum(args.output_file, args.snapshot_nr)
@@ -62,7 +83,7 @@ def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
             for at, val in recently_heated_gas_metadata.items():
               recently_heated_gas_params.attrs[at] = val
             # Create datasets for all halo properties
-            for name, size, unit, dtype, description in ref_metadata:
+            for name, size, unit, dtype, description in ref_metadata+soap_metadata:
                 shape = (total_nr_halos,) + size
                 dataset = outfile.create_dataset(name, shape=shape, dtype=dtype, fillvalue=None)
                 # Add units and description
@@ -79,6 +100,10 @@ def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
 
     # Reopen the output file in parallel mode
     outfile = h5py.File(output_file, "r+", driver="mpio", comm=comm_world)
+    
+    # Certain properties are needed to compute subhalo ranking by mass
+    props_to_keep = ("VR/ID", "BoundSubhaloProperties/TotalMass", "VR/HostHaloID")
+    props_kept = {}
 
     with MPITimer("Writing output properties", comm_world):
         # Loop over halo properties, a few at a time
@@ -95,9 +120,26 @@ def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
             for name in names:
                 data[name] = psort.fetch_elements(data[name], order, comm=comm_world)
 
+            # Keep a reference to any arrays we'll need later
+            for name in names:
+                if name in props_to_keep:
+                    props_kept[name] = data[name]
+
             # Write these properties to the output file
             for name, size, unit, description in zip(names, sizes, units, descriptions):
                 phdf5.collective_write(outfile, name, data[name], create_dataset=False, comm=comm_world)
 
             del data
-        outfile.close()
+
+    with MPITimer("Writing subhalo ranking by mass", comm_world):
+        # Now write out subhalo ranking by mass within host halos, if we computed all the required quantities.
+        if len(props_kept) == len(props_to_keep):
+            subhalo_rank = compute_subhalo_rank(props_kept["VR/HostHaloID"],
+                                                props_kept["VR/ID"],
+                                                props_kept["BoundSubhaloProperties/TotalMass"],
+                                                comm_world)
+            dataset = phdf5.collective_write(outfile, "SOAP/SubhaloRankByBoundMass", subhalo_rank,
+                                             create_dataset=False, comm=comm_world)
+
+    # Done.
+    outfile.close()
