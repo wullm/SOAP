@@ -134,7 +134,7 @@ halo properties code and them compress the output from both. To use it
 on Cosma-8, starting from a fresh SOAP checkout:
 ```
 git clone git@github.com:SWIFTSIM/SOAP.git
-cd SOAP/scripts/flamingo
+cd SOAP/scripts/FLAMINGO
 ./submit_jobs.sh --run=L0100N0180/HYDRO_FIDUCIAL --snapshots=0-77%4
 ```
 This will submit jobs with dependencies set so that they're run in the
