@@ -135,7 +135,7 @@ on Cosma-8, starting from a fresh SOAP checkout:
 ```
 git clone git@github.com:SWIFTSIM/SOAP.git
 cd SOAP/scripts/FLAMINGO
-./submit_jobs.sh --run=L0100N0180/HYDRO_FIDUCIAL --snapshots=0-77%4
+./submit_jobs.sh --run=L1000N1800/HYDRO_FIDUCIAL --snapshots=0-77%4
 ```
 This will submit jobs with dependencies set so that they're run in the
 right order (e.g. the group membership files must be created before
