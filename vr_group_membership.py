@@ -34,6 +34,15 @@ if __name__ == "__main__":
     grnr_bound, rank_bound = read_vr.vr_group_membership_from_ids(length_bound, offset_bound, ids_bound, return_rank=True)
     grnr_unbound = read_vr.vr_group_membership_from_ids(length_unbound, offset_unbound, ids_unbound)
 
+    # Read VR host halo IDs, if required. Will set hostHaloID=ID for main halos.
+    if args.host_ids:
+        host_data = read_vr.read_vr_datasets(args.vr_basename, "properties", ("ID", "hostHaloID",))
+        host_id = host_data["hostHaloID"]
+        is_main = host_id < 0
+        host_id[is_main] = host_data["ID"][is_main]
+        del host_data
+        del is_main
+
     # Determine SWIFT particle types which exist in the snapshot
     ptypes = []
     with h5py.File(args.swift_filename % {"file_nr" : 0}, "r") as infile:
@@ -88,6 +97,13 @@ if __name__ == "__main__":
         swift_grnr_unbound[matched==False] = -1
         swift_grnr_all = np.maximum(swift_grnr_bound, swift_grnr_unbound)
 
+        if args.host_ids:
+            if comm_rank == 0:
+                print("  Assigning VR host halo membership to SWIFT particles")
+            swift_hostnr_all = -np.ones_like(swift_grnr_all)
+            in_halo = swift_grnr_all >= 0
+            swift_hostnr_all[in_halo] = ps.fetch_elements(host_id, swift_grnr_all[in_halo], comm=comm) - 1
+
         # Determine if we need to create a new output file set
         if create_file:
             mode="w"
@@ -107,12 +123,16 @@ if __name__ == "__main__":
             "a-scale exponent" : [0.0,],
             "h-scale exponent" : [0.0,],
         }
-        attrs = {"GroupNr_bound" : {"Description" : "Index of halo in which this particle is a bound member, or -1 if none"},
-                 "Rank_bound" : {"Description" : "Ranking by binding energy of the bound particles (first in halo=0), or -1 if not bound"},
-                 "GroupNr_all" : {"Description" : "Index of halo in which this particle is a member (bound or unbound), or -1 if none"}}
+        attrs = {
+            "GroupNr_bound" : {"Description" : "Index of halo in which this particle is a bound member, or -1 if none"},
+            "Rank_bound" : {"Description" : "Ranking by binding energy of the bound particles (first in halo=0), or -1 if not bound"},
+            "GroupNr_all" : {"Description" : "Index of halo in which this particle is a member (bound or unbound), or -1 if none"},
+            "HostNr_all" : {"Description" : "Index of the host of the halo which this particle belongs to (bound or unbound)"},
+        }
         attrs["GroupNr_bound"].update(unit_attrs)
         attrs["Rank_bound"].update(unit_attrs)
         attrs["GroupNr_all"].update(unit_attrs)
+        attrs["HostNr_all"].update(unit_attrs)
 
         # Write these particles out with the same layout as the input snapshot
         if comm_rank == 0:
@@ -121,6 +141,8 @@ if __name__ == "__main__":
         output = {"GroupNr_bound"   : swift_grnr_bound,
                   "Rank_bound"      : swift_rank_bound,
                   "GroupNr_all"     : swift_grnr_all}
+        if args.host_ids:
+            output["HostNr_all"] = swift_hostnr_all
         snap_file.write(output, elements_per_file, filenames=args.output_file, mode=mode, group=ptype, attrs=attrs)
 
         # Optionally, also write the particle group membership to the specified single file snapshot.
@@ -133,6 +155,8 @@ if __name__ == "__main__":
             virgo.mpi.parallel_hdf5.collective_write(vfile[ptype], prefix+"GroupNr_bound", swift_grnr_bound, comm)
             virgo.mpi.parallel_hdf5.collective_write(vfile[ptype], prefix+"Rank_bound", swift_rank_bound, comm)
             virgo.mpi.parallel_hdf5.collective_write(vfile[ptype], prefix+"GroupNr_all", swift_grnr_all, comm)
+            if args.host_ids:
+                virgo.mpi.parallel_hdf5.collective_write(vfile[ptype], prefix+"HostNr_all", swift_hostnr_all, comm)
             vfile.close()
 
     comm.barrier()
