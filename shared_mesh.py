@@ -248,3 +248,96 @@ class SharedMesh:
             return np.concatenate(idx)
         else:
             return np.ndarray(0, dtype=int)
+
+
+def test_filled_periodic_box(total_nr_points, nr_queries, resolution):
+    """
+    Test case where points fill the periodic box.
+    
+    Creates a shared mesh from random points, queries for points near random
+    centres and checks the results against a simple brute force method.
+    """
+
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+    comm_size = comm.Get_size()
+    comm_rank = comm.Get_rank()
+    
+    import unyt
+    import shared_array
+
+    def periodic_distance_squared(pos, centre):
+        dr = pos - centre[None, :]
+        dr[dr >  0.5*boxsize] -= boxsize
+        dr[dr < -0.5*boxsize] += boxsize
+        return np.sum(dr**2, axis=1)
+
+    # Determine number of points per rank
+    nr_points = total_nr_points // comm_size
+    if comm_rank < (total_nr_points % comm_size):
+        nr_points += 1
+    assert comm.allreduce(nr_points) == total_nr_points
+
+    # Make some test data
+    boxsize = 1.0 * unyt.cm
+    pos = shared_array.SharedArray(local_shape=(nr_points,3), dtype=np.float64, units=unyt.cm, comm=comm)
+    if comm_rank == 0:
+        # Rank 0 initializes all elements to avoid parallel RNG issues
+        pos.full[:,:] = np.random.random_sample(pos.full.shape) * boxsize
+    pos.sync()
+    comm.barrier()
+    
+    # Construct the shared mesh
+    mesh = SharedMesh(comm, pos, resolution=resolution)
+
+    # Use a different, reproducible seed on each rank
+    np.random.seed(comm_rank)
+
+    # Each MPI rank queries random points and verifies the result
+    for query_nr in range(nr_queries):
+
+        # Pick a centre and radius
+        centre = np.random.random_sample((3,)) * unyt.cm
+        radius = 0.1*np.random.random_sample(()) * unyt.cm
+
+        # Query the mesh for point indexes
+        idx = mesh.query_radius_periodic(centre, radius, pos, boxsize)
+    
+        # Try to reproduce the index array by brute force
+        r2 = periodic_distance_squared(pos.full, centre)
+        in_sphere = (r2 <= radius**2)
+        idx_check = np.arange(pos.full.shape[0], dtype=int)[in_sphere]
+
+        # Sort and compare indexes
+        idx.sort()
+        idx_check.sort()
+        if np.any(idx!=idx_check):
+            raise RuntimeError("query_radius_periodic() test failed!")
+
+    pos.free()
+    mesh.free()
+
+    comm.barrier()
+    if comm_rank == 0:
+        print(f"Test with {total_nr_points} points, resolution {resolution} and {nr_queries} queries OK")
+
+
+if __name__ == "__main__":
+
+    # Test cases. To be run using multiple MPI ranks on one compute node. E.g.
+    #
+    # mpirun -np 8 python3 ./shared_mesh.py
+    #
+    # Try zero particles case
+    test_filled_periodic_box(total_nr_points=0, nr_queries=100, resolution=1)
+    test_filled_periodic_box(total_nr_points=0, nr_queries=100, resolution=32)
+    
+    # Try one particle case
+    test_filled_periodic_box(total_nr_points=1, nr_queries=100, resolution=1)
+    test_filled_periodic_box(total_nr_points=1, nr_queries=100, resolution=32)
+
+    # A more reasonable case
+    test_filled_periodic_box(total_nr_points=10000, nr_queries=100, resolution=32)
+
+    # Brute force case (all particles in one mesh cell)
+    test_filled_periodic_box(total_nr_points=1000, nr_queries=100, resolution=1)
