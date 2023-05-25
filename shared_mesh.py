@@ -48,8 +48,15 @@ class SharedMesh:
         comm.Allreduce(pos_min_local, self.pos_min, op=MPI.MIN)
         self.pos_max = np.empty_like(pos_max_local)
         comm.Allreduce(pos_max_local, self.pos_max, op=MPI.MAX)
+
+        # If all particles are at the same coordinates (e.g. if only one
+        # particle exists), impose an arbitrary non-zero cell size.
+        for i in range(3):
+            if self.pos_min[i] == self.pos_max[i]:
+                self.pos_max[i] = self.pos_min[i] + 1.0
         assert np.all(pos.local >= self.pos_min)
         assert np.all(pos.local <= self.pos_max)
+        assert np.all(self.pos_max > self.pos_min)
 
         # Determine the cell size
         self.resolution = int(resolution)
