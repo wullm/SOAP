@@ -294,6 +294,7 @@ def test_filled_periodic_box(total_nr_points, nr_queries, resolution):
     np.random.seed(comm_rank)
 
     # Each MPI rank queries random points and verifies the result
+    nr_failures = 0
     for query_nr in range(nr_queries):
 
         # Pick a centre and radius
@@ -311,15 +312,22 @@ def test_filled_periodic_box(total_nr_points, nr_queries, resolution):
         # Sort and compare indexes
         idx.sort()
         idx_check.sort()
-        if np.any(idx!=idx_check):
-            raise RuntimeError("query_radius_periodic() test failed!")
+        if len(idx) != len(idx_check) or np.any(idx!=idx_check):
+            nr_failures += 1
 
+    # Tidy up before possibly throwing an exception
     pos.free()
     mesh.free()
 
+    nr_failures = comm.allreduce(nr_failures)
+
     comm.barrier()
     if comm_rank == 0:
-        print(f"Test with {total_nr_points} points, resolution {resolution} and {nr_queries} queries OK")
+        if nr_failures == 0:
+            print(f"Test with {total_nr_points} points, resolution {resolution} and {nr_queries} queries OK")
+        else:
+            print(f"Test with {total_nr_points} points, resolution {resolution} and {nr_queries} queries FAILED")
+            comm.Abort()
 
 
 if __name__ == "__main__":
@@ -339,5 +347,6 @@ if __name__ == "__main__":
     # A more reasonable case
     test_filled_periodic_box(total_nr_points=10000, nr_queries=100, resolution=32)
 
-    # Brute force case (all particles in one mesh cell)
-    test_filled_periodic_box(total_nr_points=1000, nr_queries=100, resolution=1)
+    # Try some low resolution grids filling the box
+    for res in range(1,5):
+        test_filled_periodic_box(total_nr_points=1000, nr_queries=100, resolution=res)
