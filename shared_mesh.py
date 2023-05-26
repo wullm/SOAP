@@ -109,41 +109,6 @@ class SharedMesh:
             self.cell_offset.free()
             self.sort_idx.free()
 
-    def query(self, pos_min, pos_max):
-        """
-        Return indexes of particles which might be in the region defined
-        by pos_min and pos_max. This can be called independently on
-        different MPI ranks since it only reads the shared data.
-        """
-        
-        # If there are no particles on any rank, we have nothing to do
-        if self.empty:
-            return np.ndarray(0, dtype=int)
-
-        # Find range of cells involved
-        cell_min_idx = np.floor((pos_min-self.pos_min)/self.cell_size).value.astype(np.int32)
-        cell_min_idx = np.clip(cell_min_idx, 0, self.resolution-1)
-        cell_max_idx = np.floor((pos_max-self.pos_min)/self.cell_size).value.astype(np.int32)
-        cell_max_idx = np.clip(cell_max_idx, 0, self.resolution-1)
-
-        # Get the indexes of particles in the required cells
-        idx = []
-        for k in range(cell_min_idx[2], cell_max_idx[2]+1):
-            for j in range(cell_min_idx[1], cell_max_idx[1]+1):
-                for i in range(cell_min_idx[0], cell_max_idx[0]+1):
-                    cell_nr = i+self.resolution*j+(self.resolution**2)*k
-                    start = self.cell_offset.full[cell_nr]
-                    count = self.cell_count.full[cell_nr]
-                    if count > 0:
-                        idx.append(self.sort_idx.full[start:start+count])
-        
-        # Return a single array of indexes
-        if len(idx) > 0:
-            return np.concatenate(idx)
-        else:
-            return np.ndarray(0, dtype=int)
-
-
     def query_radius_periodic(self, centre, radius, pos, boxsize):
         """
         Return indexes of particles which are in a sphere defined by
