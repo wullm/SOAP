@@ -253,25 +253,27 @@ def test_periodic_box(total_nr_points, centre, radius, boxsize, box_wrap,
 
         # Query the mesh for point indexes
         idx = mesh.query_radius_periodic(search_centre, search_radius, pos, boxsize)
-    
-        # Try to reproduce the index array by brute force
-        r2 = periodic_distance_squared(pos.full, search_centre)
-        in_sphere = (r2 <= search_radius**2)
-        idx_check = np.arange(pos.full.shape[0], dtype=int)[in_sphere]
 
-        # Sort and compare indexes
-        idx.sort()
-        idx_check.sort()
+        # Check that the indexes are unique
         if len(idx) != len(np.unique(idx)):
             print(f"    Duplicate IDs for centre={search_centre}, radius={search_radius}")
             nr_failures += 1
-        elif len(idx) != len(idx_check):
-            print(f"    Incorrect output size for centre={search_centre}, radius={search_radius}")
-            nr_failures += 1
-        elif np.any(idx!=idx_check):
-            print(f"    Incorrect indexes for centre={search_centre}, radius={search_radius}")
-            nr_failures += 1
-
+        else:
+            # Flag the points in the returned index array
+            in_idx = np.zeros(pos.full.shape[0], dtype=bool)
+            in_idx[idx] = True
+            # Find radii of all points
+            r2 =  periodic_distance_squared(pos.full, search_centre)
+            # Check for any flagged points outside the radius
+            if np.any(r2[in_idx] > search_radius*search_radius):
+                print(f"    Returned point outside radius for centre={search_centre}, radius={search_radius}")
+                nr_failures += 1
+            # Check for any non-flagged points inside the radius
+            missed = (in_idx==False) & (r2 < search_radius*search_radius)
+            if np.any(missed):
+                print(r2[missed])
+                print(f"    Missed point inside radius for centre={search_centre}, radius={search_radius}")
+                nr_failures += 1
 
     # Tidy up before possibly throwing an exception
     pos.free()
@@ -300,7 +302,7 @@ if __name__ == "__main__":
     from mpi4py import MPI
     np.random.seed(MPI.COMM_WORLD.Get_rank())
 
-    resolutions = (2, 4, 8, 16)
+    resolutions = (1, 2, 4, 8, 16)
 
     # Test a particle distribution which fills the box, searching up to 0.25 box size
     for resolution in resolutions:
