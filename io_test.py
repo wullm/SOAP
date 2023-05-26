@@ -75,7 +75,7 @@ def io_test():
         # Try selecting a sphere
         centre = np.asarray((30, 30, 30))*cellgrid.units.length
         radius = 10*cellgrid.units.length
-        idx = mesh.query_radius(centre, radius, pos)
+        idx = mesh.query_radius_periodic(centre, radius, pos, boxsize)
         plt.plot(pos[idx,0], pos[idx,1], "g,")
 
         plt.show()
