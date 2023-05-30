@@ -124,21 +124,6 @@ class SharedMesh:
         # If there are no particles on any rank, we have nothing to do
         if self.empty:
             return np.ndarray(0, dtype=int)
-        
-        pos_min = centre - radius
-        pos_max = centre + radius
-
-        # Find range of cells involved
-        cell_min_idx = np.floor((pos_min-self.pos_min)/self.cell_size).value.astype(np.int32)
-        cell_max_idx = np.floor((pos_max-self.pos_min)/self.cell_size).value.astype(np.int32)
-
-        def wrap_coord(dim, i):
-            if i < 0:
-                return np.floor(((i+0.5)*self.cell_size[dim]+boxsize)/self.cell_size[dim]).value.astype(np.int32)
-            elif i >= self.resolution:
-                return np.floor(((i+0.5)*self.cell_size[dim]-boxsize)/self.cell_size[dim]).value.astype(np.int32)
-            else:
-                return i
 
         def periodic_distance_squared(pos, centre):
             dr = pos - centre[None, :]
@@ -146,26 +131,45 @@ class SharedMesh:
             dr[dr < -0.5*boxsize] += boxsize
             return np.sum(dr**2, axis=1)
 
+        # Find the coordinates in the grid to search in each dimension. Here we deal with the
+        # periodic box by also considering periodic copies of the search centre and radius.
+        cell_coords = [set() for _ in range(3)]
+        for dim in (0,1,2):
+
+            # Find leftmost periodic copy of the search radius which overlaps the mesh
+            min_copy_nr = 0
+            while centre[dim] + (min_copy_nr-1)*boxsize + radius >= self.pos_min[dim]:
+                min_copy_nr -= 1
+
+            # Find rightmost periodic copy of the search radius which overlaps the mesh
+            max_copy_nr = 0
+            while centre[dim] + (max_copy_nr+1)*boxsize - radius <= self.pos_max[dim]:
+                max_copy_nr += 1
+
+            # Store the grid coordinates to search in this dimension
+            for copy_nr in range(min_copy_nr, max_copy_nr+1,1):
+                min_coord = max(self.pos_min[dim], centre[dim] + copy_nr*boxsize - radius)
+                min_idx = np.floor((min_coord - self.pos_min[dim])/self.cell_size[dim]).astype(int)
+                max_coord = min(self.pos_max[dim], centre[dim] + copy_nr*boxsize + radius)
+                max_idx = np.floor((max_coord - self.pos_min[dim])/self.cell_size[dim]).astype(int)
+                for cell_nr in range(min_idx, max_idx+1):
+                    if cell_nr >=0 and cell_nr < self.resolution:
+                        cell_coords[dim].add(cell_nr)
+
         # Get the indexes of particles in the required cells
         idx = []
-        for k in range(cell_min_idx[2], cell_max_idx[2]+1):
-            kk = wrap_coord(2, k)
-            if kk >=0 and kk < self.resolution:
-                for j in range(cell_min_idx[1], cell_max_idx[1]+1):
-                    jj = wrap_coord(1, j)
-                    if jj >=0 and jj < self.resolution:
-                        for i in range(cell_min_idx[0], cell_max_idx[0]+1):
-                            ii = wrap_coord(0, i)
-                            if ii >=0 and ii < self.resolution:
-                                cell_nr = ii+self.resolution*jj+(self.resolution**2)*kk
-                                start = self.cell_offset.full[cell_nr]
-                                count = self.cell_count.full[cell_nr]
-                                if count > 0:
-                                    idx_in_cell = self.sort_idx.full[start:start+count]
-                                    r2 = periodic_distance_squared(pos.full[idx_in_cell, :], centre)
-                                    keep = (r2 <= radius*radius)
-                                    if np.sum(keep) > 0:
-                                        idx.append(idx_in_cell[keep])
+        for k in cell_coords[2]:
+            for j in cell_coords[1]:
+                for i in cell_coords[0]:
+                    cell_nr = i+self.resolution*j+(self.resolution**2)*k
+                    start = self.cell_offset.full[cell_nr]
+                    count = self.cell_count.full[cell_nr]
+                    if count > 0:
+                        idx_in_cell = self.sort_idx.full[start:start+count]
+                        r2 = periodic_distance_squared(pos.full[idx_in_cell, :], centre)
+                        keep = (r2 <= radius*radius)
+                        if np.sum(keep) > 0:
+                            idx.append(idx_in_cell[keep])
         
         # Return a single array of indexes
         if len(idx) > 0:
@@ -303,7 +307,7 @@ if __name__ == "__main__":
     comm = MPI.COMM_WORLD
     np.random.seed(comm.Get_rank())
 
-    resolutions = (1, 2, 4, 8, 16)
+    resolutions = (1, 2, 4, 8, 16, 32)
 
     # Test a particle distribution which fills the box, searching up to 0.25 box size
     for resolution in resolutions:
