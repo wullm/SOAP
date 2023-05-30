@@ -272,7 +272,7 @@ def test_periodic_box(total_nr_points, centre, radius, boxsize, box_wrap,
             missed = (in_idx==False) & (r2 < search_radius*search_radius)
             if np.any(missed):
                 print(r2[missed])
-                print(f"    Missed point inside radius for centre={search_centre}, radius={search_radius}")
+                print(f"    Missed point inside radius for centre={search_centre}, radius={search_radius}, rank={comm_rank}")
                 nr_failures += 1
 
     # Tidy up before possibly throwing an exception
@@ -300,7 +300,8 @@ if __name__ == "__main__":
 
     # Use a different, reproducible seed on each rank
     from mpi4py import MPI
-    np.random.seed(MPI.COMM_WORLD.Get_rank())
+    comm = MPI.COMM_WORLD
+    np.random.seed(comm.Get_rank())
 
     resolutions = (1, 2, 4, 8, 16)
 
@@ -308,6 +309,7 @@ if __name__ == "__main__":
     for resolution in resolutions:
         centre  = 0.5*np.ones(3, dtype=np.float64) * unyt.m
         radius  = 0.5*unyt.m
+        centre, radius = comm.bcast((centre, radius))
         boxsize = 1.0*unyt.m
         test_periodic_box(1000, centre, radius, boxsize, box_wrap=False,
                           nr_queries=100, resolution=resolution, max_search_radius=0.25*boxsize)
@@ -320,6 +322,7 @@ if __name__ == "__main__":
             for region_nr in range(nr_regions):
                 centre = np.random.random_sample((3,)) * boxsize
                 radius = 0.25*np.random.random_sample(()) * boxsize
+                centre, radius = comm.bcast((centre, radius))
                 test_periodic_box(1000, centre, radius, boxsize, box_wrap=box_wrap,
                                   nr_queries=10, resolution=resolution, max_search_radius=radius)
 
@@ -327,6 +330,7 @@ if __name__ == "__main__":
     for resolution in resolutions:
         centre  = 0.5*np.ones(3, dtype=np.float64) * unyt.m
         radius  = 0.5*unyt.m
+        centre, radius = comm.bcast((centre, radius))
         boxsize = 1.0*unyt.m
         test_periodic_box(0, centre, radius, boxsize, box_wrap=False,
                           nr_queries=100, resolution=resolution, max_search_radius=0.25*boxsize)
@@ -335,6 +339,7 @@ if __name__ == "__main__":
     for resolution in resolutions:
         centre  = 0.5*np.ones(3, dtype=np.float64) * unyt.m
         radius  = 0.5*unyt.m
+        centre, radius = comm.bcast((centre, radius))
         boxsize = 1.0*unyt.m
         test_periodic_box(1, centre, radius, boxsize, box_wrap=False,
                           nr_queries=100, resolution=resolution, max_search_radius=0.25*boxsize)
