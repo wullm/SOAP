@@ -1,6 +1,7 @@
 #!/bin/env python
 
 import sys
+import os.path
 import re
 import numpy as np
 import h5py
@@ -145,19 +146,22 @@ if __name__ == "__main__":
             output["HostNr_all"] = swift_hostnr_all
         snap_file.write(output, elements_per_file, filenames=args.output_file, mode=mode, group=ptype, attrs=attrs)
 
-        # Optionally, also write the particle group membership to the specified single file snapshot.
-        # (e.g. a copy of the virtual file written by SWIFT)
-        if args.update_virtual_file is not None:
-            prefix = args.output_prefix if args.output_prefix is not None else ""
-            if comm_rank == 0:
-                print("  Writing out VR group membership to virtual file")
-            vfile = h5py.File(args.update_virtual_file, "r+", driver="mpio", comm=comm)
-            virgo.mpi.parallel_hdf5.collective_write(vfile[ptype], prefix+"GroupNr_bound", swift_grnr_bound, comm)
-            virgo.mpi.parallel_hdf5.collective_write(vfile[ptype], prefix+"Rank_bound", swift_rank_bound, comm)
-            virgo.mpi.parallel_hdf5.collective_write(vfile[ptype], prefix+"GroupNr_all", swift_grnr_all, comm)
-            if args.host_ids:
-                virgo.mpi.parallel_hdf5.collective_write(vfile[ptype], prefix+"HostNr_all", swift_hostnr_all, comm)
-            vfile.close()
+    # Optionally, also make a virtual snapshot with group membership information
+    if args.virtual_snapshot is not None and comm_rank == 0:
+
+        # Find the original virtual snapshot created by SWIFT
+        virtual_snapshot = (args.swift_filename % {"file_nr" : 0})[:-7]+".hdf5"
+
+        # Make a new virtual snapshot file containing group membership information
+        from make_virtual_snapshot import make_virtual_snapshot
+        make_virtual_snapshot(virtual_snapshot, args.output_file, args.virtual_snapshot)
+
+        # Add absolute paths to the datasets in the virtual file:
+        # This is necessary because we can't set two different VDS prefixes.
+        from update_vds_paths import update_virtual_snapshot_paths
+        snapshot_dir = os.path.abspath(os.path.dirname(args.swift_filename % {"file_nr" : 0}))
+        membership_dir = os.path.abspath(os.path.dirname(args.output_file % {"file_nr" : 0}))
+        update_virtual_snapshot_paths(args.virtual_snapshot, snapshot_dir, membership_dir)
 
     comm.barrier()
     if comm_rank == 0:

@@ -78,7 +78,7 @@ def get_group_membership_args(comm):
         parser.add_argument('vr_basename',
                             help='Base name of the VELOCIraptor files, excluding trailing .properties[.N] etc.')
         parser.add_argument('output_file', help='Format string to generate output filenames. Use %%(file_nr)d for the file number.')
-        parser.add_argument("--update-virtual-file", type=str, help="Name of a single file virtual snapshot to write group membership to")
+        parser.add_argument("--virtual-snapshot", type=str, help="Create a virtual snapshot with group membership info")
         parser.add_argument("--output-prefix", type=str, help="Prefix for names of datasets added to virtual file")
         parser.add_argument("--host-ids", action="store_true", help="Also output host halo membership given by VR's hostHaloID")
         try:
