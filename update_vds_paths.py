@@ -27,11 +27,13 @@ def update_vds_paths(dset, modify_function):
     # Build the creation property list for the new dataset
     plist = h5py.h5p.create(h5py.h5p.DATASET_CREATE)
     for vs in dset.virtual_sources():
-        lower, upper = vs.vspace.get_select_bounds()
-        size = np.asarray(upper, dtype=int)-np.asarray(lower, dtype=int)+1
-        src_space = h5py.h5s.create_simple(tuple(size))
-        new_name = modify_function(vs.file_name)
-        plist.set_virtual(vs.vspace, new_name.encode(), vs.dset_name.encode(), src_space)
+        bounds = vs.vspace.get_select_bounds()
+        if bounds is not None:
+            lower, upper = bounds
+            size = np.asarray(upper, dtype=int)-np.asarray(lower, dtype=int)+1
+            src_space = h5py.h5s.create_simple(tuple(size))
+            new_name = modify_function(vs.file_name)
+            plist.set_virtual(vs.vspace, new_name.encode(), vs.dset_name.encode(), src_space)
 
     # Create the new dataset
     tmp_dset = h5py.h5d.create(dset.file["/"].id, tmp_path.encode(), dset.id.get_type(), dset.id.get_space(), dcpl=plist)
