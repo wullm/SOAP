@@ -85,7 +85,8 @@ def update_virtual_snapshot_paths(filename, snapshot_dir=None, membership_dir=No
 
 if __name__ == "__main__":
 
-    filename        = sys.argv[1]
-    snapshot_dir   = sys.argv[2]
-    membership_dir = sys.argv[3]
+    filename       = sys.argv[1]  # Virtual snapshot file to update
+    snapshot_dir   = sys.argv[2]  # Directory with the real snapshot files
+    membership_dir = sys.argv[3]  # Directory with the real membership files
+
     update_virtual_snapshot_paths(filename, snapshot_dir, membership_dir)

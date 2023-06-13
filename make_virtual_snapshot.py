@@ -68,3 +68,25 @@ def make_virtual_snapshot(snapshot, membership, output_file):
     
     # Done
     outfile.close()
+
+
+if __name__ == "__main__":
+
+    import sys
+    from update_vds_paths import update_virtual_snapshot_paths
+
+    snapshot   = sys.argv[1]  # format string for snapshots, e.g. snapshot_0077.%(file_nr).hdf5
+    membership = sys.argv[2]  # format string for membership files, e.g. membership_0077.%(file_nr).hdf5
+    output_file = sys.argv[3] # Name of the virtual snapshot to create
+
+    # Find input virtual snap file
+    virtual_snapshot = (snapshot % {"file_nr" : 0})[:-7]+".hdf5"
+
+    # Make a new virtual snapshot with group info
+    make_virtual_snapshot(virtual_snapshot, membership, output_file)
+    
+    # Ensure all paths in the virtual file are absolute to avoid VDS prefix issues
+    # (we probably need to pick up datasets from two different directories)
+    snapshot_dir = os.path.abspath(os.path.dirname(snapshot % {"file_nr" : 0}))
+    membership_dir = os.path.abspath(os.path.dirname(membership % {"file_nr" : 0}))
+    update_virtual_snapshot_paths(output_file, snapshot_dir, membership_dir)
