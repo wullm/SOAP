@@ -20,6 +20,24 @@ def get_version_string():
     return f"{git_version} -- Compiled by user ``{username}'' on {hostname} on {timestamp}."
 
 
+def word_wrap_name(name):
+    """
+    Put a line break in if a name gets too long
+    """
+    maxlen=20
+    count=0
+    output=[]
+    last_was_lower=False
+    for i in range(len(name)):
+        next_char=name[i]
+        count += 1
+        if count > maxlen and next_char.isupper() and last_was_lower:
+            output.append("\-")
+        output.append(next_char)
+        last_was_lower=next_char.isupper()==False
+    return "".join(output)
+
+
 class PropertyTable:
     categories = ["basic", "general", "gas", "dm", "star", "baryon", "VR", "SOAP"]
     explanation = {
@@ -1507,7 +1525,7 @@ class PropertyTable:
 \\begin{document}"""
 
         tablestr = """\\begin{landscape}
-\\begin{longtable}{lllllllllll}
+\\begin{longtable}{p{20em}llllllllll}
 Name & Shape & Type & Units & SH & ES & IS & EP & SO & Category & Compression\\\\
 \\multicolumn{11}{l}{\\rule{30pt}{0pt}Description}\\\\
 \\hline{}\\endhead{}"""
@@ -1516,6 +1534,7 @@ Name & Shape & Type & Units & SH & ES & IS & EP & SO & Category & Compression\\\
             prop = self.properties[prop_name]
             footnotes = self.get_footnotes(prop_name)
             prop_outputname = f"{prop['name'].replace('_','')}{footnotes}"
+            prop_outputname = word_wrap_name(prop_outputname)
             prop_shape = f'{prop["shape"]}'
             prop_dtype = prop["dtype"]
             prop_units = f'${prop["units"]}$' if prop["units"] != "" else "(no unit)"
