@@ -11,6 +11,7 @@ import virgo.mpi.parallel_sort as ps
 import lustre
 import command_line_args
 import read_vr
+import read_hbtplus
 
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
@@ -28,11 +29,17 @@ if __name__ == "__main__":
         lustre.ensure_output_dir(args.output_file)
     comm.barrier()
 
-    # Find group number for each particle ID in the VR output
-    (length_bound, offset_bound, ids_bound,
-     length_unbound, offset_unbound, ids_unbound) = read_vr.read_vr_lengths_and_offsets(args.vr_basename)
-    grnr_bound, rank_bound = read_vr.vr_group_membership_from_ids(length_bound, offset_bound, ids_bound, return_rank=True)
-    grnr_unbound = read_vr.vr_group_membership_from_ids(length_unbound, offset_unbound, ids_unbound)
+    # Find group number for each particle ID in the halo finder output
+    if args.halo_format == "VR":
+        # Read VELOCIraptor output
+        (ids_bound, grnr_bound, rank_bound, ids_unbound, grnr_unbound) = read_vr.read_vr_groupnr(args.halo_basename)
+    elif args.halo_format == "HBTplus":
+        # Read HBTplus output
+        ids_bound, grnr_bound, rank_bound = read_hbtplus.read_hbtplus_groupnr(args.halo_basename)
+        ids_unbound = None # HBTplus does not output unbound particles
+        grnr_unbound = None
+    else:
+        raise RuntimeError(f"Unrecognised halo finder name: {args.halo_format}")
 
     # Determine SWIFT particle types which exist in the snapshot
     ptypes = []
@@ -60,7 +67,8 @@ if __name__ == "__main__":
         # Allocate array to store SWIFT particle group membership
         swift_grnr_bound   = np.ndarray(len(swift_ids), dtype=grnr_bound.dtype)
         swift_rank_bound   = np.ndarray(len(swift_ids), dtype=rank_bound.dtype)
-        swift_grnr_unbound = np.ndarray(len(swift_ids), dtype=grnr_unbound.dtype)
+        if ids_unbound is not None:
+            swift_grnr_unbound = np.ndarray(len(swift_ids), dtype=grnr_unbound.dtype)
 
         if comm_rank == 0:
             print("  Matching SWIFT particle IDs to VR bound IDs")
@@ -77,16 +85,17 @@ if __name__ == "__main__":
         swift_rank_bound[matched] = ps.fetch_elements(rank_bound, ptr[matched])
         swift_rank_bound[matched==False] = -1
 
-        if comm_rank == 0:
-            print("  Matching SWIFT particle IDs to VR unbound IDs")
-        ptr = ps.parallel_match(swift_ids, ids_unbound)
-        
-        if comm_rank == 0:
-            print("  Assigning VR unbound group membership to SWIFT particles")
-        matched = ptr >= 0
-        swift_grnr_unbound[matched] = ps.fetch_elements(grnr_unbound, ptr[matched])
-        swift_grnr_unbound[matched==False] = -1
-        swift_grnr_all = np.maximum(swift_grnr_bound, swift_grnr_unbound)
+        if ids_unbound is not None:
+            if comm_rank == 0:
+                print("  Matching SWIFT particle IDs to VR unbound IDs")
+            ptr = ps.parallel_match(swift_ids, ids_unbound)
+
+            if comm_rank == 0:
+                print("  Assigning VR unbound group membership to SWIFT particles")
+            matched = ptr >= 0
+            swift_grnr_unbound[matched] = ps.fetch_elements(grnr_unbound, ptr[matched])
+            swift_grnr_unbound[matched==False] = -1
+            swift_grnr_all = np.maximum(swift_grnr_bound, swift_grnr_unbound)
 
         # Determine if we need to create a new output file set
         if create_file:
@@ -119,8 +128,9 @@ if __name__ == "__main__":
             print("  Writing out VR group membership of SWIFT particles")
         elements_per_file = snap_file.get_elements_per_file("ParticleIDs", group=ptype)
         output = {"GroupNr_bound"   : swift_grnr_bound,
-                  "Rank_bound"      : swift_rank_bound,
-                  "GroupNr_all"     : swift_grnr_all}
+                  "Rank_bound"      : swift_rank_bound}
+        if ids_unbound is not None:
+            output["GroupNr_all"] = swift_grnr_all
         snap_file.write(output, elements_per_file, filenames=args.output_file, mode=mode, group=ptype, attrs=attrs)
 
         # Optionally, also write the particle group membership to the specified single file snapshot.
@@ -132,7 +142,8 @@ if __name__ == "__main__":
             vfile = h5py.File(args.update_virtual_file, "r+", driver="mpio", comm=comm)
             virgo.mpi.parallel_hdf5.collective_write(vfile[ptype], prefix+"GroupNr_bound", swift_grnr_bound, comm)
             virgo.mpi.parallel_hdf5.collective_write(vfile[ptype], prefix+"Rank_bound", swift_rank_bound, comm)
-            virgo.mpi.parallel_hdf5.collective_write(vfile[ptype], prefix+"GroupNr_all", swift_grnr_all, comm)
+            if ids_unbound is not None:
+                virgo.mpi.parallel_hdf5.collective_write(vfile[ptype], prefix+"GroupNr_all", swift_grnr_all, comm)
             vfile.close()
 
     comm.barrier()

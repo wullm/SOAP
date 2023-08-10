@@ -157,3 +157,14 @@ def vr_group_membership_from_ids(length, offset, ids, max_nr_particles=None, ret
     # Associate a group index to each particle ID
     return virgo.mpi.util.group_index_from_length_and_offset(lengths_to_use, offset, len(ids),
                                                              return_rank=return_rank)
+
+def read_vr_groupnr(basename):
+    """
+    Read VR output and return group number for each particle ID 
+    """
+    (length_bound, offset_bound, ids_bound,
+     length_unbound, offset_unbound, ids_unbound) = read_vr_lengths_and_offsets(args.vr_basename)
+    grnr_bound, rank_bound = vr_group_membership_from_ids(length_bound, offset_bound, ids_bound, return_rank=True)
+    grnr_unbound = vr_group_membership_from_ids(length_unbound, offset_unbound, ids_unbound)
+
+    return ids_bound, grnr_bound, rank_bound, ids_unbound, grnr_unbound
