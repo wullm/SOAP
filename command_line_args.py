@@ -96,6 +96,41 @@ def get_group_membership_args(comm):
     return args
 
 
+def get_hbt_group_membership_args(comm):
+    """
+    Process command line arguments for halo properties program.
+
+    Returns a dict with the argument values, or None on failure.
+    """
+    
+    if comm.Get_rank() == 0:
+
+        os.environ['COLUMNS'] = '80' # Can't detect terminal width when running under MPI?
+
+        parser = ThrowingArgumentParser(description='Compute particle group membership in SWIFT snapshots.')
+        parser.add_argument('swift_filename',
+                            help='Format string to generate snapshot filenames. Use %%(file_nr)d for the file number.')
+        parser.add_argument('hbt_basename',
+                            help='Name of HBT SubSnap files, without trailing .X.hdf5')
+        parser.add_argument('output_file', help='Format string to generate output filenames. Use %%(file_nr)d for the file number.')
+        parser.add_argument("--update-virtual-file", type=str, help="Name of a single file virtual snapshot to write group membership to")
+        parser.add_argument("--output-prefix", type=str, help="Prefix for names of datasets added to virtual file")
+        try:
+            args = parser.parse_args()
+        except ArgumentParserError as e:
+            args = None
+
+    else:
+        args = None
+
+    args = comm.bcast(args)
+    if args is None:
+        MPI.Finalize()
+        sys.exit(0)
+
+    return args
+
+
 def get_match_vr_halos_args(comm):
     """
     Process command line arguments for halo matching program.
