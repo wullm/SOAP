@@ -1,10 +1,13 @@
 #!/bin/env python
 
+import os
+
 import numpy as np
 import h5py
+import unyt
 
 import virgo.mpi.util
-import virgo.mpi.parallel_hdf5
+import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.gather_array as ga
 import virgo.mpi.parallel_sort as ps
 
@@ -23,7 +26,7 @@ def read_vr_datasets(vr_basename, file_type, datasets, return_file_nr=None):
     filename_format = vr_basename+"."+file_type+".%(file_nr)d"
 
     # Open the file
-    vr_file = virgo.mpi.parallel_hdf5.MultiFile(filename_format, file_nr_dataset="Num_of_files")
+    vr_file = phdf5.MultiFile(filename_format, file_nr_dataset="Num_of_files")
 
     # Read the data
     return vr_file.read(datasets, return_file_nr=return_file_nr)
@@ -81,7 +84,7 @@ def read_vr_lengths_and_offsets(vr_basename):
     nr_files = comm.bcast(nr_files)
 
     # Assign files to ranks
-    files_on_rank = virgo.mpi.parallel_hdf5.assign_files(nr_files, comm_size)    
+    files_on_rank = phdf5.assign_files(nr_files, comm_size)    
     first_file = np.cumsum(files_on_rank) - files_on_rank
 
     # Loop over files on this rank and read numbers of bound, unbound IDs
@@ -163,8 +166,140 @@ def read_vr_groupnr(basename):
     Read VR output and return group number for each particle ID 
     """
     (length_bound, offset_bound, ids_bound,
-     length_unbound, offset_unbound, ids_unbound) = read_vr_lengths_and_offsets(args.vr_basename)
+     length_unbound, offset_unbound, ids_unbound) = read_vr_lengths_and_offsets(basename)
     grnr_bound, rank_bound = vr_group_membership_from_ids(length_bound, offset_bound, ids_bound, return_rank=True)
     grnr_unbound = vr_group_membership_from_ids(length_unbound, offset_unbound, ids_unbound)
 
     return ids_bound, grnr_bound, rank_bound, ids_unbound, grnr_unbound
+
+
+def read_vr_catalogue(comm, basename, a_unit, registry, boxsize):
+    """
+    Read in the VR halo catalogue, distributed over communicator comm.
+
+    comm     - communicator to distribute catalogue over
+    basename - VR filename without the .properties.* suffix
+    a_unit   - unyt a factor
+    registry - unyt unit registry
+    boxsize  - box size as a unyt quantity
+
+    Returns a dict of unyt arrays with the halo properies.
+    Arrays which must always be returned:
+
+    ID    - an identifier for each halo in the snapshot
+    index - index of each halo in the input catalogue
+    cofp  - (N,3) array with centre to use for SO calculations
+    search_radius - initial search radius which includes all member particles
+    """
+
+    # Get SWIFT's definition of physical and comoving Mpc units
+    swift_pmpc = unyt.Unit("swift_mpc",       registry=registry)
+    swift_cmpc = unyt.Unit(a_unit*swift_pmpc, registry=registry)
+    swift_msun = unyt.Unit("swift_msun",      registry=registry)
+    
+    # Get expansion factor as a float
+    a = a_unit.base_value
+
+    # Datasets we need to read from the .properties files
+    datasets = ("Xcminpot", "Ycminpot", "Zcminpot", "Xc", "Yc", "Zc",
+                "R_size", "Structuretype", "ID", "npart", "hostHaloID", "numSubStruct")
+
+    # Check for single file VR output - will prefer filename without
+    # extension if both are present
+    vr_basename_props = f"{basename}.properties"
+    if comm_rank == 0:
+        if os.path.exists(vr_basename_props):
+            filenames = vr_basename_props
+        else:
+            filenames = vr_basename_props+".%(file_nr)d"
+    else:
+        filenames = None
+    filenames = comm.bcast(filenames)
+
+    # Read in positions and radius of each halo, distributed over all MPI ranks
+    mf = phdf5.MultiFile(filenames, file_nr_dataset="Num_of_files")
+    local_halo = mf.read(datasets)
+
+    # Read parent halo ID from the .catalog_groups files
+    vr_basename_groups = f"{basename}.catalog_groups"
+    if comm_rank == 0:
+        if os.path.exists(vr_basename_groups):
+            group_filenames = vr_basename_groups
+        else:
+            group_filenames = vr_basename_groups+".%(file_nr)d"
+    else:
+        group_filenames = None
+    group_filenames = comm.bcast(group_filenames)
+    mf = phdf5.MultiFile(group_filenames, file_nr_dataset="Num_of_files")
+    local_halo.update(mf.read(["Parent_halo_ID"]))
+
+    # Compute array index of each halo
+    nr_local = local_halo["ID"].shape[0]
+    offset = comm.scan(nr_local) - nr_local
+    local_halo["index"] = np.arange(offset, offset+nr_local, dtype=int)
+
+    # Combine positions into one array each
+    local_halo["cofm"] = np.column_stack((local_halo["Xc"], local_halo["Yc"], local_halo["Zc"]))
+    del local_halo["Xc"]
+    del local_halo["Yc"]
+    del local_halo["Zc"]
+    local_halo["cofp"] = np.column_stack((local_halo["Xcminpot"], local_halo["Ycminpot"], local_halo["Zcminpot"]))
+    del local_halo["Xcminpot"]
+    del local_halo["Ycminpot"]
+    del local_halo["Zcminpot"]
+
+    # Extract unit information from the first file
+    if comm_rank == 0:
+        filename = filenames % {"file_nr" : 0}
+        with h5py.File(filename, "r") as infile:
+            units = dict(infile["UnitInfo"].attrs)
+            siminfo = dict(infile["SimulationInfo"].attrs)
+    else:
+        units = None
+        siminfo = None
+    units, siminfo = comm.bcast((units, siminfo))
+
+    # Compute conversion factors to comoving Mpc (no h)
+    comoving_or_physical = int(units["Comoving_or_Physical"])
+    length_unit_to_kpc = float(units["Length_unit_to_kpc"])
+    h = float(siminfo["h_val"])
+    if comoving_or_physical == 0:
+        # File contains physical units with no h factor
+        length_conversion = (1.0/a) * length_unit_to_kpc / 1000.0 # to comoving Mpc
+    else:
+        # File contains comoving 1/h units
+        length_conversion = h * length_unit_to_kpc / 1000.0 # to comoving Mpc
+
+    # Convert units and wrap in unyt_arrays
+    for name in local_halo:
+        dtype = local_halo[name].dtype
+        if name in ("cofm", "cofp", "R_size"):
+            conv_fac = length_conversion
+            units = swift_cmpc
+        elif name in ("Structuretype", "ID", "index", "npart", "hostHaloID", "numSubStruct", "Parent_halo_ID"):
+            conv_fac = None
+            units = unyt.dimensionless
+        else:
+            raise Exception("Unrecognized property name: "+name)
+        if conv_fac is not None:
+            local_halo[name] = unyt.unyt_array(local_halo[name]*conv_fac, units=units, dtype=dtype, registry=registry)
+        else:
+            local_halo[name] = unyt.unyt_array(local_halo[name], units=units, dtype=dtype, registry=registry)
+
+    # Compute initial search radius for each halo:
+    #
+    # Need to ensure that our radius about the potential minimum
+    # includes all particles within r_size of the centre of mass.
+    #
+    # Find distance from centre of mass to centre of potential,
+    # taking the periodic box into account
+    dist = np.abs(local_halo["cofp"] - local_halo["cofm"])
+    for dim in range(3):
+        need_wrap = dist[:,dim] > 0.5*boxsize
+        dist[need_wrap, dim] = boxsize - dist[need_wrap, dim]
+    dist = np.sqrt(np.sum(dist**2, axis=1))
+
+    # Store the initial search radius
+    local_halo["search_radius"] = (local_halo["R_size"]*1.01 + dist)
+
+    return local_halo

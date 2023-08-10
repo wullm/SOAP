@@ -70,7 +70,8 @@ def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
             cellgrid.write_metadata(outfile.create_group("SWIFT"))
             params = outfile.create_group("Parameters")
             params.attrs["swift_filename"] = args.swift_filename
-            params.attrs["vr_basename"] = args.vr_basename
+            params.attrs["halo_basename"] = args.halo_basename
+            params.attrs["halo_format"] = args.halo_format
             params.attrs["snapshot_nr"] = args.snapshot_nr
             params.attrs["centrals_only"] = 0 if args.centrals_only == False else 1
             calc_names = sorted([hp.name for hp in halo_prop_list])

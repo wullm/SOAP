@@ -361,10 +361,11 @@ def compute_halo_properties():
 
     # Read in the halo catalogue:
     # All ranks read the file(s) in then gather to rank 0. Also computes search radius for each halo.
-    vr_basename = sub_snapnum(args.vr_basename, args.snapshot_nr)
+    halo_basename = sub_snapnum(args.halo_basename, args.snapshot_nr)
     so_cat = halo_centres.SOCatalogue(
         comm_world,
-        vr_basename,
+        halo_basename,
+        args.halo_format,
         cellgrid.a_unit,
         cellgrid.snap_unit_registry,
         cellgrid.boxsize,
