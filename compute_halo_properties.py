@@ -393,11 +393,11 @@ def compute_halo_properties():
     t1 = time.time()
     if comm_world_rank == 0:
         print(
-            "Reading %d VR halos and setting up %d chunk(s) took %.1fs"
+            "Reading %d input halos and setting up %d chunk(s) took %.1fs"
             % (so_cat.nr_halos, len(tasks), t1 - t0)
         )
 
-    # We no longer need the VR catalogue, since halo centres etc are stored in the chunk tasks
+    # We no longer need the catalogue, since halo centres etc are stored in the chunk tasks
     del so_cat
 
     # Make a format string to generate the name of the file each chunk task will write to
@@ -493,7 +493,7 @@ def compute_halo_properties():
 
 
 if __name__ == "__main__":
-
+    
     try:
         compute_halo_properties()
     except SystemExit as e:

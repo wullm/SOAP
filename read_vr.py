@@ -186,10 +186,13 @@ def read_vr_catalogue(comm, basename, a_unit, registry, boxsize):
     Returns a dict of unyt arrays with the halo properies.
     Arrays which must always be returned:
 
-    ID    - an identifier for each halo in the snapshot
     index - index of each halo in the input catalogue
     cofp  - (N,3) array with centre to use for SO calculations
     search_radius - initial search radius which includes all member particles
+    is_central - integer 1 for centrals, 0 for satellites
+
+    Any other arrays will be passed through to the output ONLY IF they are
+    documented in property_table.py.
     """
 
     # Get SWIFT's definition of physical and comoving Mpc units
@@ -259,6 +262,10 @@ def read_vr_catalogue(comm, basename, a_unit, registry, boxsize):
         siminfo = None
     units, siminfo = comm.bcast((units, siminfo))
 
+    # Make central halo flag
+    local_halo["is_central"] = np.zeros(len(local_halo["index"]), dtype=np.int32)
+    local_halo["is_central"][local_halo["Structuretype"]==10] = 1
+
     # Compute conversion factors to comoving Mpc (no h)
     comoving_or_physical = int(units["Comoving_or_Physical"])
     length_unit_to_kpc = float(units["Length_unit_to_kpc"])
@@ -276,7 +283,7 @@ def read_vr_catalogue(comm, basename, a_unit, registry, boxsize):
         if name in ("cofm", "cofp", "R_size"):
             conv_fac = length_conversion
             units = swift_cmpc
-        elif name in ("Structuretype", "ID", "index", "npart", "hostHaloID", "numSubStruct", "Parent_halo_ID"):
+        elif name in ("Structuretype", "ID", "index", "npart", "hostHaloID", "numSubStruct", "Parent_halo_ID", "is_central"):
             conv_fac = None
             units = unyt.dimensionless
         else:

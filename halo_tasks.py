@@ -184,26 +184,16 @@ def process_single_halo(
     if target_density is None:
         target_density = density * 0.0
 
-    # Add the halo index to the result set
-    for vrkey in PropertyTable.vr_properties:
-        vrprops = PropertyTable.full_property_list[f"VR{vrkey}"]
-        vrname = vrprops[0]
-        vrdescription = vrprops[4]
-        halo_result[f"VR/{vrname}"] = (input_halo[vrkey], vrdescription)
-
-    # Store search radius and density within that radius
-    halo_result["SearchRadius/search_radius"] = (
-        current_radius,
-        "Search radius for property calculation",
-    )
-    halo_result["SearchRadius/density_in_search_radius"] = (
-        density.to(snap_density),
-        "Density within the search radius",
-    )
-    halo_result["SearchRadius/target_density"] = (
-        target_density.to(snap_density),
-        "Target density for property calculation",
-    )
+    # Store input halo quantites
+    for name in input_halo:
+        if name not in ("done", "task_id"):
+            try:
+                props = PropertyTable.full_property_list[name]
+            except KeyError:
+                description = "No description available"
+            else:
+                description = props[4]
+            halo_result[f"InputHalos/{name}"] = (input_halo[name], description)
 
     return halo_result
 

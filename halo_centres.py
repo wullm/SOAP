@@ -57,10 +57,21 @@ class SOCatalogue:
         physical_radius_mpc = unyt.unyt_quantity(physical_radius_mpc, units=swift_pmpc)
 
         # Read the input halo catalogue
+        common_props = ("index", "cofp", "search_radius", "is_central")
         if halo_format == "VR":
-            local_halo = read_vr.read_vr_catalogue(comm, halo_basename, a_unit, registry, boxsize)
+            halo_data = read_vr.read_vr_catalogue(comm, halo_basename, a_unit, registry, boxsize)
         else:
             raise RuntimeError(f"Halo format {format} not recognised!")
+
+        # Add halo finder prefix to halo finder specific quantities:
+        # This in case different finders use the same property names.
+        local_halo = {}
+        for name in halo_data:
+            if name in common_props:
+                local_halo[name] = halo_data[name]
+            else:
+                local_halo[f"{halo_format}/{name}"] = halo_data[name]
+        del halo_data
 
         # Assign halos to chunk tasks
         task_id = domain_decomposition.peano_decomposition(boxsize, local_halo["cofp"], nr_chunks, comm)
@@ -78,7 +89,7 @@ class SOCatalogue:
 
         # Discard satellites, if necessary
         if centrals_only:
-            keep = local_halo["Structuretype"] == 10
+            keep = local_halo["is_central"] != 0
             for name in local_halo:
                 local_halo[name] = local_halo[name][keep,...]
         

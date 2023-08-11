@@ -33,11 +33,11 @@ def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
         scratch_file_format, file_idx=range(nr_chunks), comm=comm_world
     )
 
-    # Read the VR halo IDs from the scratch files and make a sorting index to put them in order
+    # Read the halo index from the scratch files and make a sorting index to put them in order
     with MPITimer("Establishing ID ordering of halos", comm_world):
-        vr_id = scratch_file.read(("VR/ID",))["VR/ID"]
-        order = psort.parallel_sort(vr_id, return_index=True, comm=comm_world)
-        del vr_id
+        halo_index = scratch_file.read("InputHalos/index")
+        order = psort.parallel_sort(halo_index, return_index=True, comm=comm_world)
+        del halo_index
 
     # Determine total number of halos
     total_nr_halos = comm_world.allreduce(len(order))
