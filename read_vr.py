@@ -190,7 +190,9 @@ def read_vr_catalogue(comm, basename, a_unit, registry, boxsize):
     cofp  - (N,3) array with centre to use for SO calculations
     search_radius - initial search radius which includes all member particles
     is_central - integer 1 for centrals, 0 for satellites
-
+    nr_bound_part - number of bound particles in each halo
+    nr_unbound_part - number of unbound particles in each halo
+    
     Any other arrays will be passed through to the output ONLY IF they are
     documented in property_table.py.
     """
@@ -203,39 +205,38 @@ def read_vr_catalogue(comm, basename, a_unit, registry, boxsize):
     # Get expansion factor as a float
     a = a_unit.base_value
 
+    # Check for single file VR output
+    if comm_rank == 0:
+        if os.path.exists(f"{basename}.properties"):
+            suffix = ""
+        else:
+            suffix = ".%(file_nr)d"
+    else:
+        suffix = None
+    suffix = comm.bcast(suffix)
+
+    def vr_filename(file_type, file_nr=None):
+        basename = f"{basename}.{file_type}"
+        if file_nr is not None:
+            return basename+(suffix % {"file_nr" : file_nr})
+        else:
+            return basename+suffix
+                        
     # Datasets we need to read from the .properties files
     datasets = ("Xcminpot", "Ycminpot", "Zcminpot", "Xc", "Yc", "Zc",
                 "R_size", "Structuretype", "ID", "npart", "hostHaloID", "numSubStruct")
 
-    # Check for single file VR output - will prefer filename without
-    # extension if both are present
-    vr_basename_props = f"{basename}.properties"
-    if comm_rank == 0:
-        if os.path.exists(vr_basename_props):
-            filenames = vr_basename_props
-        else:
-            filenames = vr_basename_props+".%(file_nr)d"
-    else:
-        filenames = None
-    filenames = comm.bcast(filenames)
-
     # Read in positions and radius of each halo, distributed over all MPI ranks
-    mf = phdf5.MultiFile(filenames, file_nr_dataset="Num_of_files")
+    mf = phdf5.MultiFile(vr_filename("properties"), file_nr_dataset="Num_of_files")
     local_halo = mf.read(datasets)
 
-    # Read parent halo ID from the .catalog_groups files
-    vr_basename_groups = f"{basename}.catalog_groups"
-    if comm_rank == 0:
-        if os.path.exists(vr_basename_groups):
-            group_filenames = vr_basename_groups
-        else:
-            group_filenames = vr_basename_groups+".%(file_nr)d"
-    else:
-        group_filenames = None
-    group_filenames = comm.bcast(group_filenames)
-    mf = phdf5.MultiFile(group_filenames, file_nr_dataset="Num_of_files")
-    local_halo.update(mf.read(["Parent_halo_ID"]))
+    # Read numbers of bound and unbound particles in each halo
+    local_halo["nr_bound_part"], local_halo["nr_unbound_part"] = read_vr_group_sizes(basename, suffix, comm)
 
+    # Read parent halo ID from the .catalog_groups files
+    mf = phdf5.MultiFile(vr_filename("catalog_groups"), file_nr_dataset="Num_of_files")
+    local_halo.update(mf.read(["Parent_halo_ID"]))
+    
     # Compute array index of each halo
     nr_local = local_halo["ID"].shape[0]
     offset = comm.scan(nr_local) - nr_local
@@ -253,7 +254,7 @@ def read_vr_catalogue(comm, basename, a_unit, registry, boxsize):
 
     # Extract unit information from the first file
     if comm_rank == 0:
-        filename = filenames % {"file_nr" : 0}
+        filename = vr_filename("properties", 0)
         with h5py.File(filename, "r") as infile:
             units = dict(infile["UnitInfo"].attrs)
             siminfo = dict(infile["SimulationInfo"].attrs)
@@ -283,7 +284,9 @@ def read_vr_catalogue(comm, basename, a_unit, registry, boxsize):
         if name in ("cofm", "cofp", "R_size"):
             conv_fac = length_conversion
             units = swift_cmpc
-        elif name in ("Structuretype", "ID", "index", "npart", "hostHaloID", "numSubStruct", "Parent_halo_ID", "is_central"):
+        elif name in ("Structuretype", "ID", "index", "npart", "hostHaloID",
+                      "numSubStruct", "Parent_halo_ID", "is_central",
+                      "nr_bound_part", "nr_unbound_part"):
             conv_fac = None
             units = unyt.dimensionless
         else:
