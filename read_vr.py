@@ -17,6 +17,8 @@ comm = MPI.COMM_WORLD
 comm_rank = comm.Get_rank()
 comm_size = comm.Get_size()
 
+from read_vr_group_sizes import read_vr_group_sizes
+
 
 def read_vr_datasets(vr_basename, file_type, datasets, return_file_nr=None):
     """
@@ -216,11 +218,11 @@ def read_vr_catalogue(comm, basename, a_unit, registry, boxsize):
     suffix = comm.bcast(suffix)
 
     def vr_filename(file_type, file_nr=None):
-        basename = f"{basename}.{file_type}"
+        filebase = f"{basename}.{file_type}"
         if file_nr is not None:
-            return basename+(suffix % {"file_nr" : file_nr})
+            return filebase+(suffix % {"file_nr" : file_nr})
         else:
-            return basename+suffix
+            return filebase+suffix
                         
     # Datasets we need to read from the .properties files
     datasets = ("Xcminpot", "Ycminpot", "Zcminpot", "Xc", "Yc", "Zc",

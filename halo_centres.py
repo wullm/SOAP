@@ -57,7 +57,7 @@ class SOCatalogue:
         physical_radius_mpc = unyt.unyt_quantity(physical_radius_mpc, units=swift_pmpc)
 
         # Read the input halo catalogue
-        common_props = ("index", "cofp", "search_radius", "is_central")
+        common_props = ("index", "cofp", "search_radius", "is_central", "nr_bound_part", "nr_unbound_part")
         if halo_format == "VR":
             halo_data = read_vr.read_vr_catalogue(comm, halo_basename, a_unit, registry, boxsize)
         else:
