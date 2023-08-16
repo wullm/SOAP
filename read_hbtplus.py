@@ -1,12 +1,11 @@
 #!/bin/env python
 
+import os.path
 import numpy as np
 import h5py
+import unyt
 
-from mpi4py import MPI
-comm = MPI.COMM_WORLD
-comm_rank = comm.Get_rank()
-comm_size = comm.Get_size()
+import virgo.mpi.parallel_hdf5 as phdf5
 
 
 def hbt_filename(hbt_basename, file_nr):
@@ -17,6 +16,12 @@ def read_hbtplus_groupnr(basename):
     """
     Read HBTplus output and return group number for each particle ID
     """
+
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+    comm_rank = comm.Get_rank()
+    comm_size = comm.Get_size()
+
     # Find number of HBT output files
     if comm_rank == 0:
         with h5py.File(hbt_filename(basename, 0), "r") as infile:
@@ -62,3 +67,94 @@ def read_hbtplus_groupnr(basename):
     assert np.all(rank_bound >= 0) # HBT only outputs bound particles
 
     return ids_bound, grnr_bound, rank_bound
+
+
+def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize):
+    """
+    Read in the HBTplus halo catalogue, distributed over communicator comm.
+
+    comm     - communicator to distribute catalogue over
+    basename - HBTPlus SubSnap filename without the .N suffix
+    a_unit   - unyt a factor
+    registry - unyt unit registry
+    boxsize  - box size as a unyt quantity
+
+    Returns a dict of unyt arrays with the halo properies.
+    Arrays which must always be returned:
+
+    index - index of each halo in the input catalogue
+    cofp  - (N,3) array with centre to use for SO calculations
+    search_radius - initial search radius which includes all member particles
+    is_central - integer 1 for centrals, 0 for satellites
+    nr_bound_part - number of bound particles in each halo
+    
+    Any other arrays will be passed through to the output ONLY IF they are
+    documented in property_table.py.
+
+    Note that in case of HBT we only want to compute properties of resolved
+    halos, so we discard those with 0-1 bound particles.
+    """
+
+    comm_size = com.Get_rank()    
+    comm_rank = com.Get_size()
+    
+    # Get SWIFT's definition of physical and comoving Mpc units
+    swift_pmpc = unyt.Unit("swift_mpc",       registry=registry)
+    swift_cmpc = unyt.Unit(a_unit*swift_pmpc, registry=registry)
+    swift_msun = unyt.Unit("swift_msun",      registry=registry)
+    
+    # Get expansion factor as a float
+    a = a_unit.base_value
+
+    # Get HBTplus unit information
+    if comm_rank == 0:
+        filename = f"{hbtdir}.0"
+        with h5py.File(filename, "r") as infile:
+            LengthInMpch = float(infile["LengthInMpch"][...])
+            MassInMsunh  = float(infile["MassInMsunh"][...])
+            VelInKmS     = float(infile["VelInKmS"][...])
+            h            = float(infile["Cosmology/HubbleParam"][...])
+    else:
+        LengthInMpch = None
+        MassInMsunh  = None
+        VelInKmS     = None
+        h            = None
+    (LengthInMpch, MassInMsunh, VelInKmS, h) = comm.bcast((LengthInMpch, MassInMsunh, VelInKmS, h))
+
+    # Read the subhalos for this snapshot
+    filename = f"{hbtdir}.%(file_nr)d"
+    mf = phdf5.MultiFile(filename, file_nr_dataset="NumberOfFiles", comm=comm)
+    subhalo = mf.read("Subhalos")
+
+    # Only process resolved subhalos (HBTplus also outputs unresolved "orphan" subhalos)
+    keep = subhalo["Nbound"] > 1
+    
+    # Assign indexes to halos: for each halo we're going to process we store the
+    # position in the input catalogue.
+    nr_local_halos = len(keep)
+    local_offset = comm.scan(nr_local_halos) - nr_local_halos
+    index = np.arange(nr_local_halos, dtype=int) + local_offset
+    index = index[keep]
+
+    # Find centre of potential
+    cofp = (subhalo["ComovingMostBoundPosition"][keep,:] * LengthInMpch / h) * swift_cmpc
+
+    # Initial guess at search radius for each halo - twice the half mass radius.
+    # Search radius will be expanded if we don't find all of the bound particles.
+    rsearch = 2.0*(subhalo["RHalfComoving"][keep] * LengthInMpch / h) * swift_cmpc
+
+    # Central halo flag
+    is_central = np.where(subhalo["Rank"]==0, 1, 0)[keep]
+    is_central = unyt.unyt_array(is_central, units=unyt.dimensionless, dtype=int, registry=registry)
+    
+    # Number of bound particles
+    nr_bound_part = subhalo["Nbound"][keep]
+    nr_bound_part = unyt.unyt_array(nr_bound_part, units=unyt.dimensionless, dtype=int, registry=registry)
+
+    local_halo = {
+        "cofp"          : cofp,
+        "rsearch"       : rsearch,
+        "is_central"    : is_central,
+        "nr_bound_part" : nr_bound_part,
+    }
+    return local_halo

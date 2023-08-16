@@ -60,6 +60,8 @@ class SOCatalogue:
         common_props = ("index", "cofp", "search_radius", "is_central", "nr_bound_part", "nr_unbound_part")
         if halo_format == "VR":
             halo_data = read_vr.read_vr_catalogue(comm, halo_basename, a_unit, registry, boxsize)
+        elif halo_format == "HBTplus":
+            halo_data = read_hbtplus.read_hbtplus_catalogue(comm, halo_basename, a_unit, registry, boxsize)            
         else:
             raise RuntimeError(f"Halo format {format} not recognised!")
 

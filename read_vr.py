@@ -199,6 +199,9 @@ def read_vr_catalogue(comm, basename, a_unit, registry, boxsize):
     documented in property_table.py.
     """
 
+    comm_rank = comm.Get_rank()
+    comm_size = comm.Get_size()
+    
     # Get SWIFT's definition of physical and comoving Mpc units
     swift_pmpc = unyt.Unit("swift_mpc",       registry=registry)
     swift_cmpc = unyt.Unit(a_unit*swift_pmpc, registry=registry)
