@@ -11,7 +11,17 @@ import virgo.mpi.parallel_hdf5 as phdf5
 
 
 def locate_files(basename):
+    """
+    Generate format strings for Gadget-4 snapshot and fof_subhalo_tab files,
+    given the path to a snapshot file without the trailing .N.hdf5.
 
+    Assumes we have a filenames along the lines of
+
+    snapdir_XXX/snap_basename_XXX.0.hdf5
+    ...
+    groups_XXX/fof_subhalo_tab_XXX.0.hdf5
+    ...
+    """
     snap_format_string = basename+".%(file_nr)d.hdf5"
 
     # Check that the first snapshot file exists
@@ -95,4 +105,91 @@ def read_gadget4_groupnr(basename):
     return np.concatenate(all_ids), np.concatenate(all_grnr)
 
 
+def read_gadget4_catalogue(comm, basename, a_unit, registry, boxsize):
+    """
+    Read in the GAdget-4 halo catalogue, distributed over communicator comm.
+
+    comm     - communicator to distribute catalogue over
+    basename - HBTPlus SubSnap filename without the .N suffix
+    a_unit   - unyt a factor
+    registry - unyt unit registry
+    boxsize  - box size as a unyt quantity
+
+    Returns a dict of unyt arrays with the halo properies.
+    Arrays which must always be returned:
+
+    index - index of each halo in the input catalogue
+    cofp  - (N,3) array with centre to use for SO calculations
+    search_radius - initial search radius which includes all member particles
+    is_central - integer 1 for centrals, 0 for satellites
+    nr_bound_part - number of bound particles in each halo
+    
+    Any other arrays will be passed through to the output ONLY IF they are
+    documented in property_table.py.
+
+    """
+
+    comm_size = comm.Get_size()    
+    comm_rank = comm.Get_rank()
+    
+    # Get SWIFT's definition of physical and comoving Mpc units
+    swift_pmpc = unyt.Unit("swift_mpc",       registry=registry)
+    swift_cmpc = unyt.Unit(a_unit*swift_pmpc, registry=registry)
+    swift_msun = unyt.Unit("swift_msun",      registry=registry)
+    
+    # Get expansion factor as a float
+    a = a_unit.base_value
+
+    # Locate the snapshot and fof_subhalo_tab files
+    if comm_rank == 0:
+        snap_format_string, group_format_string = locate_files(basename)
+    else:
+        snap_format_string = None
+        group_format_string = None
+    snap_format_string, group_format_string = comm.bcast((snap_format_string, group_format_string))
+    
+    # Get Gadget-4 unit information (only need lengths here)
+    with h5py.File(group_format_string % ("file_nr" : 0), "r") as subtab:
+        length_cgs = float(subtab["Parameters"].attrs["UnitLength_in_cm"])
+
+    # Read halo properties we need
+    datasets = (
+        "SubhaloPos",
+        "SubhaloHalfMassRad",
+        "SubhaloRankInGr",
+        "SubhaloLen",
+        )
+    subtab = phdf5.MultiFile(group_format_string, file_nr_attr=("Header","NumFiles"))
+    data = subtab.read(datasets)
+
+    # Assign indexes to the subhalos
+    nr_local_halos = len(data["SubhaloLen"])
+    local_offset = comm.scan(nr_local_halos) - nr_local_halos
+    index = np.arange(nr_local_halos, dtype=int) + local_offset
+    index = unyt.unyt_array(index, dtype=int, units=unyt.dimensionless)
+
+    # Get length unit conversion (ignoring any a factors)
+    gadget_length_unit = length_cgs*unyt.cm
+    length_conversion = (gadget_length_unit / swift_pmpc).to(unyt.dimensionless)
+    
+    # Get position in comoving Mpc, assuming input position from Gadget is comoving
+    cofm = data["SubhaloPos"] * length_conversion * swift_cmpc
+    
+    # Store central halo flag
+    is_central = np.where(data["SubhaloRankInGr"]==0, 1, 0)
+    is_central = unyt.unyt_array(is_central, dtype=int, units=unyt.dimensionless)
+
+    # Store number of bound particles in each halo
+    nr_bound_part = unyt.unyt_array(data["SubhaloLen"], dtype=int, units=unyt.dimensionless)
+
+    # Store initial search radius (TODO: check this is still in physical units, unlike the position)
+    search_radius = data["SubhaloHalfMassRad"] * length_conversion * swift_pmpc # different units from cofm, not a typo!
         
+    local_halo = {
+        "cofp"          : cofp,
+        "index"         : index,
+        "search_radius" : search_radius,
+        "is_central"    : is_central,
+        "nr_bound_part" : nr_bound_part,
+    }
+    return local_halo

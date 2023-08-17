@@ -11,6 +11,7 @@ import virgo.mpi.gather_array as g
 import domain_decomposition
 import read_vr
 import read_hbtplus
+import read_gadget4
 
 
 def gather_to_rank_zero(arr):
@@ -62,7 +63,9 @@ class SOCatalogue:
         if halo_format == "VR":
             halo_data = read_vr.read_vr_catalogue(comm, halo_basename, a_unit, registry, boxsize)
         elif halo_format == "HBTplus":
-            halo_data = read_hbtplus.read_hbtplus_catalogue(comm, halo_basename, a_unit, registry, boxsize)            
+            halo_data = read_hbtplus.read_hbtplus_catalogue(comm, halo_basename, a_unit, registry, boxsize)
+        elif halo_format == "Gadget4":
+            halo_data = read_gadget4.read_hbtplus_catalogue(comm, halo_basename, a_unit, registry, boxsize)
         else:
             raise RuntimeError(f"Halo format {format} not recognised!")
 
