@@ -151,7 +151,7 @@ def compute_halo_properties():
             stellar_age_calculator,
             category_filter,
             bound_only=False,
-        ),
+        ) if args.halo_format=="VR" else None, # Only VR outputs unbound particle info
         subhalo_properties.SubhaloProperties(
             cellgrid,
             recently_heated_gas_filter,
@@ -317,7 +317,8 @@ def compute_halo_properties():
             category_filter,
         ),
     ]
-
+    halo_prop_list = [hp for hp in halo_prop_list if hp is not None]
+    
     # Determine which calculations we're doing this time
     if args.calculations is not None:
 

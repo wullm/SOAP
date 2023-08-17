@@ -95,8 +95,8 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize):
     halos, so we discard those with 0-1 bound particles.
     """
 
-    comm_size = com.Get_rank()    
-    comm_rank = com.Get_size()
+    comm_size = comm.Get_size()    
+    comm_rank = comm.Get_rank()
     
     # Get SWIFT's definition of physical and comoving Mpc units
     swift_pmpc = unyt.Unit("swift_mpc",       registry=registry)
@@ -108,11 +108,11 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize):
 
     # Get HBTplus unit information
     if comm_rank == 0:
-        filename = f"{hbtdir}.0"
+        filename = hbt_filename(basename, 0)
         with h5py.File(filename, "r") as infile:
-            LengthInMpch = float(infile["LengthInMpch"][...])
-            MassInMsunh  = float(infile["MassInMsunh"][...])
-            VelInKmS     = float(infile["VelInKmS"][...])
+            LengthInMpch = float(infile["Units/LengthInMpch"][...])
+            MassInMsunh  = float(infile["Units/MassInMsunh"][...])
+            VelInKmS     = float(infile["Units/VelInKmS"][...])
             h            = float(infile["Cosmology/HubbleParam"][...])
     else:
         LengthInMpch = None
@@ -122,7 +122,7 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize):
     (LengthInMpch, MassInMsunh, VelInKmS, h) = comm.bcast((LengthInMpch, MassInMsunh, VelInKmS, h))
 
     # Read the subhalos for this snapshot
-    filename = f"{hbtdir}.%(file_nr)d"
+    filename = f"{basename}.%(file_nr)d.hdf5"
     mf = phdf5.MultiFile(filename, file_nr_dataset="NumberOfFiles", comm=comm)
     subhalo = mf.read("Subhalos")
 
@@ -135,13 +135,14 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize):
     local_offset = comm.scan(nr_local_halos) - nr_local_halos
     index = np.arange(nr_local_halos, dtype=int) + local_offset
     index = index[keep]
-
+    index = unyt.unyt_array(index, units=unyt.dimensionless, dtype=int, registry=registry)
+        
     # Find centre of potential
     cofp = (subhalo["ComovingMostBoundPosition"][keep,:] * LengthInMpch / h) * swift_cmpc
 
     # Initial guess at search radius for each halo - twice the half mass radius.
     # Search radius will be expanded if we don't find all of the bound particles.
-    rsearch = 2.0*(subhalo["RHalfComoving"][keep] * LengthInMpch / h) * swift_cmpc
+    search_radius = 2.0*(subhalo["RHalfComoving"][keep] * LengthInMpch / h) * swift_cmpc
 
     # Central halo flag
     is_central = np.where(subhalo["Rank"]==0, 1, 0)[keep]
@@ -153,7 +154,8 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize):
 
     local_halo = {
         "cofp"          : cofp,
-        "rsearch"       : rsearch,
+        "index"         : index,
+        "search_radius" : search_radius,
         "is_central"    : is_central,
         "nr_bound_part" : nr_bound_part,
     }

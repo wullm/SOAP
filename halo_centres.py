@@ -10,6 +10,7 @@ import virgo.mpi.gather_array as g
 
 import domain_decomposition
 import read_vr
+import read_hbtplus
 
 
 def gather_to_rank_zero(arr):
