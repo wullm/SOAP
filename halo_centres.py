@@ -141,6 +141,34 @@ class SOCatalogue:
                 local_halo[name] = unyt.unyt_array(local_halo[name]*conv_fac, units=units, dtype=dtype, registry=registry)
             else:
                 local_halo[name] = unyt.unyt_array(local_halo[name], units=units, dtype=dtype, registry=registry)
+        
+        # Only keep halos in the supplied list of halo IDs.
+        if halo_ids is not None:
+            halo_ids = np.asarray(halo_ids, dtype=np.int64)
+            keep = np.zeros_like(local_halo["ID"], dtype=bool)
+            matching_index = virgo.util.match.match(halo_ids, local_halo["ID"])
+            have_match = matching_index >= 0
+            keep[matching_index[have_match]] = True
+            for name in local_halo:
+                local_halo[name] = local_halo[name][keep,...]
+
+        # Discard satellites, if necessary
+        if centrals_only:
+            keep = local_halo["Structuretype"] == 10
+            for name in local_halo:
+                local_halo[name] = local_halo[name][keep,...]
+
+        # For testing: limit number of halos processed
+        if max_halos > 0:
+            nr_halos_local = len(local_halo["ID"])
+            nr_halos_prev = comm.scan(nr_halos_local) - nr_halos_local
+            nr_keep_local = max_halos - nr_halos_prev
+            if nr_keep_local < 0:
+                nr_keep_local = 0
+            if nr_keep_local > nr_halos_local:
+                nr_keep_local = nr_halos_local
+            for name in local_halo:
+                local_halo[name] = local_halo[name][:nr_keep_local,...]
 
         # Assign halos to chunk tasks
         task_id = domain_decomposition.peano_decomposition(boxsize, local_halo["cofp"], nr_chunks, comm)
@@ -174,36 +202,13 @@ class SOCatalogue:
         local_halo["read_radius"] = local_halo["read_radius"].clip(min=physical_radius_mpc)
         local_halo["search_radius"] = local_halo["search_radius"].clip(min=physical_radius_mpc)
 
-        # Discard satellites, if necessary
-        if centrals_only:
-            keep = local_halo["Structuretype"] == 10
-            for name in local_halo:
-                local_halo[name] = local_halo[name][keep,...]
-        
-        # Only keep halos in the supplied list of halo IDs.
-        if halo_ids is not None:
-            halo_ids = np.asarray(halo_ids, dtype=np.int64)
-            keep = np.zeros_like(local_halo["ID"], dtype=bool)
-            matching_index = virgo.util.match.match(halo_ids, local_halo["ID"])
-            have_match = matching_index >= 0
-            keep[matching_index[have_match]] = True
-            for name in local_halo:
-                local_halo[name] = local_halo[name][keep,...]
-
         # Gather subhalo arrays on rank zero.
         halo = {}
         for name in local_halo:
             halo[name] = gather_to_rank_zero(local_halo[name])
         del local_halo
 
-        # For testing: limit number of halos
-        if comm_rank == 0 and max_halos > 0:
-            for name in halo:
-                halo[name] = halo[name][:max_halos,...]
-
         # Rank 0 stores the subhalo catalogue
         if comm_rank == 0:
             self.nr_halos = len(halo["search_radius"])
             self.halo_arrays = halo
-
-

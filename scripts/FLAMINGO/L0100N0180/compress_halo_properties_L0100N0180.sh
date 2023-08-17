@@ -11,11 +11,11 @@
 #
 # cd SOAP
 # mkdir logs
-# sbatch -J HYDRO_FIDUCIAL --array=0-77%4 ./scripts/FLAMINGO/L1000N0900/compress_halo_properties_L1000N0900.sh
+# sbatch -J HYDRO_FIDUCIAL --array=6 ./scripts/FLAMINGO/L0100N0180/compress_halo_properties_L0100N0180.sh
 #
 #SBATCH --ntasks=128
 #SBATCH --cpus-per-task=1
-#SBATCH -o ./logs/compress_properties_L1000N0900_%x.%a.out
+#SBATCH -o ./logs/compress_properties_L0100N0180_%x.%a.out
 #SBATCH -p cosma8
 #SBATCH -A dp004
 #SBATCH --exclusive
@@ -46,7 +46,7 @@ fi
 snapnum=`printf '%04d' ${SLURM_ARRAY_TASK_ID}`
 
 # Which simulation to do
-sim="L1000N0900/${SLURM_JOB_NAME}"
+sim="L0100N0180/${SLURM_JOB_NAME}"
 
 # compression script
 script="./compression/compress_fast_metadata.py"
