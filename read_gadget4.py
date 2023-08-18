@@ -149,7 +149,7 @@ def read_gadget4_catalogue(comm, basename, a_unit, registry, boxsize):
     snap_format_string, group_format_string = comm.bcast((snap_format_string, group_format_string))
     
     # Get Gadget-4 unit information (only need lengths here)
-    with h5py.File(group_format_string % ("file_nr" : 0), "r") as subtab:
+    with h5py.File(group_format_string % {"file_nr" : 0}, "r") as subtab:
         length_cgs = float(subtab["Parameters"].attrs["UnitLength_in_cm"])
 
     # Read halo properties we need
