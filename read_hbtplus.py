@@ -106,6 +106,9 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize):
     # Get expansion factor as a float
     a = a_unit.base_value
 
+    # Get h as a float
+    h = h_unit.base_value
+    
     # Get HBTplus unit information
     if comm_rank == 0:
         filename = hbt_filename(basename, 0)
@@ -113,13 +116,11 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize):
             LengthInMpch = float(infile["Units/LengthInMpch"][...])
             MassInMsunh  = float(infile["Units/MassInMsunh"][...])
             VelInKmS     = float(infile["Units/VelInKmS"][...])
-            h            = float(infile["Cosmology/HubbleParam"][...])
     else:
         LengthInMpch = None
         MassInMsunh  = None
         VelInKmS     = None
-        h            = None
-    (LengthInMpch, MassInMsunh, VelInKmS, h) = comm.bcast((LengthInMpch, MassInMsunh, VelInKmS, h))
+    (LengthInMpch, MassInMsunh, VelInKmS) = comm.bcast((LengthInMpch, MassInMsunh, VelInKmS))
 
     # Read the subhalos for this snapshot
     filename = f"{basename}.%(file_nr)d.hdf5"
