@@ -6,18 +6,18 @@
 # export FLAMINGO_SCRATCH_DIR=/snap8/scratch/dp004/${USER}/FLAMINGO/ScienceRuns/
 # export FLAMINGO_OUTPUT_DIR=/cosma8/data/dp004/${USER}/FLAMINGO/ScienceRuns/
 #
-# Job name determines which of the L1000N3600 runs we process.
+# Job name determines which of the L0100N0180 runs we process.
 # Array job index is the snapshot number to do.
 #
 # Submit with (for example):
 #
 # cd SOAP
 # mkdir logs
-# sbatch -J HYDRO_FIDUCIAL --array=0-78%4 ./scripts/FLAMINGO/L1000N3600/group_membership_L1000N3600.sh
+# sbatch -J HYDRO_FIDUCIAL --array=6 ./scripts/FLAMINGO/L0100N0180/group_membership_L0100N0180.sh
 #
-#SBATCH --nodes=4
+#SBATCH --nodes=1
 #SBATCH --cpus-per-task=1
-#SBATCH -o ./logs/group_membership_L1000N3600_%x.%a.out
+#SBATCH -o ./logs/group_membership_L1000N1800_%x.%a.out
 #SBATCH -p cosma8
 #SBATCH -A dp004
 #SBATCH --exclusive
@@ -47,7 +47,7 @@ fi
 snapnum=`printf '%04d' ${SLURM_ARRAY_TASK_ID}`
 
 # Which simulation to do
-sim="L1000N3600/${SLURM_JOB_NAME}"
+sim="L0100N0180/${SLURM_JOB_NAME}"
 
 # Input simulation location
 basedir="/cosma8/data/dp004/flamingo/Runs/${sim}/"
@@ -56,8 +56,8 @@ basedir="/cosma8/data/dp004/flamingo/Runs/${sim}/"
 outbase="${scratch_dir}/${sim}/SOAP_uncompressed/"
 
 # Generate input and output file names
-swift_filename="${basedir}/snapshots/flamingo_${snapnum}/flamingo_${snapnum}.%(file_nr)d.hdf5"
-vr_basename="${basedir}/VR/catalogue_${snapnum}/vr_catalogue_${snapnum}"
+swift_filename="${basedir}/snapshots/flamingo_${snapnum}.hdf5"
+vr_basename="${basedir}/VR/halos_${snapnum}"
 outfile="${outbase}/membership_${snapnum}/membership_${snapnum}.%(file_nr)d.hdf5"
 
 # Create output directory
