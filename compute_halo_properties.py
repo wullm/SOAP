@@ -150,15 +150,15 @@ def compute_halo_properties():
             recently_heated_gas_filter,
             stellar_age_calculator,
             category_filter,
-            bound_only=False,
-        ) if args.halo_format=="VR" else None, # Only VR outputs unbound particle info
+            bound_only=True,
+        ),
         subhalo_properties.SubhaloProperties(
             cellgrid,
             recently_heated_gas_filter,
             stellar_age_calculator,
             category_filter,
-            bound_only=True,
-        ),
+            bound_only=False,
+        ) if args.halo_format=="VR" else None, # Only VR outputs unbound particle info
         SO_properties.SOProperties(
             cellgrid, recently_heated_gas_filter, category_filter, 200.0, "mean"
         ),

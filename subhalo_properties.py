@@ -899,7 +899,7 @@ class SubhaloProperties(HaloProperty):
             self.filter,
         )
 
-        if not self.bound_only:
+        if self.bound_only:
             # this is the halo that we use for the filter particle numbers,
             # so we have the get the numbers for the category filters manually
             Ngas = part_props.Ngas
