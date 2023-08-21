@@ -107,6 +107,7 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize):
     a = a_unit.base_value
 
     # Get h as a float
+    h_unit = unyt.Unit("h", registry=registry)
     h = h_unit.base_value
     
     # Get HBTplus unit information
