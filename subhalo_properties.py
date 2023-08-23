@@ -961,6 +961,7 @@ class SubhaloProperties(HaloProperty):
             Nexpected = input_halo["nr_bound_part"] + input_halo["nr_unbound_part"]
         if Ntot < Nexpected:
             # Try again with a larger search radius
+            #print(f"Ntot = {Ntot}, Nexpected = {Nexpected}, search_radius = {search_radius}")
             raise ReadRadiusTooSmallError("Search radius does not contain expected number of particles!")
         elif Ntot > Nexpected:
             # This would indicate a bug somewhere

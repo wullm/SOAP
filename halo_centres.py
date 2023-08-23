@@ -65,7 +65,7 @@ class SOCatalogue:
         elif halo_format == "HBTplus":
             halo_data = read_hbtplus.read_hbtplus_catalogue(comm, halo_basename, a_unit, registry, boxsize)
         elif halo_format == "Gadget4":
-            halo_data = read_gadget4.read_hbtplus_catalogue(comm, halo_basename, a_unit, registry, boxsize)
+            halo_data = read_gadget4.read_gadget4_catalogue(comm, halo_basename, a_unit, registry, boxsize)
         else:
             raise RuntimeError(f"Halo format {format} not recognised!")
 
@@ -82,8 +82,8 @@ class SOCatalogue:
         # Only keep halos in the supplied list of halo IDs.
         if halo_ids is not None:
             halo_ids = np.asarray(halo_ids, dtype=np.int64)
-            keep = np.zeros_like(local_halo["ID"], dtype=bool)
-            matching_index = virgo.util.match.match(halo_ids, local_halo["ID"])
+            keep = np.zeros_like(local_halo["index"], dtype=bool)
+            matching_index = virgo.util.match.match(halo_ids, local_halo["index"])
             have_match = matching_index >= 0
             keep[matching_index[have_match]] = True
             for name in local_halo:
@@ -97,7 +97,7 @@ class SOCatalogue:
 
         # For testing: limit number of halos processed
         if max_halos > 0:
-            nr_halos_local = len(local_halo["ID"])
+            nr_halos_local = len(local_halo["index"])
             nr_halos_prev = comm.scan(nr_halos_local) - nr_halos_local
             nr_keep_local = max_halos - nr_halos_prev
             if nr_keep_local < 0:

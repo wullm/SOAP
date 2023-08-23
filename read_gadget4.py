@@ -175,8 +175,8 @@ def read_gadget4_catalogue(comm, basename, a_unit, registry, boxsize):
     index = np.arange(nr_local_halos, dtype=int) + local_offset
     index = unyt.unyt_array(index, dtype=int, units=unyt.dimensionless, registry=registry)
 
-    # Get length unit conversion (ignoring any a factors)
-    gadget_length_unit = length_cgs*unyt.cm*hubbleparam
+    # Get length unit conversion (ignoring any a factors and assuming Gadget uses 1/h units)
+    gadget_length_unit = length_cgs*unyt.cm / hubbleparam
     length_conversion = (gadget_length_unit / swift_pmpc).to(unyt.dimensionless)
     
     # Get position in comoving Mpc, assuming input position from Gadget is comoving
