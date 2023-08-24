@@ -35,6 +35,16 @@ if __name__ == "__main__":
     if args.halo_format == "VR":
         # Read VELOCIraptor output
         (ids_bound, grnr_bound, rank_bound, ids_unbound, grnr_unbound) = read_vr.read_vr_groupnr(args.halo_basename)
+        # Read VR host halo IDs, if required. Will set hostHaloID=ID for main halos.
+        if args.host_ids:
+            host_data = read_vr.read_vr_datasets(args.vr_basename, "properties", ("ID", "hostHaloID",))
+            host_id = host_data["hostHaloID"]
+            is_main = host_id < 0
+            host_id[is_main] = host_data["ID"][is_main]
+            del host_data
+            del is_main
+        else:
+            host_id = None
     elif args.halo_format == "HBTplus":
         # Read HBTplus output
         ids_bound, grnr_bound, rank_bound = read_hbtplus.read_hbtplus_groupnr(args.halo_basename)
@@ -48,15 +58,6 @@ if __name__ == "__main__":
         rank_bound = None
     else:
         raise RuntimeError(f"Unrecognised halo finder name: {args.halo_format}")
-
-    # Read VR host halo IDs, if required. Will set hostHaloID=ID for main halos.
-    if args.host_ids:
-        host_data = read_vr.read_vr_datasets(args.vr_basename, "properties", ("ID", "hostHaloID",))
-        host_id = host_data["hostHaloID"]
-        is_main = host_id < 0
-        host_id[is_main] = host_data["ID"][is_main]
-        del host_data
-        del is_main
 
     # Determine SWIFT particle types which exist in the snapshot
     ptypes = []
@@ -116,13 +117,15 @@ if __name__ == "__main__":
             swift_grnr_unbound[matched==False] = -1
             swift_grnr_all = np.maximum(swift_grnr_bound, swift_grnr_unbound)
 
-        if args.host_ids:
+        if host_ids is not None:
             if comm_rank == 0:
-                print("  Assigning VR host halo membership to SWIFT particles")
+                print("  Assigning host halo membership to SWIFT particles")
             swift_hostnr_all = -np.ones_like(swift_grnr_all)
             in_halo = swift_grnr_all >= 0
             swift_hostnr_all[in_halo] = ps.fetch_elements(host_id, swift_grnr_all[in_halo], comm=comm) - 1
-
+        else:
+            swift_hostnr_all = None
+            
         # Determine if we need to create a new output file set
         if create_file:
             mode="w"
@@ -162,6 +165,8 @@ if __name__ == "__main__":
             output["Rank_bound"] = swift_rank_bound
         if ids_unbound is not None:
             output["GroupNr_all"] = swift_grnr_all
+        if host_ids is not None:
+            output["HostNr_all"] = swift_hostnr_all
         snap_file.write(output, elements_per_file, filenames=args.output_file, mode=mode, group=ptype, attrs=attrs)
 
     # Optionally, also make a virtual snapshot with group membership information
