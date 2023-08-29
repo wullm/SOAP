@@ -9,9 +9,16 @@ import shutil
 
 def make_virtual_snapshot(snapshot, membership, output_file):
     """
-    Given a FLAMINGO snapshot and VR group membership files,
+    Given a FLAMINGO snapshot and group membership files,
     create a new virtual snapshot with group info.
     """
+
+    # Check which datasets exist in the membership files
+    filename = membership % {"file_nr" : file_nr}
+    with h5py.File(filename, "r") as infile:
+        have_grnr_bound = "GroupNr_bound" in infile["PartType1"]
+        have_grnr_all   = "GroupNr_all"   in infile["PartType1"]
+        have_rank_bound = "Rank_bound"    in infile["PartType1"]
     
     # Copy the input virtual snapshot to the output
     shutil.copyfile(snapshot, output_file)
@@ -33,9 +40,9 @@ def make_virtual_snapshot(snapshot, membership, output_file):
                 for ptype in range(7):
                     name = f"PartType{ptype}"
                     if name in infile:
-                        shape[ptype] = infile[name]["GroupNr_all"].shape
+                        shape[ptype] = infile[name]["GroupNr_bound"].shape
                         if dtype is None:
-                            dtype = infile[name]["GroupNr_all"].dtype
+                            dtype = infile[name]["GroupNr_bound"].dtype
                 shapes.append(shape)
         else:
             break
@@ -50,21 +57,30 @@ def make_virtual_snapshot(snapshot, membership, output_file):
             # Create virtual layout for new datasets
             nr_parts = sum([shape[ptype][0] for shape in shapes])
             full_shape = (nr_parts,)
-            layout_grnr_all   = h5py.VirtualLayout(shape=full_shape, dtype=dtype)
-            layout_grnr_bound = h5py.VirtualLayout(shape=full_shape, dtype=dtype)
-            layout_rank_bound = h5py.VirtualLayout(shape=full_shape, dtype=dtype)
+            if have_grnr_all:
+                layout_grnr_all   = h5py.VirtualLayout(shape=full_shape, dtype=dtype)
+            if have_grnr_bound:
+                layout_grnr_bound = h5py.VirtualLayout(shape=full_shape, dtype=dtype)
+            if have_rank_bound:
+                layout_rank_bound = h5py.VirtualLayout(shape=full_shape, dtype=dtype)
             # Loop over input files
             offset = 0
             for (filename, shape) in zip(filenames, shapes):
                 count = shape[ptype][0]
-                layout_grnr_all[offset:offset+count]   = h5py.VirtualSource(filename, f'PartType{ptype}/GroupNr_all', shape=shape[ptype])
-                layout_grnr_bound[offset:offset+count] = h5py.VirtualSource(filename, f'PartType{ptype}/GroupNr_bound', shape=shape[ptype])
-                layout_rank_bound[offset:offset+count] = h5py.VirtualSource(filename, f'PartType{ptype}/Rank_bound', shape=shape[ptype])
+                if have_grnr_all:
+                    layout_grnr_all[offset:offset+count]   = h5py.VirtualSource(filename, f'PartType{ptype}/GroupNr_all', shape=shape[ptype])
+                if have_grnr_bound:
+                    layout_grnr_bound[offset:offset+count] = h5py.VirtualSource(filename, f'PartType{ptype}/GroupNr_bound', shape=shape[ptype])
+                if have_rank_bound:
+                    layout_rank_bound[offset:offset+count] = h5py.VirtualSource(filename, f'PartType{ptype}/Rank_bound', shape=shape[ptype])
                 offset += count
             # Create the virtual datasets
-            outfile.create_virtual_dataset(f'PartType{ptype}/GroupNr_all', layout_grnr_all,   fillvalue=-999)
-            outfile.create_virtual_dataset(f'PartType{ptype}/GroupNr_bound', layout_grnr_bound, fillvalue=-999)
-            outfile.create_virtual_dataset(f'PartType{ptype}/Rank_bound', layout_rank_bound, fillvalue=-999)
+            if have_grnr_all:
+                outfile.create_virtual_dataset(f'PartType{ptype}/GroupNr_all', layout_grnr_all,   fillvalue=-999)
+            if have_grnr_bound:
+                outfile.create_virtual_dataset(f'PartType{ptype}/GroupNr_bound', layout_grnr_bound, fillvalue=-999)
+            if have_rank_bound:
+                outfile.create_virtual_dataset(f'PartType{ptype}/Rank_bound', layout_rank_bound, fillvalue=-999)
     
     # Done
     outfile.close()
