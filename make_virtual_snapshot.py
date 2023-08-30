@@ -14,7 +14,7 @@ def make_virtual_snapshot(snapshot, membership, output_file):
     """
 
     # Check which datasets exist in the membership files
-    filename = membership % {"file_nr" : file_nr}
+    filename = membership % {"file_nr" : 0}
     with h5py.File(filename, "r") as infile:
         have_grnr_bound = "GroupNr_bound" in infile["PartType1"]
         have_grnr_all   = "GroupNr_all"   in infile["PartType1"]
