@@ -50,12 +50,14 @@ if __name__ == "__main__":
         ids_bound, grnr_bound, rank_bound = read_hbtplus.read_hbtplus_groupnr(args.halo_basename)
         ids_unbound = None # HBTplus does not output unbound particles
         grnr_unbound = None
+        host_id = None
     elif args.halo_format == "Gadget4":
         # Read Gadget-4 subfind output
         ids_bound, grnr_bound = read_gadget4.read_gadget4_groupnr(args.halo_basename)
         ids_unbound = None
         grnr_unbound = None
         rank_bound = None
+        host_id = None
     else:
         raise RuntimeError(f"Unrecognised halo finder name: {args.halo_format}")
 
@@ -117,7 +119,7 @@ if __name__ == "__main__":
             swift_grnr_unbound[matched==False] = -1
             swift_grnr_all = np.maximum(swift_grnr_bound, swift_grnr_unbound)
 
-        if host_ids is not None:
+        if host_id is not None:
             if comm_rank == 0:
                 print("  Assigning host halo membership to SWIFT particles")
             swift_hostnr_all = -np.ones_like(swift_grnr_all)
@@ -165,7 +167,7 @@ if __name__ == "__main__":
             output["Rank_bound"] = swift_rank_bound
         if ids_unbound is not None:
             output["GroupNr_all"] = swift_grnr_all
-        if host_ids is not None:
+        if host_id is not None:
             output["HostNr_all"] = swift_hostnr_all
         snap_file.write(output, elements_per_file, filenames=args.output_file, mode=mode, group=ptype, attrs=attrs)
 
