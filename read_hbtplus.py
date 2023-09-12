@@ -54,6 +54,7 @@ def read_hbtplus_groupnr(basename):
     
     # Assign halo indexes to the particles
     nr_local_halos = len(halos)
+    total_nr_halos = comm.allreduce(nr_local_halos)
     halo_offset = comm.scan(len(halos), op=MPI.SUM) - len(halos)
     halo_index = np.arange(nr_local_halos, dtype=int) + halo_offset
     halo_size = halos["Nbound"]
@@ -101,7 +102,7 @@ def read_hbtplus_groupnr(basename):
     rank_bound = psort.fetch_elements(rank_bound, unique_offsets, comm=comm)
     grnr_bound = psort.fetch_elements(grnr_bound, unique_offsets, comm=comm)
     
-    return ids_bound, grnr_bound, rank_bound
+    return total_nr_halos, ids_bound, grnr_bound, rank_bound
 
 
 def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize):

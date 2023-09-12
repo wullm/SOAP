@@ -139,7 +139,7 @@ def read_vr_lengths_and_offsets(vr_basename):
     length_unbound = compute_lengths(offset_unbound, total_nr_unbound)
     if comm_rank == 0:
         print("Calculated halo lengths ")
-
+        
     return (length_bound, offset_bound, ids_bound,
             length_unbound, offset_unbound, ids_unbound)
 
@@ -172,7 +172,10 @@ def read_vr_groupnr(basename):
     grnr_bound, rank_bound = vr_group_membership_from_ids(length_bound, offset_bound, ids_bound, return_rank=True)
     grnr_unbound = vr_group_membership_from_ids(length_unbound, offset_unbound, ids_unbound)
 
-    return ids_bound, grnr_bound, rank_bound, ids_unbound, grnr_unbound
+    local_nr_halos = len(offset_bound)
+    total_nr_halos = comm.allreduce(local_nr_halos)
+    
+    return total_nr_halos, ids_bound, grnr_bound, rank_bound, ids_unbound, grnr_unbound
 
 
 def read_vr_catalogue(comm, basename, a_unit, registry, boxsize):

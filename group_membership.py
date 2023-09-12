@@ -34,7 +34,7 @@ if __name__ == "__main__":
     # Find group number for each particle ID in the halo finder output
     if args.halo_format == "VR":
         # Read VELOCIraptor output
-        (ids_bound, grnr_bound, rank_bound, ids_unbound, grnr_unbound) = read_vr.read_vr_groupnr(args.halo_basename)
+        (total_nr_halos, ids_bound, grnr_bound, rank_bound, ids_unbound, grnr_unbound) = read_vr.read_vr_groupnr(args.halo_basename)
         # Read VR host halo IDs, if required. Will set hostHaloID=ID for main halos.
         if args.host_ids:
             host_data = read_vr.read_vr_datasets(args.vr_basename, "properties", ("ID", "hostHaloID",))
@@ -47,13 +47,13 @@ if __name__ == "__main__":
             host_id = None
     elif args.halo_format == "HBTplus":
         # Read HBTplus output
-        ids_bound, grnr_bound, rank_bound = read_hbtplus.read_hbtplus_groupnr(args.halo_basename)
+        total_nr_halos, ids_bound, grnr_bound, rank_bound = read_hbtplus.read_hbtplus_groupnr(args.halo_basename)
         ids_unbound = None # HBTplus does not output unbound particles
         grnr_unbound = None
         host_id = None
     elif args.halo_format == "Gadget4":
         # Read Gadget-4 subfind output
-        ids_bound, grnr_bound = read_gadget4.read_gadget4_groupnr(args.halo_basename)
+        total_nr_halos, ids_bound, grnr_bound = read_gadget4.read_gadget4_groupnr(args.halo_basename)
         ids_unbound = None
         grnr_unbound = None
         rank_bound = None
