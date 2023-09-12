@@ -6,8 +6,8 @@ import re
 import numpy as np
 import h5py
 
-import virgo.mpi.parallel_hdf5
-import virgo.mpi.parallel_sort as ps
+import virgo.mpi.parallel_hdf5 as phdf5
+import virgo.mpi.parallel_sort as psort
 
 import lustre
 import command_line_args
@@ -73,8 +73,8 @@ if __name__ == "__main__":
                 ptypes.append("PartType%d" % i)
 
     # Open the snapshot
-    snap_file = virgo.mpi.parallel_hdf5.MultiFile(args.swift_filename,
-                                                  file_nr_attr=("Header", "NumFilesPerSnapshot"))
+    snap_file = phdf5.MultiFile(args.swift_filename,
+                                file_nr_attr=("Header", "NumFilesPerSnapshot"))
 
     # Loop over particle types
     create_file = True
@@ -93,29 +93,29 @@ if __name__ == "__main__":
 
         if comm_rank == 0:
             print("  Matching SWIFT particle IDs to bound IDs")
-        ptr = ps.parallel_match(swift_ids, ids_bound)
+        ptr = psort.parallel_match(swift_ids, ids_bound)
         
         if comm_rank == 0:
             print("  Assigning bound group membership to SWIFT particles")
         matched = ptr >= 0
-        swift_grnr_bound[matched] = ps.fetch_elements(grnr_bound, ptr[matched])
+        swift_grnr_bound[matched] = psort.fetch_elements(grnr_bound, ptr[matched])
         swift_grnr_bound[matched==False] = -1
 
         if rank_bound is not None:
             if comm_rank == 0:
                 print("  Assigning rank by binding energy to SWIFT particles")
-            swift_rank_bound[matched] = ps.fetch_elements(rank_bound, ptr[matched])
+            swift_rank_bound[matched] = psort.fetch_elements(rank_bound, ptr[matched])
             swift_rank_bound[matched==False] = -1
 
         if ids_unbound is not None:
             if comm_rank == 0:
                 print("  Matching SWIFT particle IDs to unbound IDs")
-            ptr = ps.parallel_match(swift_ids, ids_unbound)
+            ptr = psort.parallel_match(swift_ids, ids_unbound)
 
             if comm_rank == 0:
                 print("  Assigning unbound group membership to SWIFT particles")
             matched = ptr >= 0
-            swift_grnr_unbound[matched] = ps.fetch_elements(grnr_unbound, ptr[matched])
+            swift_grnr_unbound[matched] = psort.fetch_elements(grnr_unbound, ptr[matched])
             swift_grnr_unbound[matched==False] = -1
             swift_grnr_all = np.maximum(swift_grnr_bound, swift_grnr_unbound)
 
@@ -124,10 +124,23 @@ if __name__ == "__main__":
                 print("  Assigning host halo membership to SWIFT particles")
             swift_hostnr_all = -np.ones_like(swift_grnr_all)
             in_halo = swift_grnr_all >= 0
-            swift_hostnr_all[in_halo] = ps.fetch_elements(host_id, swift_grnr_all[in_halo], comm=comm) - 1
+            swift_hostnr_all[in_halo] = psort.fetch_elements(host_id, swift_grnr_all[in_halo], comm=comm) - 1
         else:
             swift_hostnr_all = None
-            
+
+        # Compute the number of bound particles of this type in each halo
+        if comm_rank == 0:
+            print("  Computing number of bound particles in each halo")
+        in_halo = swift_grnr_bound >= 0
+        npart_bound_type = psort.parallel_bincount(swift_grnr_bound[in_halo], minlength=total_nr_halos, comm=comm)
+
+        # Compute the number of bound+unbound particles of this type in each halo
+        if ids_unbound is not None:
+            if comm_rank == 0:
+                print("  Computing number of bound+unbound particles in each halo")
+            in_halo = swift_grnr_all >= 0
+            npart_all_type = psort.parallel_bincount(swift_grnr_all[in_halo], minlength=total_nr_halos, comm=comm)
+        
         # Determine if we need to create a new output file set
         if create_file:
             mode="w"
@@ -135,6 +148,14 @@ if __name__ == "__main__":
         else:
             mode="r+"
 
+        # Write the number of particles per halo to an output file
+        filename = (args.output_file % {"file_nr" : 0})[:-6]+"nr_particles.hdf5"
+        with h5py.File(filename, mode, driver="mpio", comm=comm) as halo_size_file:
+            grp = halo_size_file.create_group(ptype)
+            phdf5.collective_write(grp, "nr_particles_bound", npart_bound_type, comm=comm)
+            if ids_unbound is not None:
+                phdf5.collective_write(grp, "nr_particles_all", npart_all_type, comm=comm)
+        
         # Set up dataset attributes
         unit_attrs = {
             "Conversion factor to CGS (not including cosmological corrections)" : [1.0,],

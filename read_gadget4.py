@@ -102,7 +102,7 @@ def read_gadget4_groupnr(basename):
         all_grnr.append(particle_grnr[type_nr])
         all_ids.append(particle_ids[type_nr])
 
-    local_nr_halos = len(suboffset_type.shape[0])
+    local_nr_halos = suboffset_type.shape[0]
     total_nr_halos = comm.allreduce(local_nr_halos)
         
     return total_nr_halos, np.concatenate(all_ids), np.concatenate(all_grnr)
