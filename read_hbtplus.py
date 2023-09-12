@@ -6,6 +6,7 @@ import h5py
 import unyt
 
 import virgo.mpi.parallel_hdf5 as phdf5
+import virgo.mpi.parallel_sort as psort
 
 
 def hbt_filename(hbt_basename, file_nr):
@@ -66,6 +67,40 @@ def read_hbtplus_groupnr(basename):
         offset += halo_size[halo_nr]
     assert np.all(rank_bound >= 0) # HBT only outputs bound particles
 
+    # Now check for duplicates. HBTplus can assign the same particle to multiple
+    # subhalos in cases where a subhalo escapes its host and enters another halo.
+    # Here we assign such particles to the subhalo in which their rank_bound is lowest.
+    # Make a key to sort the particles by ID and then by bound rank where ID is equal.
+    sort_key_t = np.dtype([("id", ids_bound.dtype), ("rank", rank_bound.dtype)])
+    sort_key = np.ndarray(len(ids_bound), dtype=sort_key_t)
+    sort_key["id"] = ids_bound
+    sort_key["rank"] = rank_bound
+    assert np.all(sort_key["rank"] >= 0) # HBTplus does not output unbound particles
+
+    # Sort the particles by ID and then by bound rank where the ID is the same.
+    order = psort.parallel_sort(sort_key, return_index=True, comm=comm)
+    del sort_key
+    ids_bound  = psort.fetch_elements(ids_bound,  order, comm=comm)    
+    grnr_bound = psort.fetch_elements(grnr_bound, order, comm=comm)
+    rank_bound = psort.fetch_elements(rank_bound, order, comm=comm)
+    del order
+    
+    # Then find the unique particle IDs
+    unique_ids_bound, unique_counts = psort.parallel_unique(ids_bound, comm=comm, arr_sorted=True,return_counts=True)
+    nr_unique_ids_local = len(unique_ids_bound)
+    
+    # Find out how many unique IDs are on each previous MPI rank
+    nr_unique_ids_prev_rank = comm.scan(nr_unique_ids_local) - nr_unique_ids_local
+    
+    # Find the global offset of the first instance of each ID
+    unique_offsets = np.cumsum(unique_counts) - unique_counts + nr_unique_ids_prev_rank
+    
+    # Fetch the ID, grnr_bound and rank_bound of the first instance of each particle ID
+    ids_bound  = psort.fetch_elements(ids_bound,  unique_offsets, comm=comm)
+    assert(np.all(ids_bound)==unique_ids_bound) # Check we computed unique_offsets correctly
+    rank_bound = psort.fetch_elements(rank_bound, unique_offsets, comm=comm)
+    grnr_bound = psort.fetch_elements(grnr_bound, unique_offsets, comm=comm)
+    
     return ids_bound, grnr_bound, rank_bound
 
 
