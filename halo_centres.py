@@ -24,7 +24,7 @@ def gather_to_rank_zero(arr):
 class SOCatalogue:
 
     def __init__(self, comm, halo_basename, halo_format, a_unit, registry, boxsize, max_halos,
-                 centrals_only, halo_ids, halo_prop_list, nr_chunks):
+                 centrals_only, halo_ids, halo_prop_list, nr_chunks, halo_size_file):
         """
         This reads in the halo catalogue and stores the halo properties in a
         dict of unyt_arrays, self.halo_arrays, on rank 0 of communicator comm.
@@ -63,7 +63,7 @@ class SOCatalogue:
         if halo_format == "VR":
             halo_data = read_vr.read_vr_catalogue(comm, halo_basename, a_unit, registry, boxsize)
         elif halo_format == "HBTplus":
-            halo_data = read_hbtplus.read_hbtplus_catalogue(comm, halo_basename, a_unit, registry, boxsize)
+            halo_data = read_hbtplus.read_hbtplus_catalogue(comm, halo_basename, a_unit, registry, boxsize, halo_size_file)
         elif halo_format == "Gadget4":
             halo_data = read_gadget4.read_gadget4_catalogue(comm, halo_basename, a_unit, registry, boxsize)
         else:
