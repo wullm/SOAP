@@ -19,6 +19,7 @@ def read_hbtplus_groupnr(basename):
     """
 
     from mpi4py import MPI
+
     comm = MPI.COMM_WORLD
     comm_rank = comm.Get_rank()
     comm_size = comm.Get_size()
@@ -34,7 +35,7 @@ def read_hbtplus_groupnr(basename):
     # Assign files to MPI ranks
     files_per_rank = np.zeros(comm_size, dtype=int)
     files_per_rank[:] = nr_files // comm_size
-    files_per_rank[:nr_files % comm_size] += 1
+    files_per_rank[: nr_files % comm_size] += 1
     assert np.sum(files_per_rank) == nr_files
     first_file_on_rank = np.cumsum(files_per_rank) - files_per_rank
 
@@ -43,15 +44,17 @@ def read_hbtplus_groupnr(basename):
     # 'ids_bound' will be an array of particle IDs in halos, sorted by halo
     halos = []
     ids_bound = []
-    for file_nr in range(first_file_on_rank[comm_rank],
-                         first_file_on_rank[comm_rank]+files_per_rank[comm_rank]):
+    for file_nr in range(
+        first_file_on_rank[comm_rank],
+        first_file_on_rank[comm_rank] + files_per_rank[comm_rank],
+    ):
         with h5py.File(hbt_filename(basename, file_nr), "r") as infile:
             halos.append(infile["Subhalos"][...])
             ids_bound.append(infile["SubhaloParticles"][...])
     halos = np.concatenate(halos)
-    ids_bound = np.concatenate(ids_bound) # Combine arrays from different files
-    ids_bound = np.concatenate(ids_bound) # Combine arrays from different halos
-    
+    ids_bound = np.concatenate(ids_bound)  # Combine arrays from different files
+    ids_bound = np.concatenate(ids_bound)  # Combine arrays from different halos
+
     # Assign halo indexes to the particles
     nr_local_halos = len(halos)
     total_nr_halos = comm.allreduce(nr_local_halos)
@@ -64,9 +67,11 @@ def read_hbtplus_groupnr(basename):
     rank_bound = -np.ones(grnr_bound.shape[0], dtype=int)
     offset = 0
     for halo_nr in range(nr_local_halos):
-        rank_bound[offset:offset+halo_size[halo_nr]] = np.arange(halo_size[halo_nr], dtype=int)
+        rank_bound[offset : offset + halo_size[halo_nr]] = np.arange(
+            halo_size[halo_nr], dtype=int
+        )
         offset += halo_size[halo_nr]
-    assert np.all(rank_bound >= 0) # HBT only outputs bound particles
+    assert np.all(rank_bound >= 0)  # HBT only outputs bound particles
 
     # Now check for duplicates. HBTplus can assign the same particle to multiple
     # subhalos in cases where a subhalo escapes its host and enters another halo.
@@ -76,32 +81,36 @@ def read_hbtplus_groupnr(basename):
     sort_key = np.ndarray(len(ids_bound), dtype=sort_key_t)
     sort_key["id"] = ids_bound
     sort_key["rank"] = rank_bound
-    assert np.all(sort_key["rank"] >= 0) # HBTplus does not output unbound particles
+    assert np.all(sort_key["rank"] >= 0)  # HBTplus does not output unbound particles
 
     # Sort the particles by ID and then by bound rank where the ID is the same.
     order = psort.parallel_sort(sort_key, return_index=True, comm=comm)
     del sort_key
-    ids_bound  = psort.fetch_elements(ids_bound,  order, comm=comm)    
+    ids_bound = psort.fetch_elements(ids_bound, order, comm=comm)
     grnr_bound = psort.fetch_elements(grnr_bound, order, comm=comm)
     rank_bound = psort.fetch_elements(rank_bound, order, comm=comm)
     del order
-    
+
     # Then find the unique particle IDs
-    unique_ids_bound, unique_counts = psort.parallel_unique(ids_bound, comm=comm, arr_sorted=True,return_counts=True)
+    unique_ids_bound, unique_counts = psort.parallel_unique(
+        ids_bound, comm=comm, arr_sorted=True, return_counts=True
+    )
     nr_ids_local = len(ids_bound)
-    
+
     # Find out how many unique IDs are on each previous MPI rank
     nr_ids_prev_rank = comm.scan(nr_ids_local) - nr_ids_local
-    
+
     # Find the global offset of the first instance of each ID
     unique_offsets = np.cumsum(unique_counts) - unique_counts + nr_ids_prev_rank
-    
+
     # Fetch the ID, grnr_bound and rank_bound of the first instance of each particle ID
-    ids_bound  = psort.fetch_elements(ids_bound,  unique_offsets, comm=comm)
-    assert(np.all(ids_bound==unique_ids_bound)) # Check we computed unique_offsets correctly
+    ids_bound = psort.fetch_elements(ids_bound, unique_offsets, comm=comm)
+    assert np.all(
+        ids_bound == unique_ids_bound
+    )  # Check we computed unique_offsets correctly
     rank_bound = psort.fetch_elements(rank_bound, unique_offsets, comm=comm)
     grnr_bound = psort.fetch_elements(grnr_bound, unique_offsets, comm=comm)
-    
+
     return total_nr_halos, ids_bound, grnr_bound, rank_bound
 
 
@@ -131,33 +140,35 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize, halo_size_
     halos, so we discard those with 0-1 bound particles.
     """
 
-    comm_size = comm.Get_size()    
+    comm_size = comm.Get_size()
     comm_rank = comm.Get_rank()
-    
+
     # Get SWIFT's definition of physical and comoving Mpc units
-    swift_pmpc = unyt.Unit("swift_mpc",       registry=registry)
-    swift_cmpc = unyt.Unit(a_unit*swift_pmpc, registry=registry)
-    swift_msun = unyt.Unit("swift_msun",      registry=registry)
-    
+    swift_pmpc = unyt.Unit("swift_mpc", registry=registry)
+    swift_cmpc = unyt.Unit(a_unit * swift_pmpc, registry=registry)
+    swift_msun = unyt.Unit("swift_msun", registry=registry)
+
     # Get expansion factor as a float
     a = a_unit.base_value
 
     # Get h as a float
     h_unit = unyt.Unit("h", registry=registry)
     h = h_unit.base_value
-    
+
     # Get HBTplus unit information
     if comm_rank == 0:
         filename = hbt_filename(basename, 0)
         with h5py.File(filename, "r") as infile:
             LengthInMpch = float(infile["Units/LengthInMpch"][...])
-            MassInMsunh  = float(infile["Units/MassInMsunh"][...])
-            VelInKmS     = float(infile["Units/VelInKmS"][...])
+            MassInMsunh = float(infile["Units/MassInMsunh"][...])
+            VelInKmS = float(infile["Units/VelInKmS"][...])
     else:
         LengthInMpch = None
-        MassInMsunh  = None
-        VelInKmS     = None
-    (LengthInMpch, MassInMsunh, VelInKmS) = comm.bcast((LengthInMpch, MassInMsunh, VelInKmS))
+        MassInMsunh = None
+        VelInKmS = None
+    (LengthInMpch, MassInMsunh, VelInKmS) = comm.bcast(
+        (LengthInMpch, MassInMsunh, VelInKmS)
+    )
 
     # Read the subhalos for this snapshot
     filename = f"{basename}.%(file_nr)d.hdf5"
@@ -169,7 +180,9 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize, halo_size_
     halo_size_data = {}
     with h5py.File(halo_size_file, "r", driver="mpio", comm=comm) as infile:
         for ptype in sorted(list(infile)):
-            halo_size_data[ptype] = phdf5.collective_read(infile[ptype]["nr_particles_bound"], comm)
+            halo_size_data[ptype] = phdf5.collective_read(
+                infile[ptype]["nr_particles_bound"], comm
+            )
 
     # Sum over particle types
     nr_bound_part = None
@@ -185,39 +198,49 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize, halo_size_
     nr_bound_part = psort.repartition(nr_bound_part, ndesired, comm=comm)
 
     # Wrap in a unyt array
-    nr_bound_part = unyt.unyt_array(nr_bound_part, units=unyt.dimensionless, dtype=int, registry=registry)
+    nr_bound_part = unyt.unyt_array(
+        nr_bound_part, units=unyt.dimensionless, dtype=int, registry=registry
+    )
 
     # Only process resolved subhalos (HBTplus also outputs unresolved "orphan" subhalos)
     # Here we use the number of particles EXCLUDING duplicates, i.e. not nbound from HBTplus.
     keep = nr_bound_part > 1
-    
+
     # Assign indexes to halos: for each halo we're going to process we store the
     # position in the input catalogue.
     nr_local_halos = len(keep)
     local_offset = comm.scan(nr_local_halos) - nr_local_halos
     index = np.arange(nr_local_halos, dtype=int) + local_offset
     index = index[keep]
-    index = unyt.unyt_array(index, units=unyt.dimensionless, dtype=int, registry=registry)
-        
+    index = unyt.unyt_array(
+        index, units=unyt.dimensionless, dtype=int, registry=registry
+    )
+
     # Find centre of potential
-    cofp = (subhalo["ComovingMostBoundPosition"][keep,:] * LengthInMpch / h) * swift_cmpc
+    cofp = (
+        subhalo["ComovingMostBoundPosition"][keep, :] * LengthInMpch / h
+    ) * swift_cmpc
 
     # Initial guess at search radius for each halo - twice the half mass radius.
     # Search radius will be expanded if we don't find all of the bound particles.
-    search_radius = 2.0*(subhalo["RHalfComoving"][keep] * LengthInMpch / h) * swift_cmpc
+    search_radius = (
+        2.0 * (subhalo["RHalfComoving"][keep] * LengthInMpch / h) * swift_cmpc
+    )
 
     # Central halo flag
-    is_central = np.where(subhalo["Rank"]==0, 1, 0)[keep]
-    is_central = unyt.unyt_array(is_central, units=unyt.dimensionless, dtype=int, registry=registry)
-    
+    is_central = np.where(subhalo["Rank"] == 0, 1, 0)[keep]
+    is_central = unyt.unyt_array(
+        is_central, units=unyt.dimensionless, dtype=int, registry=registry
+    )
+
     # Number of bound particles
     nr_bound_part = nr_bound_part[keep]
 
     local_halo = {
-        "cofp"          : cofp,
-        "index"         : index,
-        "search_radius" : search_radius,
-        "is_central"    : is_central,
-        "nr_bound_part" : nr_bound_part,
+        "cofp": cofp,
+        "index": index,
+        "search_radius": search_radius,
+        "is_central": is_central,
+        "nr_bound_part": nr_bound_part,
     }
     return local_halo

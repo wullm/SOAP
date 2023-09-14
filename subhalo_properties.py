@@ -891,12 +891,7 @@ class SubhaloProperties(HaloProperty):
         types_present = [type for type in self.particle_properties if type in data]
 
         part_props = SubhaloParticleData(
-            input_halo,
-            data,
-            types_present,
-            self.grnr,
-            self.stellar_ages,
-            self.filter,
+            input_halo, data, types_present, self.grnr, self.stellar_ages, self.filter
         )
 
         if self.bound_only:
@@ -961,12 +956,14 @@ class SubhaloProperties(HaloProperty):
             Nexpected = input_halo["nr_bound_part"] + input_halo["nr_unbound_part"]
         if Ntot < Nexpected:
             # Try again with a larger search radius
-            #print(f"Ntot = {Ntot}, Nexpected = {Nexpected}, search_radius = {search_radius}")
-            raise ReadRadiusTooSmallError("Search radius does not contain expected number of particles!")
+            # print(f"Ntot = {Ntot}, Nexpected = {Nexpected}, search_radius = {search_radius}")
+            raise ReadRadiusTooSmallError(
+                "Search radius does not contain expected number of particles!"
+            )
         elif Ntot > Nexpected:
             # This would indicate a bug somewhere
             raise RuntimeError("Found more particles than expected!")
-                        
+
         # Add these properties to the output
         if self.bound_only:
             prefix = "BoundSubhaloProperties"
@@ -979,14 +976,7 @@ class SubhaloProperties(HaloProperty):
             name = prop[0]
             outputname = prop[1]
             description = prop[5]
-            halo_result.update(
-                {
-                    f"{prefix}/{outputname}": (
-                        subhalo[name],
-                        description,
-                    )
-                }
-            )
+            halo_result.update({f"{prefix}/{outputname}": (subhalo[name], description)})
 
 
 def test_subhalo_properties():

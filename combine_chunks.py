@@ -22,8 +22,17 @@ def sub_snapnum(filename, snapnum):
     return filename % {"snap_nr": snapnum}
 
 
-def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
-                   ref_metadata, nr_chunks, comm_world, category_filter, recently_heated_gas_filter):
+def combine_chunks(
+    args,
+    cellgrid,
+    halo_prop_list,
+    scratch_file_format,
+    ref_metadata,
+    nr_chunks,
+    comm_world,
+    category_filter,
+    recently_heated_gas_filter,
+):
     """
     Combine the per-chunk output files into a single, sorted output
     """
@@ -82,11 +91,13 @@ def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
             recently_heated_gas_metadata = recently_heated_gas_filter.get_metadata()
             recently_heated_gas_params = outfile.create_group("RecentlyHeatedGasFilter")
             for at, val in recently_heated_gas_metadata.items():
-              recently_heated_gas_params.attrs[at] = val
+                recently_heated_gas_params.attrs[at] = val
             # Create datasets for all halo properties
-            for name, size, unit, dtype, description in ref_metadata+soap_metadata:
+            for name, size, unit, dtype, description in ref_metadata + soap_metadata:
                 shape = (total_nr_halos,) + size
-                dataset = outfile.create_dataset(name, shape=shape, dtype=dtype, fillvalue=None)
+                dataset = outfile.create_dataset(
+                    name, shape=shape, dtype=dtype, fillvalue=None
+                )
                 # Add units and description
                 attrs = swift_units.attributes_from_units(unit)
                 attrs["Description"] = description
@@ -101,7 +112,7 @@ def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
 
     # Reopen the output file in parallel mode
     outfile = h5py.File(output_file, "r+", driver="mpio", comm=comm_world)
-    
+
     # Certain properties are needed to compute subhalo ranking by mass
     props_to_keep = ("VR/ID", "BoundSubhaloProperties/TotalMass", "VR/HostHaloID")
     props_kept = {}
@@ -109,7 +120,9 @@ def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
     with MPITimer("Writing output properties", comm_world):
         # Loop over halo properties, a few at a time
         total_nr_props = len(ref_metadata)
-        props_per_iteration = min(total_nr_props, 100)  # TODO: how to choose this number?
+        props_per_iteration = min(
+            total_nr_props, 100
+        )  # TODO: how to choose this number?
         for i1 in range(0, total_nr_props, props_per_iteration):
             i2 = min(i1 + props_per_iteration, total_nr_props)
 
@@ -128,19 +141,28 @@ def combine_chunks(args, cellgrid, halo_prop_list, scratch_file_format,
 
             # Write these properties to the output file
             for name, size, unit, description in zip(names, sizes, units, descriptions):
-                phdf5.collective_write(outfile, name, data[name], create_dataset=False, comm=comm_world)
+                phdf5.collective_write(
+                    outfile, name, data[name], create_dataset=False, comm=comm_world
+                )
 
             del data
 
     with MPITimer("Writing subhalo ranking by mass", comm_world):
         # Now write out subhalo ranking by mass within host halos, if we computed all the required quantities.
         if len(props_kept) == len(props_to_keep):
-            subhalo_rank = compute_subhalo_rank(props_kept["VR/HostHaloID"],
-                                                props_kept["VR/ID"],
-                                                props_kept["BoundSubhaloProperties/TotalMass"],
-                                                comm_world)
-            dataset = phdf5.collective_write(outfile, "SOAP/SubhaloRankByBoundMass", subhalo_rank,
-                                             create_dataset=False, comm=comm_world)
+            subhalo_rank = compute_subhalo_rank(
+                props_kept["VR/HostHaloID"],
+                props_kept["VR/ID"],
+                props_kept["BoundSubhaloProperties/TotalMass"],
+                comm_world,
+            )
+            dataset = phdf5.collective_write(
+                outfile,
+                "SOAP/SubhaloRankByBoundMass",
+                subhalo_rank,
+                create_dataset=False,
+                comm=comm_world,
+            )
 
     # Done.
     outfile.close()

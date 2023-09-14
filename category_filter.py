@@ -2,7 +2,9 @@
 
 from property_table import PropertyTable
 
-gas_filter_name = f"BoundSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}"
+gas_filter_name = (
+    f"BoundSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}"
+)
 dm_filter_name = f"BoundSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}"
 star_filter_name = (
     f"BoundSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}"
@@ -20,13 +22,7 @@ class CategoryFilter:
     """
 
     def __init__(
-        self,
-        Ngeneral=100,
-        Ngas=50,
-        Ndm=100,
-        Nstar=50,
-        Nbaryon=100,
-        dmo=False,
+        self, Ngeneral=100, Ngas=50, Ndm=100, Nstar=50, Nbaryon=100, dmo=False
     ):
         self.Ngeneral = Ngeneral
         self.Ngas = Ngas

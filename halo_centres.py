@@ -22,9 +22,21 @@ def gather_to_rank_zero(arr):
 
 
 class SOCatalogue:
-
-    def __init__(self, comm, halo_basename, halo_format, a_unit, registry, boxsize, max_halos,
-                 centrals_only, halo_ids, halo_prop_list, nr_chunks, halo_size_file):
+    def __init__(
+        self,
+        comm,
+        halo_basename,
+        halo_format,
+        a_unit,
+        registry,
+        boxsize,
+        max_halos,
+        centrals_only,
+        halo_ids,
+        halo_prop_list,
+        nr_chunks,
+        halo_size_file,
+    ):
         """
         This reads in the halo catalogue and stores the halo properties in a
         dict of unyt_arrays, self.halo_arrays, on rank 0 of communicator comm.
@@ -45,27 +57,42 @@ class SOCatalogue:
         comm_rank = comm.Get_rank()
 
         # Get SWIFT's definition of physical and comoving Mpc units
-        swift_pmpc = unyt.Unit("swift_mpc",       registry=registry)
-        swift_cmpc = unyt.Unit(a_unit*swift_pmpc, registry=registry)
-        swift_msun = unyt.Unit("swift_msun",      registry=registry)
-    
+        swift_pmpc = unyt.Unit("swift_mpc", registry=registry)
+        swift_cmpc = unyt.Unit(a_unit * swift_pmpc, registry=registry)
+        swift_msun = unyt.Unit("swift_msun", registry=registry)
+
         # Get expansion factor as a float
         a = a_unit.base_value
 
         # Find minimum physical radius to read in
         physical_radius_mpc = 0.0
         for halo_prop in halo_prop_list:
-            physical_radius_mpc = max(physical_radius_mpc, halo_prop.physical_radius_mpc)
+            physical_radius_mpc = max(
+                physical_radius_mpc, halo_prop.physical_radius_mpc
+            )
         physical_radius_mpc = unyt.unyt_quantity(physical_radius_mpc, units=swift_pmpc)
 
         # Read the input halo catalogue
-        common_props = ("index", "cofp", "search_radius", "is_central", "nr_bound_part", "nr_unbound_part")
+        common_props = (
+            "index",
+            "cofp",
+            "search_radius",
+            "is_central",
+            "nr_bound_part",
+            "nr_unbound_part",
+        )
         if halo_format == "VR":
-            halo_data = read_vr.read_vr_catalogue(comm, halo_basename, a_unit, registry, boxsize)
+            halo_data = read_vr.read_vr_catalogue(
+                comm, halo_basename, a_unit, registry, boxsize
+            )
         elif halo_format == "HBTplus":
-            halo_data = read_hbtplus.read_hbtplus_catalogue(comm, halo_basename, a_unit, registry, boxsize, halo_size_file)
+            halo_data = read_hbtplus.read_hbtplus_catalogue(
+                comm, halo_basename, a_unit, registry, boxsize, halo_size_file
+            )
         elif halo_format == "Gadget4":
-            halo_data = read_gadget4.read_gadget4_catalogue(comm, halo_basename, a_unit, registry, boxsize)
+            halo_data = read_gadget4.read_gadget4_catalogue(
+                comm, halo_basename, a_unit, registry, boxsize
+            )
         else:
             raise RuntimeError(f"Halo format {format} not recognised!")
 
@@ -78,7 +105,7 @@ class SOCatalogue:
             else:
                 local_halo[f"{halo_format}/{name}"] = halo_data[name]
         del halo_data
-        
+
         # Only keep halos in the supplied list of halo IDs.
         if halo_ids is not None:
             halo_ids = np.asarray(halo_ids, dtype=np.int64)
@@ -87,13 +114,13 @@ class SOCatalogue:
             have_match = matching_index >= 0
             keep[matching_index[have_match]] = True
             for name in local_halo:
-                local_halo[name] = local_halo[name][keep,...]
+                local_halo[name] = local_halo[name][keep, ...]
 
         # Discard satellites, if necessary
         if centrals_only:
             keep = local_halo["Structuretype"] == 10
             for name in local_halo:
-                local_halo[name] = local_halo[name][keep,...]
+                local_halo[name] = local_halo[name][keep, ...]
 
         # For testing: limit number of halos processed
         if max_halos > 0:
@@ -105,21 +132,29 @@ class SOCatalogue:
             if nr_keep_local > nr_halos_local:
                 nr_keep_local = nr_halos_local
             for name in local_halo:
-                local_halo[name] = local_halo[name][:nr_keep_local,...]
+                local_halo[name] = local_halo[name][:nr_keep_local, ...]
 
         # Assign halos to chunk tasks
-        task_id = domain_decomposition.peano_decomposition(boxsize, local_halo["cofp"], nr_chunks, comm)
-        local_halo["task_id"] = unyt.unyt_array(task_id, units=unyt.dimensionless, registry=registry, dtype=task_id.dtype)
+        task_id = domain_decomposition.peano_decomposition(
+            boxsize, local_halo["cofp"], nr_chunks, comm
+        )
+        local_halo["task_id"] = unyt.unyt_array(
+            task_id, units=unyt.dimensionless, registry=registry, dtype=task_id.dtype
+        )
 
         # Compute initial radius to read in about each halo
         local_halo["read_radius"] = local_halo["search_radius"].copy()
-        min_radius = 5.0*swift_cmpc
+        min_radius = 5.0 * swift_cmpc
         local_halo["read_radius"] = local_halo["read_radius"].clip(min=min_radius)
 
         # Ensure that both the initial search radius and the radius to read in
         # are >= the minimum physical radius required by property calculations
-        local_halo["read_radius"] = local_halo["read_radius"].clip(min=physical_radius_mpc)
-        local_halo["search_radius"] = local_halo["search_radius"].clip(min=physical_radius_mpc)
+        local_halo["read_radius"] = local_halo["read_radius"].clip(
+            min=physical_radius_mpc
+        )
+        local_halo["search_radius"] = local_halo["search_radius"].clip(
+            min=physical_radius_mpc
+        )
 
         # Gather subhalo arrays on rank zero.
         halo = {}
