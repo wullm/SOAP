@@ -43,18 +43,6 @@ if __name__ == "__main__":
             ids_unbound,
             grnr_unbound,
         ) = read_vr.read_vr_groupnr(args.halo_basename)
-        # Read VR host halo IDs, if required. Will set hostHaloID=ID for main halos.
-        if args.host_ids:
-            host_data = read_vr.read_vr_datasets(
-                args.vr_basename, "properties", ("ID", "hostHaloID")
-            )
-            host_id = host_data["hostHaloID"]
-            is_main = host_id < 0
-            host_id[is_main] = host_data["ID"][is_main]
-            del host_data
-            del is_main
-        else:
-            host_id = None
     elif args.halo_format == "HBTplus":
         # Read HBTplus output
         total_nr_halos, ids_bound, grnr_bound, rank_bound = read_hbtplus.read_hbtplus_groupnr(
@@ -62,7 +50,6 @@ if __name__ == "__main__":
         )
         ids_unbound = None  # HBTplus does not output unbound particles
         grnr_unbound = None
-        host_id = None
     elif args.halo_format == "Gadget4":
         # Read Gadget-4 subfind output
         total_nr_halos, ids_bound, grnr_bound = read_gadget4.read_gadget4_groupnr(
@@ -71,7 +58,6 @@ if __name__ == "__main__":
         ids_unbound = None
         grnr_unbound = None
         rank_bound = None
-        host_id = None
     else:
         raise RuntimeError(f"Unrecognised halo finder name: {args.halo_format}")
 
@@ -137,17 +123,6 @@ if __name__ == "__main__":
             swift_grnr_unbound[matched == False] = -1
             swift_grnr_all = np.maximum(swift_grnr_bound, swift_grnr_unbound)
 
-        if host_id is not None:
-            if comm_rank == 0:
-                print("  Assigning host halo membership to SWIFT particles")
-            swift_hostnr_all = -np.ones_like(swift_grnr_all)
-            in_halo = swift_grnr_all >= 0
-            swift_hostnr_all[in_halo] = (
-                psort.fetch_elements(host_id, swift_grnr_all[in_halo], comm=comm) - 1
-            )
-        else:
-            swift_hostnr_all = None
-
         # Compute the number of bound particles of this type in each halo
         if comm_rank == 0:
             print("  Computing number of bound particles in each halo")
@@ -206,14 +181,10 @@ if __name__ == "__main__":
             "GroupNr_all": {
                 "Description": "Index of halo in which this particle is a member (bound or unbound), or -1 if none"
             },
-            "HostNr_all": {
-                "Description": "Index of the host of the halo which this particle belongs to (bound or unbound)"
-            },
         }
         attrs["GroupNr_bound"].update(unit_attrs)
         attrs["Rank_bound"].update(unit_attrs)
         attrs["GroupNr_all"].update(unit_attrs)
-        attrs["HostNr_all"].update(unit_attrs)
 
         # Write these particles out with the same layout as the input snapshot
         if comm_rank == 0:
@@ -224,8 +195,6 @@ if __name__ == "__main__":
             output["Rank_bound"] = swift_rank_bound
         if ids_unbound is not None:
             output["GroupNr_all"] = swift_grnr_all
-        if host_id is not None:
-            output["HostNr_all"] = swift_hostnr_all
         snap_file.write(
             output,
             elements_per_file,
@@ -233,31 +202,6 @@ if __name__ == "__main__":
             mode=mode,
             group=ptype,
             attrs=attrs,
-        )
-
-    # Optionally, also make a virtual snapshot with group membership information
-    if args.virtual_snapshot is not None and comm_rank == 0:
-
-        # Find the original virtual snapshot created by SWIFT
-        virtual_snapshot = (args.swift_filename % {"file_nr": 0})[:-7] + ".hdf5"
-
-        # Make a new virtual snapshot file containing group membership information
-        from make_virtual_snapshot import make_virtual_snapshot
-
-        make_virtual_snapshot(virtual_snapshot, args.output_file, args.virtual_snapshot)
-
-        # Add absolute paths to the datasets in the virtual file:
-        # This is necessary because we can't set two different VDS prefixes.
-        from update_vds_paths import update_virtual_snapshot_paths
-
-        snapshot_dir = os.path.abspath(
-            os.path.dirname(args.swift_filename % {"file_nr": 0})
-        )
-        membership_dir = os.path.abspath(
-            os.path.dirname(args.output_file % {"file_nr": 0})
-        )
-        update_virtual_snapshot_paths(
-            args.virtual_snapshot, snapshot_dir, membership_dir
         )
 
     comm.barrier()
