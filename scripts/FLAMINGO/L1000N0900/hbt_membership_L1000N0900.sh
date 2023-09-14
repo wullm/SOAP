@@ -65,7 +65,7 @@ else
     # Slurm job
     sim="L1000N0900/${SLURM_JOB_NAME}"    
     snapnum=`printf '%04d' ${SLURM_ARRAY_TASK_ID}`
-    snapnum3=`printf '%043' ${SLURM_ARRAY_TASK_ID}`
+    snapnum3=`printf '%03d' ${SLURM_ARRAY_TASK_ID}`
     np_flag=""
 fi
 
