@@ -59,6 +59,7 @@ chunkdir="${scratch_dir}/SOAP-tmp-HBT/${sim}/"
 # Generate file names for this snapshot
 swift_filename="${basedir}/snapshots/flamingo_%(snap_nr)04d/flamingo_%(snap_nr)04d.%(file_nr)d.hdf5"
 extra_filename="${outbase}/membership_%(snap_nr)04d/membership_%(snap_nr)04d.%(file_nr)d.hdf5"
+halo_size_file="${outbase}/membership_%(snap_nr)04d/membership_%(snap_nr)04d.nr_particles.hdf5"
 hbt_basename="/cosma8/data/dp004/jch/FLAMINGO/ScienceRuns/${sim}/HBT/hbt/%(snap_nr)03d/SubSnap_%(snap_nr)03d"
 outfile="${outbase}/halo_properties_%(snap_nr)04d.hdf5"
 
@@ -78,4 +79,5 @@ lfs setstripe --stripe-count=-1 --stripe-size=32M ${outdir}
 mpirun python3 -u -m mpi4py ./compute_halo_properties.py \
     ${swift_filename} ${chunkdir} ${hbt_basename} HBTplus ${outfile} ${SLURM_ARRAY_TASK_ID} \
     --chunks=${nr_chunks} ${dmo_flag} \
-    --extra-input=${extra_filename}
+    --extra-input=${extra_filename} \
+    --halo-size-file=${halo_size_file}

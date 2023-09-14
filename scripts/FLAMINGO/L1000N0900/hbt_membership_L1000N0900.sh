@@ -25,6 +25,11 @@
 #SBATCH -t 0:30:00
 #
 
+# Prevent numpy starting huge numbers of threads
+export MKL_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+export OMP_NUM_THREADS=1
+
 module purge
 module load gnu_comp/11.1.0 openmpi/4.1.1 python/3.10.1
 
@@ -44,12 +49,25 @@ else
   exit 1
 fi
 
-# Which snapshot to do
-snapnum=`printf '%04d' ${SLURM_ARRAY_TASK_ID}`
-snapnum3=`printf '%03d' ${SLURM_ARRAY_TASK_ID}`
-
-# Which simulation to do
-sim="L1000N0900/${SLURM_JOB_NAME}"
+# Check if this is a slurm job
+if [[ -z "${SLURM_JOB_ID}" ]]; then
+    # Interactive run
+    if [[ $# -ne 2 ]]; then
+        echo Non-slurm usage: group_membership.sh run_name snap_nr
+        exit 1
+    else
+        sim=L1000N0900/${1}
+        snapnum=`printf '%04d' ${2}`
+        snapnum3=`printf '%03d' ${2}`        
+        np_flag="-np 16"
+    fi
+else
+    # Slurm job
+    sim="L1000N0900/${SLURM_JOB_NAME}"    
+    snapnum=`printf '%04d' ${SLURM_ARRAY_TASK_ID}`
+    snapnum3=`printf '%043' ${SLURM_ARRAY_TASK_ID}`
+    np_flag=""
+fi
 
 # Input simulation location
 basedir="/cosma8/data/dp004/flamingo/Runs/${sim}/"
@@ -68,5 +86,5 @@ mkdir -p "${outdir}"
 lfs setstripe --stripe-count=-1 --stripe-size=32M ${outdir}
 
 # Run the code
-mpirun python3 -u -m mpi4py \
+mpirun ${np_flag} python3 -u -m mpi4py \
     ./group_membership.py ${swift_filename} ${hbt_basename} HBTplus ${outfile}
