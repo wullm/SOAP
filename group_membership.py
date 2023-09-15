@@ -29,8 +29,8 @@ if __name__ == "__main__":
     from virgo.mpi.util import MPIArgumentParser
     parser = MPIArgumentParser(comm=comm, description="Compute particle group membership in SWIFT snapshots.")
     parser.add_argument("config_file", type=str, help="Name of the yaml configuration file")
-    parser.add_argument("--sim_name", type=str, help="Name of the simulation to process")
-    parser.add_argument("--snap_nr", type=int, help="Snapshot number to process")    
+    parser.add_argument("--sim-name", type=str, help="Name of the simulation to process")
+    parser.add_argument("--snap-nr", type=int, help="Snapshot number to process")    
     args = parser.parse_args()
     args = combine_args.combine_arguments(args, args.config_file)
 

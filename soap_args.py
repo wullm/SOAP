@@ -20,8 +20,8 @@ def get_soap_args(comm):
     # Define command line arguments
     parser = MPIArgumentParser(comm=comm, description="Compute halo properties in SWIFT snapshots.")
     parser.add_argument("config_file", type=str, help="Name of the yaml configuration file")
-    parser.add_argument("--sim_name", type=str, help="Name of the simulation to process")
-    parser.add_argument("--snap_nr", type=int, help="Snapshot number to process")    
+    parser.add_argument("--sim-name", type=str, help="Name of the simulation to process")
+    parser.add_argument("--snap-nr", type=int, help="Snapshot number to process")    
     parser.add_argument("--chunks", metavar="N", type=int, default=1, help="Splits volume into N chunks and each compute node processes one chunk at a time")
     parser.add_argument("--dmo", action="store_true", help="Run in dark matter only mode")
     parser.add_argument("--centrals-only", action="store_true", help="Only process central halos")
