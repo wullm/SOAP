@@ -12,7 +12,8 @@ Snapshots:
 HaloFinder:
   # Which halo finder we're using : VR, HBTplus or Gadget4
   type: VR
-  # Base name for halo finder output file names
+  # Base name for halo finder output file names:
+  # for VR this is the filename without the trailing .properties.0 or similar.
   filename: "{sim_dir}/{sim_name}/VR/catalogue_{snap_nr:04d}/vr_catalogue_{snap_nr:04d}"
 
 GroupMembership:

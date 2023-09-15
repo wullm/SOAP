@@ -9,7 +9,7 @@
 #
 # cd SOAP
 # mkdir logs
-# sbatch -J HYDRO_FIDUCIAL --array=0-77%4 ./scripts/FLAMINGO/L1000N0900/group_membership_L1000N0900.sh
+# sbatch -J HYDRO_FIDUCIAL --array=0-77%4 ./scripts/FLAMINGO/L1000N0900/vr_membership_L1000N0900.sh
 #
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=1
@@ -31,4 +31,4 @@ sim="L1000N0900/${SLURM_JOB_NAME}"
 
 # Run the code
 mpirun python3 -u -m mpi4py ./group_membership.py \
-       ./scripts/FLAMINGO/L1000N0900/parameters.yml --sim-name=${sim} --snap-nr=${snapnum}
+       ./scripts/FLAMINGO/L1000N0900/vr_parameters.yml --sim-name=${sim} --snap-nr=${snapnum}
