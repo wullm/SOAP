@@ -8,9 +8,10 @@ import h5py
 
 import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.parallel_sort as psort
+from virgo.util.partial_formatter import PartialFormatter
 
 import lustre
-import command_line_args
+import combine_args
 import read_vr
 import read_hbtplus
 import read_gadget4
@@ -24,16 +25,37 @@ comm_size = comm.Get_size()
 
 if __name__ == "__main__":
 
-    # Read command line parameters
-    args = command_line_args.get_group_membership_args(comm)
+    # Read parameters from command line and config file
+    from virgo.mpi.util import MPIArgumentParser
+    parser = MPIArgumentParser(comm=comm, description="Compute particle group membership in SWIFT snapshots.")
+    parser.add_argument("config_file", type=str, help="Name of the yaml configuration file")
+    parser.add_argument("--sim_name", type=str, help="Name of the simulation to process")
+    parser.add_argument("--snap_nr", type=int, help="Snapshot number to process")    
+    args = parser.parse_args()
+    args = combine_args.combine_arguments(args, args.config_file)
 
+    # Extract parameters we need
+    snap_nr = args["Parameters"]["snap_nr"]
+    swift_filename = args["Snapshots"]["filename"]
+    halo_format = args["HaloFinder"]["type"]
+    halo_basename = args["HaloFinder"]["filename"]
+    halo_basename = args["HaloFinder"]["filename"]    
+    output_file = args["GroupMembership"]["filename"]
+    halo_sizes_file = args["GroupMembership"]["halo_sizes_file"]
+    
+    # Substitute in the snapshot number where necessary
+    pf = PartialFormatter()
+    swift_filename = pf.format(swift_filename, snap_nr=snap_nr, file_nr=None)
+    halo_basename = pf.format(halo_basename, snap_nr=snap_nr, file_nr=None)
+    output_file = pf.format(output_file, snap_nr=snap_nr, file_nr=None)
+    
     # Ensure output dir exists
     if comm_rank == 0:
-        lustre.ensure_output_dir(args.output_file)
+        lustre.ensure_output_dir(output_file)
     comm.barrier()
 
     # Find group number for each particle ID in the halo finder output
-    if args.halo_format == "VR":
+    if halo_format == "VR":
         # Read VELOCIraptor output
         (
             total_nr_halos,
@@ -42,28 +64,28 @@ if __name__ == "__main__":
             rank_bound,
             ids_unbound,
             grnr_unbound,
-        ) = read_vr.read_vr_groupnr(args.halo_basename)
-    elif args.halo_format == "HBTplus":
+        ) = read_vr.read_vr_groupnr(halo_basename)
+    elif halo_format == "HBTplus":
         # Read HBTplus output
         total_nr_halos, ids_bound, grnr_bound, rank_bound = read_hbtplus.read_hbtplus_groupnr(
-            args.halo_basename
+            halo_basename
         )
         ids_unbound = None  # HBTplus does not output unbound particles
         grnr_unbound = None
-    elif args.halo_format == "Gadget4":
+    elif halo_format == "Gadget4":
         # Read Gadget-4 subfind output
         total_nr_halos, ids_bound, grnr_bound = read_gadget4.read_gadget4_groupnr(
-            args.halo_basename
+            halo_basename
         )
         ids_unbound = None
         grnr_unbound = None
         rank_bound = None
     else:
-        raise RuntimeError(f"Unrecognised halo finder name: {args.halo_format}")
+        raise RuntimeError(f"Unrecognised halo finder name: {halo_format}")
 
     # Determine SWIFT particle types which exist in the snapshot
     ptypes = []
-    with h5py.File(args.swift_filename % {"file_nr": 0}, "r") as infile:
+    with h5py.File(swift_filename.format(file_nr=0), "r") as infile:
         nr_types = infile["Header"].attrs["NumPartTypes"][0]
         numpart_total = infile["Header"].attrs["NumPart_Total"].astype(np.int64) + (
             infile["Header"].attrs["NumPart_Total_HighWord"].astype(np.int64) << 32
@@ -75,7 +97,7 @@ if __name__ == "__main__":
 
     # Open the snapshot
     snap_file = phdf5.MultiFile(
-        args.swift_filename, file_nr_attr=("Header", "NumFilesPerSnapshot")
+        swift_filename, file_nr_attr=("Header", "NumFilesPerSnapshot")
     )
 
     # Loop over particle types
@@ -148,9 +170,8 @@ if __name__ == "__main__":
             mode = "r+"
 
         # Write the number of particles per halo to an output file
-        filename = (args.output_file % {"file_nr": 0})[:-6] + "nr_particles.hdf5"
-        with h5py.File(filename, mode, driver="mpio", comm=comm) as halo_size_file:
-            grp = halo_size_file.create_group(ptype)
+        with h5py.File(halo_sizes_file, mode, driver="mpio", comm=comm) as hsf:
+            grp = hsf.create_group(ptype)
             phdf5.collective_write(
                 grp, "nr_particles_bound", npart_bound_type, comm=comm
             )
@@ -198,7 +219,7 @@ if __name__ == "__main__":
         snap_file.write(
             output,
             elements_per_file,
-            filenames=args.output_file,
+            filenames=output_file,
             mode=mode,
             group=ptype,
             attrs=attrs,
