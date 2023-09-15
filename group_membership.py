@@ -47,6 +47,7 @@ if __name__ == "__main__":
     pf = PartialFormatter()
     swift_filename = pf.format(swift_filename, snap_nr=snap_nr, file_nr=None)
     halo_basename = pf.format(halo_basename, snap_nr=snap_nr, file_nr=None)
+    halo_sizes_file = pf.format(halo_sizes_file, snap_nr=snap_nr, file_nr=None)
     output_file = pf.format(output_file, snap_nr=snap_nr, file_nr=None)
     
     # Ensure output dir exists
