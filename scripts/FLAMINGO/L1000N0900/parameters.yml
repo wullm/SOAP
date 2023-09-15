@@ -1,11 +1,8 @@
 Parameters:
-
+  # Values in this section are substituted into the other sections
   sim_dir:     /cosma8/data/dp004/flamingo/Runs/
-  sim_name:    L1000N0900/HYDRO_FIDUCIAL
   output_dir:  /cosma8/data/dp004/jch/FLAMINGO/ScienceRuns/
   scratch_dir: /snap8/scratch/dp004/jch/FLAMINGO/ScienceRuns/
-  snap_nr:     77
-  dmo_flag:    0
 
 Snapshots:
   # Location of the Swift snapshots:

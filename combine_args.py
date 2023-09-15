@@ -29,7 +29,7 @@ def combine_arguments(command_line_args, config_file):
     for name in config_file_args["Parameters"]:
         all_args["Parameters"][name] = config_file_args["Parameters"][name]
     for name in command_line_args:
-        if command_line_args[name] is not None:
+        if command_line_args[name] is not None or name not in all_args["Parameters"]:
             all_args["Parameters"][name] = command_line_args[name]
 
     pf = PartialFormatter()

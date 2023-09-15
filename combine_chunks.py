@@ -18,8 +18,10 @@ def sub_snapnum(filename, snapnum):
     Substitute the snapshot number into a filename format string
     without substituting the file number.
     """
-    filename = filename.replace("%(file_nr)", "%%(file_nr)")
-    return filename % {"snap_nr": snapnum}
+    from virgo.util.partial_formatter import PartialFormatter
+    pf = PartialFormatter()
+    filename = pf.format(filename, snap_nr=snapnum, file_nr=None)    
+    return filename
 
 
 def combine_chunks(
