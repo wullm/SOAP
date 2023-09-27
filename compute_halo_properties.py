@@ -102,7 +102,11 @@ def compute_halo_properties():
             "Number of MPI ranks per node reading snapshots: %d"
             % args.max_ranks_reading
         )
-
+        print("Halo format is %s" % args.halo_format)
+        print("Halo basename is %s" % args.halo_basename)
+        print("Output file is %s" % args.output_file)
+        print("Snapshot number is %d" % args.snapshot_nr)
+        
     # Open the snapshot and read SWIFT cell structure, units etc
     if comm_world_rank == 0:
         swift_filename = sub_snapnum(args.swift_filename, args.snapshot_nr)
