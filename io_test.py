@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from mpi4py import MPI
+
 comm = MPI.COMM_WORLD
 comm_rank = comm.Get_rank()
 comm_size = comm.Get_size()
@@ -21,16 +22,16 @@ def io_test():
     # Open the snapshot
     fname = "/cosma8/data/dp004/flamingo/Runs/L2800N5040/HYDRO_FIDUCIAL/snapshots/flamingo_0037/flamingo_0037.%(file_nr)d.hdf5"
     cellgrid = swift_cells.SWIFTCellGrid(fname)
-    
+
     # Quantities to read
     property_names = {
-        "PartType0" : ("Coordinates", "Velocities", "Masses"),
-        "PartType1" : ("Coordinates", "Velocities", "Masses"),
+        "PartType0": ("Coordinates", "Velocities", "Masses"),
+        "PartType1": ("Coordinates", "Velocities", "Masses"),
     }
 
     # Specify region to read
-    pos_min = np.asarray((    0.0,    0.0,    0.0))*cellgrid.units.length
-    pos_max = np.asarray((   50.0,   50.0,   50.0))*cellgrid.units.length
+    pos_min = np.asarray((0.0, 0.0, 0.0)) * cellgrid.units.length
+    pos_max = np.asarray((50.0, 50.0, 50.0)) * cellgrid.units.length
 
     # Read in the region
     mask = cellgrid.empty_mask()
@@ -49,11 +50,13 @@ def io_test():
     elapsed = t1 - t0
 
     if comm_rank == 0:
-        rate = nbytes/elapsed/(1024**3)
+        rate = nbytes / elapsed / (1024 ** 3)
         print("Read at %.2f GB/sec on %d ranks" % (rate, comm_size))
 
     # Build the shared mesh
-    mesh = shared_mesh.SharedMesh(comm, pos=data["PartType1"]["Coordinates"], resolution=256)
+    mesh = shared_mesh.SharedMesh(
+        comm, pos=data["PartType1"]["Coordinates"], resolution=256
+    )
     if comm_rank == 0:
         print("Built mesh")
 
@@ -63,7 +66,7 @@ def io_test():
 
         # Plot all particles
         pos = data["PartType1"]["Coordinates"].full
-        plt.plot(pos[:,0], pos[:,1], "k,", alpha=0.05)
+        plt.plot(pos[:, 0], pos[:, 1], "k,", alpha=0.05)
         plt.gca().set_aspect("equal")
 
         # Try selecting a sphere

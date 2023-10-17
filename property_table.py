@@ -20,6 +20,24 @@ def get_version_string():
     return f"{git_version} -- Compiled by user ``{username}'' on {hostname} on {timestamp}."
 
 
+def word_wrap_name(name):
+    """
+    Put a line break in if a name gets too long
+    """
+    maxlen = 20
+    count = 0
+    output = []
+    last_was_lower = False
+    for i in range(len(name)):
+        next_char = name[i]
+        count += 1
+        if count > maxlen and next_char.isupper() and last_was_lower:
+            output.append("\-")
+        output.append(next_char)
+        last_was_lower = next_char.isupper() == False
+    return "".join(output)
+
+
 class PropertyTable:
     categories = ["basic", "general", "gas", "dm", "star", "baryon", "VR", "SOAP"]
     explanation = {
@@ -107,8 +125,8 @@ class PropertyTable:
             "SpectroscopicLikeTemperature",
             "SpectroscopicLikeTemperature_core_excision",
             "SpectroscopicLikeTemperature_no_agn",
-            "SpectroscopicLikeTemperature_no_agn_core_excision"
-        ]
+            "SpectroscopicLikeTemperature_no_agn_core_excision",
+        ],
     }
 
     compression_description = {
@@ -1372,7 +1390,9 @@ class PropertyTable:
 
     # halo properties derived from other properties by SOAP
     soap_properties = [
-        soapname[4:] for soapname in full_property_list.keys() if soapname.startswith("SOAP")
+        soapname[4:]
+        for soapname in full_property_list.keys()
+        if soapname.startswith("SOAP")
     ]
 
     def get_footnotes(self, name):
@@ -1398,16 +1418,19 @@ class PropertyTable:
     def add_properties(self, halo_property):
         halo_type = halo_property.__name__
         props = halo_property.property_list
-        for i, (
-            prop_name,
-            prop_outputname,
-            prop_shape,
-            prop_dtype,
-            prop_units,
-            prop_description,
-            prop_cat,
-            prop_comp,
-            prop_dmo,
+        for (
+            i,
+            (
+                prop_name,
+                prop_outputname,
+                prop_shape,
+                prop_dtype,
+                prop_units,
+                prop_description,
+                prop_cat,
+                prop_comp,
+                prop_dmo,
+            ),
         ) in enumerate(props):
             prop_units = (
                 unyt.unyt_quantity(1, units=prop_units)
@@ -1507,7 +1530,7 @@ class PropertyTable:
 \\begin{document}"""
 
         tablestr = """\\begin{landscape}
-\\begin{longtable}{lllllllllll}
+\\begin{longtable}{p{20em}llllllllll}
 Name & Shape & Type & Units & SH & ES & IS & EP & SO & Category & Compression\\\\
 \\multicolumn{11}{l}{\\rule{30pt}{0pt}Description}\\\\
 \\hline{}\\endhead{}"""
@@ -1516,6 +1539,7 @@ Name & Shape & Type & Units & SH & ES & IS & EP & SO & Category & Compression\\\
             prop = self.properties[prop_name]
             footnotes = self.get_footnotes(prop_name)
             prop_outputname = f"{prop['name'].replace('_','')}{footnotes}"
+            prop_outputname = word_wrap_name(prop_outputname)
             prop_shape = f'{prop["shape"]}'
             prop_dtype = prop["dtype"]
             prop_units = f'${prop["units"]}$' if prop["units"] != "" else "(no unit)"

@@ -95,8 +95,74 @@ The `--max-ranks-reading` flag determines how many MPI ranks per node read the
 snapshot. This can be used to avoid overloading the file system. The default
 value is 32.
 
-See scripts/FLAMINGO/L1000N1800/halo_properties_L1000N1800.sh for an example
-batch script.
+### Batch scripts for running on FLAMINGO simulations on Cosma-8
+
+There are slurm scripts to run on FLAMINGO in `./scripts/FLAMINGO/`. These
+are intended to be run as array jobs where the job array indexes determine
+which snapshots to process.
+
+In order to reduce duplication only one script is provided per simulation
+box size and resolution. The simulation to process is specified by setting
+the job name with the slurm sbatch -J flag.
+
+Output locations are specified using the environment variables
+FLAMINGO_SCRATCH_DIR and FLAMINGO_OUTPUT_DIR. To write scratch files
+on /snap8 and compressed output to /cosma8:
+```
+export FLAMINGO_OUTPUT_DIR=/cosma8/data/dp004/${USER}/FLAMINGO/ScienceRuns/
+export FLAMINGO_SCRATCH_DIR=/snap8/scratch/dp004/${USER}/FLAMINGO/ScienceRuns/
+```
+Then to run the group membership code on all snapshots of the 
+L1000N1800/HYDRO_FIDUCIAL simulation:
+```
+cd SOAP
+mkdir logs
+sbatch --array=0-77%4 -J HYDRO_FIDUCIAL ./scripts/FLAMINGO/L1000N1800/group_membership_L1000N1800.sh
+```
+
+And to run the halo properties code:
+```
+cd SOAP
+mkdir logs
+sbatch --array=0-77%4 -J HYDRO_FIDUCIAL ./scripts/FLAMINGO/L1000N1800/halo_properties_L1000N1800.sh
+```
+
+### Script for submitting multiple batch jobs
+
+There is also a script which can run the group membership code and the
+halo properties code and them compress the output from both. To use it
+on Cosma-8, starting from a fresh SOAP checkout:
+```
+git clone git@github.com:SWIFTSIM/SOAP.git
+cd SOAP/scripts/FLAMINGO
+./submit_jobs.sh --run=L1000N1800/HYDRO_FIDUCIAL --snapshots=0-77%4
+```
+This will submit jobs with dependencies set so that they're run in the
+right order (e.g. the group membership files must be created before
+SOAP can run).
+
+Snapshots are specified using the syntax of the sbatch `--array` flag.
+To do one snapshot you could do `--snapshots=77` or to do a range and
+limit how many run at once you could use  `--snapshots=0-77%4`.
+
+The output locations are set using environment variables. The defaults are
+```
+export FLAMINGO_OUTPUT_DIR=/cosma8/data/dp004/${USER}/FLAMINGO/SOAP-Output/
+export FLAMINGO_SCRATCH_DIR=/snap8/scratch/dp004/${USER}/FLAMINGO/SOAP-Output/
+```
+Uncompressed output is all written to the scratch directory and the
+final, compressed files are written to the output directory.
+
+By default the script runs the group membership program, runs SOAP,
+compresses the group membership output and compresses the SOAP
+output. If some parts of the calculation have already been done you
+can specify which parts to run with the following flags:
+```
+--membership: run the group membership calculation
+--soap: run SOAP
+--compress-membership: compress the group membership output
+--compress-soap: compress the SOAP output
+```
 
 ## Adding quantities
 
@@ -149,6 +215,9 @@ flag. This specifies the VELOCIraptor IDs of the required halos. E.g.
 ```
 python3 -Werror -m pdb ./compute_halo_properties.py --halo-ids 1 2 3 ...
 ```
+
+See the scripts in `scripts/FLAMINGO/small_test` for examples showing how to
+run SOAP on a few halos from the FLAMINGO simulations.
 
 ## Profiling
 
