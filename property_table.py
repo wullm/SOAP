@@ -95,9 +95,9 @@ class PropertyTable:
         "footnote_Mnu.tex": ["Mnu", "MnuNS"],
         "footnote_Xray.tex": [
             "Xraylum",
-            "Xraylum_no_agn",
+            "Xraylum_restframe",
             "Xrayphlum",
-            "Xrayphlum_no_agn",
+            "Xrayphlum_restframe",
         ],
         "footnote_compY.tex": ["compY", "compY_no_agn"],
         "footnote_dopplerB.tex": ["DopplerB"],
@@ -1091,7 +1091,7 @@ class PropertyTable:
             False,
         ),
         "Xrayphlum_restframe_core_excision": (
-            "XRayPhotonLuminosityCoreExcision",
+            "XRayPhotonLuminosityInRestframeCoreExcision",
             3,
             np.float64,
             "1/s",
@@ -1561,7 +1561,7 @@ Name & Shape & Type & Units & SH & ES & IS & EP & SO & Category & Compression\\\
             prop_projected = (
                 checkmark if "ProjectedApertureProperties" in prop["types"] else xmark
             )
-            prop_SO = checkmark if "SOProperties" in prop["types"] else xmark
+            prop_SO = checkmark if "CoreExcisedSOProperties" in prop["types"] else xmark
             table_props = [
                 prop_outputname,
                 prop_shape,
