@@ -161,11 +161,29 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize, halo_size_
 
     # Get HBTplus unit information
     if comm_rank == 0:
+        # Try to get units from the HDF5 output
+        have_units = False
         filename = hbt_filename(basename, 0)
         with h5py.File(filename, "r") as infile:
-            LengthInMpch = float(infile["Units/LengthInMpch"][...])
-            MassInMsunh = float(infile["Units/MassInMsunh"][...])
-            VelInKmS = float(infile["Units/VelInKmS"][...])
+            if "Units" in infile:
+                LengthInMpch = float(infile["Units/LengthInMpch"][...])
+                MassInMsunh = float(infile["Units/MassInMsunh"][...])
+                VelInKmS = float(infile["Units/VelInKmS"][...])
+                have_units = True
+        # Otherwise, will have to read the Parameters.log file
+        if not(have_units):
+            dirname = os.path.dirname(os.path.dirname(filename))
+            with open(dirname+"/Parameters.log", "r") as infile:
+                for line in infile:
+                    fields = line.split()
+                    if len(fields) == 2:
+                        name, value = fields
+                        if name == "MassInMsunh":
+                            MassInMsunh = float(value)
+                        elif name == "LengthInMpch":
+                            LengthInMpch = float(value)
+                        elif name == "VelInKmS":
+                            VelInKmS = float(value)
     else:
         LengthInMpch = None
         MassInMsunh = None
