@@ -95,12 +95,16 @@ def read_hbtplus_groupnr(basename):
     unique_ids_bound, unique_counts = psort.parallel_unique(
         ids_bound, comm=comm, arr_sorted=True, return_counts=True
     )
-    nr_ids_local = len(ids_bound)
 
-    # Find out how many unique IDs are on each previous MPI rank
+    # Compute sum of the counts of unique IDs on this MPI rank. This is
+    # not necessarily the same as len(ids_bound).
+    nr_ids_local = np.sum(unique_counts, dtype=int)
+
+    # Compute sum of the counts of unique IDs on all previous MPI ranks
     nr_ids_prev_rank = comm.scan(nr_ids_local) - nr_ids_local
 
-    # Find the global offset of the first instance of each ID
+    # Find the global offset of the first instance of each unique ID in the
+    # full array of IDs
     unique_offsets = np.cumsum(unique_counts) - unique_counts + nr_ids_prev_rank
 
     # Fetch the ID, grnr_bound and rank_bound of the first instance of each particle ID
