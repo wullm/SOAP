@@ -84,6 +84,13 @@ if __name__ == "__main__":
     else:
         raise RuntimeError(f"Unrecognised halo finder name: {halo_format}")
 
+    # Report memory load
+    nr_parts_local = len(ids_bound)
+    max_nr_parts_local = comm.allreduce(nr_parts_local, op=MPI.MAX)
+    min_nr_parts_local = comm.allreduce(nr_parts_local, op=MPI.MIN)
+    if comm_rank == 0:
+        print(f"Number of group particle IDs per rank min={min_nr_parts_local}, max={max_nr_parts_local}")
+    
     # Determine SWIFT particle types which exist in the snapshot
     ptypes = []
     with h5py.File(swift_filename.format(file_nr=0), "r") as infile:
@@ -109,6 +116,13 @@ if __name__ == "__main__":
             print("Calculating group membership for type ", ptype)
         swift_ids = snap_file.read(("ParticleIDs",), ptype)["ParticleIDs"]
 
+        # Report memory load
+        nr_parts_local = len(swift_ids)
+        max_nr_parts_local = comm.allreduce(nr_parts_local, op=MPI.MAX)
+        min_nr_parts_local = comm.allreduce(nr_parts_local, op=MPI.MIN)
+        if comm_rank == 0:
+            print(f"  Number of snapshot particle IDs per rank min={min_nr_parts_local}, max={max_nr_parts_local}")
+        
         # Allocate array to store SWIFT particle group membership
         swift_grnr_bound = np.ndarray(len(swift_ids), dtype=grnr_bound.dtype)
         if rank_bound is not None:
