@@ -7,6 +7,7 @@ import unyt
 
 import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.parallel_sort as psort
+import virgo.mpi.util
 
 
 def hbt_filename(hbt_basename, file_nr):
@@ -51,9 +52,33 @@ def read_hbtplus_groupnr(basename):
         with h5py.File(hbt_filename(basename, file_nr), "r") as infile:
             halos.append(infile["Subhalos"][...])
             ids_bound.append(infile["SubhaloParticles"][...])
-    halos = np.concatenate(halos)
-    ids_bound = np.concatenate(ids_bound)  # Combine arrays from different files
-    ids_bound = np.concatenate(ids_bound)  # Combine arrays from different halos
+
+    # Get the dtype for particle IDs
+    if len(ids_bound) > 0:
+        id_dtype = h5py.check_vlen_dtype(ids_bound[0].dtype)
+    else:
+        id_dtype = None
+
+    # Concatenate arrays of halos from different files
+    if len(halos) > 0:
+        halos = np.concatenate(halos)
+    else:
+        # This rank was assigned no files
+        halos = None
+    halos = virgo.mpi.util.replace_none_with_zero_size(halos, comm=comm)
+
+    # Combine arrays of particles in halos
+    if len(ids_bound) > 0:
+        ids_bound = np.concatenate(ids_bound)  # Combine arrays of halos from different files
+        if len(ids_bound) > 0:
+            ids_bound = np.concatenate(ids_bound)  # Combine arrays of particles from different halos
+        else:
+            # The files assigned to this rank contain zero halos
+            ids_bound = np.zeros(0, dtype=id_dtype)
+    else:
+        # This rank was assigned no files
+        ids_bound = None
+    ids_bound = virgo.mpi.util.replace_none_with_zero_size(ids_bound, comm=comm)
 
     # Assign halo indexes to the particles
     nr_local_halos = len(halos)
@@ -61,6 +86,7 @@ def read_hbtplus_groupnr(basename):
     halo_offset = comm.scan(len(halos), op=MPI.SUM) - len(halos)
     halo_index = np.arange(nr_local_halos, dtype=int) + halo_offset
     halo_size = halos["Nbound"]
+    del halos
     grnr_bound = np.repeat(halo_index, halo_size)
 
     # Assign ranking by binding energy to the particles
@@ -72,6 +98,9 @@ def read_hbtplus_groupnr(basename):
         )
         offset += halo_size[halo_nr]
     assert np.all(rank_bound >= 0)  # HBT only outputs bound particles
+    del halo_size
+    del halo_offset
+    del halo_index
 
     # Now check for duplicates. HBTplus can assign the same particle to multiple
     # subhalos in cases where a subhalo escapes its host and enters another halo.
