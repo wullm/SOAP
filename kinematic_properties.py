@@ -44,7 +44,7 @@ def get_angular_momentum(
         vrel = velocity
     else:
         vrel = velocity - ref_velocity[None, :]
-    return (mass[:, None] * unyt.array.ucross(prel, vrel)).sum(axis=0)
+    return (mass[:, None] * np.cross(prel, vrel)).sum(axis=0)
 
 
 def get_angular_momentum_and_kappa_corot(
@@ -79,9 +79,9 @@ def get_angular_momentum_and_kappa_corot(
     else:
         vrel = velocity - ref_velocity[None, :]
 
-    Lpart = mass[:, None] * unyt.array.ucross(prel, vrel)
+    Lpart = mass[:, None] * np.cross(prel, vrel)
     Ltot = Lpart.sum(axis=0)
-    Lnrm = unyt.array.unorm(Ltot)
+    Lnrm = np.linalg.norm(Ltot)
 
     if do_counterrot_mass:
         M_counterrot = unyt.unyt_array(
