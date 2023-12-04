@@ -12,6 +12,7 @@ import domain_decomposition
 import read_vr
 import read_hbtplus
 import read_gadget4
+import read_rockstar
 
 
 def gather_to_rank_zero(arr):
@@ -93,6 +94,10 @@ class SOCatalogue:
             halo_data = read_gadget4.read_gadget4_catalogue(
                 comm, halo_basename, a_unit, registry, boxsize
             )
+        elif halo_format == "Rockstar":
+            halo_data = read_rockstar.read_rockstar_catalogue(
+                comm, halo_basename, a_unit, registry, boxsize
+            )
         else:
             raise RuntimeError(f"Halo format {format} not recognised!")
 
@@ -107,7 +112,7 @@ class SOCatalogue:
         del halo_data
 
         # Only keep halos in the supplied list of halo IDs.
-        if halo_ids is not None:
+        if (halo_ids is not None) and (local_halo['index'].shape[0]):
             halo_ids = np.asarray(halo_ids, dtype=np.int64)
             keep = np.zeros_like(local_halo["index"], dtype=bool)
             matching_index = virgo.util.match.match(halo_ids, local_halo["index"])

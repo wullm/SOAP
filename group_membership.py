@@ -15,6 +15,7 @@ import combine_args
 import read_vr
 import read_hbtplus
 import read_gadget4
+import read_rockstar
 
 from mpi4py import MPI
 
@@ -39,7 +40,6 @@ if __name__ == "__main__":
     swift_filename = args["Snapshots"]["filename"]
     halo_format = args["HaloFinder"]["type"]
     halo_basename = args["HaloFinder"]["filename"]
-    halo_basename = args["HaloFinder"]["filename"]    
     output_file = args["GroupMembership"]["filename"]
     halo_sizes_file = args["GroupMembership"]["halo_sizes_file"]
     
@@ -76,6 +76,14 @@ if __name__ == "__main__":
     elif halo_format == "Gadget4":
         # Read Gadget-4 subfind output
         total_nr_halos, ids_bound, grnr_bound = read_gadget4.read_gadget4_groupnr(
+            halo_basename
+        )
+        ids_unbound = None
+        grnr_unbound = None
+        rank_bound = None
+    elif halo_format == 'Rockstar':
+        # Read Rockstar output
+        total_nr_halos, ids_bound, grnr_bound = read_rockstar.read_rockstar_groupnr(
             halo_basename
         )
         ids_unbound = None

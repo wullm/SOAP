@@ -183,6 +183,7 @@ def read_gadget4_catalogue(comm, basename, a_unit, registry, boxsize):
         "Subhalo/SubhaloHalfmassRad",
         "Subhalo/SubhaloRankInGr",
         "Subhalo/SubhaloLen",
+        "Subhalo/SubhaloGroupNr",
     )
     subtab = phdf5.MultiFile(group_format_string, file_nr_attr=("Header", "NumFiles"))
     data = subtab.read(datasets)
@@ -216,6 +217,14 @@ def read_gadget4_catalogue(comm, basename, a_unit, registry, boxsize):
         registry=registry,
     )
 
+    # Store FOF group ID of this halo
+    group_nr = unyt.unyt_array(
+        data["Subhalo/SubhaloGroupNr"],
+        dtype=int,
+        units=unyt.dimensionless,
+        registry=registry,
+    )
+
     # Store initial search radius (TODO: check this is still in physical units, unlike the position)
     search_radius = (
         data["Subhalo/SubhaloHalfmassRad"] * length_conversion * swift_pmpc
@@ -227,6 +236,7 @@ def read_gadget4_catalogue(comm, basename, a_unit, registry, boxsize):
         "search_radius": search_radius,
         "is_central": is_central,
         "nr_bound_part": nr_bound_part,
+        "GroupNr": group_nr,
     }
 
     for name in local_halo:

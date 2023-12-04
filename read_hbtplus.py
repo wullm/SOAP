@@ -284,6 +284,12 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize, halo_size_
         is_central, units=unyt.dimensionless, dtype=int, registry=registry
     )
 
+    # HostHaloID
+    host_halo_id = subhalo["HostHaloId"][keep]
+    host_halo_id = unyt.unyt_array(
+        host_halo_id, units=unyt.dimensionless, dtype=int, registry=registry
+    )
+
     # Number of bound particles
     nr_bound_part = nr_bound_part[keep]
 
@@ -293,5 +299,6 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize, halo_size_
         "search_radius": search_radius,
         "is_central": is_central,
         "nr_bound_part": nr_bound_part,
+        "HostHaloId": host_halo_id,
     }
     return local_halo
