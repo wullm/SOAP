@@ -181,6 +181,9 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize, halo_size_
     swift_cmpc = unyt.Unit(a_unit * swift_pmpc, registry=registry)
     swift_msun = unyt.Unit("swift_msun", registry=registry)
 
+    # Get km/s
+    kms = unyt.Unit("km/s", registry=registry)
+
     # Get expansion factor as a float
     a = a_unit.base_value
 
@@ -290,6 +293,22 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize, halo_size_
         host_halo_id, units=unyt.dimensionless, dtype=int, registry=registry
     )
 
+    # TODO: Decide which properties to keep
+    # Peak mass
+    max_mass = (subhalo["LastMaxMass"][keep] * MassInMsunh / h ) * swift_msun
+    snapshot_max_mass = subhalo["SnapshotIndexOfLastMaxMass"][keep]
+    snapshot_max_mass = unyt.unyt_array(
+        snapshot_max_mass, units=unyt.dimensionless, dtype=int, registry=registry
+    )
+
+    # Peak vmax
+    vmax = (subhalo["VmaxPhysical"][keep] * VelInKmS ) * kms
+    max_vmax = (subhalo["LastMaxVmaxPhysical"][keep] * VelInKmS ) * kms
+    snapshot_max_vmax = subhalo["SnapshotIndexOfLastMaxVmax"][keep]
+    snapshot_max_vmax = unyt.unyt_array(
+        snapshot_max_vmax, units=unyt.dimensionless, dtype=int, registry=registry
+    )
+
     # Number of bound particles
     nr_bound_part = nr_bound_part[keep]
 
@@ -300,5 +319,10 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize, halo_size_
         "is_central": is_central,
         "nr_bound_part": nr_bound_part,
         "HostHaloId": host_halo_id,
+        "LastMaxMass": max_mass,
+        "SnapshotIndexOfLastMaxMass": snapshot_max_mass,
+        "VmaxPhysical": vmax,
+        "LastMaxVmaxPhysical": max_vmax,
+        "SnapshotIndexOfLastMaxVmax": snapshot_max_vmax,
     }
     return local_halo
