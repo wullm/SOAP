@@ -31,6 +31,7 @@ class SubhaloParticleData:
         grnr,
         stellar_age_calculator,
         recently_heated_gas_filter,
+        softening_of_parttype,
     ):
         self.input_halo = input_halo
         self.data = data
@@ -38,6 +39,7 @@ class SubhaloParticleData:
         self.grnr = grnr
         self.stellar_age_calculator = stellar_age_calculator
         self.recently_heated_gas_filter = recently_heated_gas_filter
+        self.softening_of_parttype = softening_of_parttype
         self.compute_basics()
 
     def compute_basics(self):
@@ -49,6 +51,7 @@ class SubhaloParticleData:
         radius = []
         velocity = []
         types = []
+        softening = []
         for ptype in self.types_present:
             grnr = self.data[ptype][self.grnr]
             in_halo = grnr == self.index
@@ -61,12 +64,15 @@ class SubhaloParticleData:
             typearr = np.zeros(r.shape, dtype="U9")
             typearr[:] = ptype
             types.append(typearr)
+            s = np.ones(r.shape, dtype='float64')*self.softening_of_parttype[ptype]
+            softening.append(s)
 
         self.mass = unyt.array.uconcatenate(mass)
         self.position = unyt.array.uconcatenate(position)
         self.radius = unyt.array.uconcatenate(radius)
         self.velocity = unyt.array.uconcatenate(velocity)
         self.types = np.concatenate(types)
+        self.softening = unyt.array.uconcatenate(softening)
 
     @lazy_property
     def gas_mask_sh(self):
@@ -333,6 +339,14 @@ class SubhaloParticleData:
         if not hasattr(self, "vmax"):
             self.r_vmax, self.vmax = get_vmax(self.mass, self.radius)
         return self.vmax
+
+    @lazy_property
+    def Vmax_soft(self):
+        if self.Mtot == 0:
+            return None
+        soft_r = np.maximum(self.softening, self.radius)
+        _, vmax = get_vmax(self.mass, soft_r)
+        return vmax
 
     @lazy_property
     def spin_parameter(self):
@@ -778,6 +792,7 @@ class SubhaloProperties(HaloProperty):
             "StellarLuminosity",
             "starmetalfrac",
             "Vmax",
+            "Vmax_soft",
             "R_vmax",
             "DM_Vmax",
             "DM_R_vmax",
@@ -891,7 +906,7 @@ class SubhaloProperties(HaloProperty):
         types_present = [type for type in self.particle_properties if type in data]
 
         part_props = SubhaloParticleData(
-            input_halo, data, types_present, self.grnr, self.stellar_ages, self.filter
+            input_halo, data, types_present, self.grnr, self.stellar_ages, self.filter, self.softening_of_parttype,
         )
 
         if not self.bound_only:
