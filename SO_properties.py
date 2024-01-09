@@ -166,6 +166,7 @@ class SOParticleData:
         nu_density,
         observer_position,
         core_excision_fraction,
+        softening_of_parttype,
     ):
         self.input_halo = input_halo
         self.data = data
@@ -174,6 +175,7 @@ class SOParticleData:
         self.nu_density = nu_density
         self.observer_position = observer_position
         self.core_excision_fraction = core_excision_fraction
+        self.softening_of_parttype = softening_of_parttype
         self.compute_basics()
 
     def compute_basics(self):
@@ -187,6 +189,7 @@ class SOParticleData:
         velocity = []
         types = []
         groupnr = []
+        softening = []
         for ptype in self.types_present:
             if ptype == "PartType6":
                 # add neutrinos separately, since we need to treat them
@@ -202,12 +205,15 @@ class SOParticleData:
             typearr[:] = ptype
             types.append(typearr)
             groupnr.append(self.data[ptype]["GroupNr_bound"])
+            s = np.ones(r.shape, dtype='float64')*self.softening_of_parttype[ptype]
+            softening.append(s)
         self.mass = unyt.array.uconcatenate(mass)
         self.radius = unyt.array.uconcatenate(radius)
         self.position = unyt.array.uconcatenate(position)
         self.velocity = unyt.array.uconcatenate(velocity)
         self.types = np.concatenate(types)
         self.groupnr = unyt.array.uconcatenate(groupnr)
+        self.softening = unyt.array.uconcatenate(softening)
 
         # figure out which particles in the list are bound to a halo that is not the
         # central halo
@@ -221,6 +227,9 @@ class SOParticleData:
             )
             pos = self.data["PartType6"]["Coordinates"] - self.centre[None, :]
             nur = np.sqrt(np.sum(pos ** 2, axis=1))
+            self.nu_mass = numass
+            self.nu_radius = nur
+            self.nu_softening = np.ones_like(nur) * self.softening_of_parttype['PartType6']
             all_mass = unyt.array.uconcatenate([self.mass, numass])
             all_r = unyt.array.uconcatenate([self.radius, nur])
         else:
@@ -285,6 +294,22 @@ class SOParticleData:
         SO_exists = self.SO_r > 0 and self.SO_mass > 0
 
         if SO_exists:
+            # Calculate DMO mass fraction found at SO_r
+            # This is used when computing concentration_dmo
+            dm_r = self.radius[self.types == "PartType1"]
+            dm_m = self.mass[self.types == "PartType1"]
+            order = np.argsort(dm_r)
+            ordered_dm_r = dm_r[order]
+            outside_radius = ordered_dm_r > self.SO_r
+            self.dm_missed_mass = 0 * self.mass.units
+            if np.any(outside_radius):
+                i = np.argmax(outside_radius)
+                if i != 0:  # We have DM particles inside the SO radius
+                    r1 = ordered_dm_r[i - 1]
+                    r2 = ordered_dm_r[i]
+                    self.dm_missed_mass = (self.SO_r - r1) / (r2 - r1) * dm_m[order][i]
+
+            # Removing particles outside SO radius
             self.gas_selection = self.radius[self.types == "PartType0"] < self.SO_r
             self.dm_selection = self.radius[self.types == "PartType1"] < self.SO_r
             self.star_selection = self.radius[self.types == "PartType4"] < self.SO_r
@@ -297,6 +322,13 @@ class SOParticleData:
             self.velocity = self.velocity[self.all_selection]
             self.types = self.types[self.all_selection]
             self.is_bound_to_satellite = self.is_bound_to_satellite[self.all_selection]
+            self.softening = self.softening[self.all_selection]
+
+            if "PartType6" in self.data:
+                self.nu_selection = self.nu_radius < self.SO_r
+                self.nu_mass = self.nu_mass[self.nu_selection]
+                self.nu_radius = self.nu_radius[self.nu_selection]
+                self.nu_softening = self.nu_softening[self.nu_selection]
 
         return SO_exists
 
@@ -1318,9 +1350,6 @@ class SOParticleData:
     @lazy_property
     def Nnu(self):
         if "PartType6" in self.data:
-            pos = self.data["PartType6"]["Coordinates"] - self.centre[None, :]
-            nur = np.sqrt(np.sum(pos ** 2, axis=1))
-            self.nu_selection = nur < self.SO_r
             return self.nu_selection.sum()
         else:
             return unyt.unyt_array(0, dtype=np.uint32, units="dimensionless")
@@ -1340,6 +1369,66 @@ class SOParticleData:
             * self.data["PartType6"]["Weights"][self.nu_selection]
         ).sum() + self.nu_density * self.SO_volume
 
+    @staticmethod
+    def concentration_from_R1(R1):
+        # This is a higher degree polynomial fit than was used in Wang+23
+        # Obtained by fitting R1-concentration radius for 1<c<1000
+        polynomial = [-79.71, -222.46, -250.14, -140.17, -43.59, -5.07]
+        c = 0
+        for i, b in enumerate(polynomial[::-1]):
+            c += b * np.log10(R1)**i
+        return unyt.unyt_quantity(10**c, dtype=np.float32, units="dimensionless")
+
+    def calculate_concentration(self, r):
+        R1 = np.sum(self.mass * r)
+        missed_mass = self.Mtot - np.sum(self.mass)
+        if self.Nnu != 0:
+            # Neutrino particles within self.r
+            R1 += np.sum(self.nu_mass * self.nu_radius)
+            missed_mass -= np.sum(self.nu_mass)
+            # Neutrino background
+            R1 += np.pi * self.nu_density * self.r**4
+            missed_mass -= self.nu_density * 4.0 / 3.0 * np.pi * self.r ** 3
+        R1 += missed_mass * self.r
+        # Normalize
+        R1 /= self.r * self.Mtot
+        return self.concentration_from_R1(R1)
+
+    @lazy_property
+    def concentration(self):
+        if self.Mtotpart == 0:
+            return None
+        return self.calculate_concentration(self.radius)
+
+    @lazy_property
+    def concentration_soft(self):
+        if self.Mtotpart == 0:
+            return None
+        soft_r = np.maximum(self.softening, self.radius)
+        return self.calculate_concentration(soft_r)
+
+    def calculate_concentration_dmo(self, r):
+        R1 = np.sum(self.mass[self.types == "PartType1"] * r)
+        R1 += self.dm_missed_mass * self.r
+        R1 /= self.r * (self.Mdm + self.dm_missed_mass)
+        return self.concentration_from_R1(R1)
+
+    @lazy_property
+    def concentration_dmo(self):
+        if self.Mdm == 0:
+            return None
+        r = self.radius[self.types == "PartType1"]
+        return self.calculate_concentration_dmo(r)
+
+    @lazy_property
+    def concentration_dmo_soft(self):
+        if self.Mdm == 0:
+            return None
+        soft_r = np.maximum(
+            self.softening[self.types == "PartType1"],
+            self.radius[self.types == "PartType1"]
+        )
+        return self.calculate_concentration_dmo(soft_r)
 
 class SOProperties(HaloProperty):
     # Arrays which must be read in for this calculation.
@@ -1469,6 +1558,10 @@ class SOProperties(HaloProperty):
             "starOfrac",
             "starFefrac",
             "gasmetalfrac_SF",
+            "concentration",
+            "concentration_soft",
+            "concentration_dmo",
+            "concentration_dmo_soft",
         ]
     ]
 
@@ -1606,6 +1699,7 @@ class SOProperties(HaloProperty):
                 self.nu_density,
                 self.observer_position,
                 self.core_excision_fraction,
+                self.softening_of_parttype,
             )
 
             # we need to make sure the physical radius uses the correct unit
