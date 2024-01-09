@@ -1859,7 +1859,7 @@ class RadiusMultipleSOProperties(SOProperties):
         return
 
 
-def test_SO_properties():
+def test_SO_properties_random_halo():
     from dummy_halo_generator import DummyHaloGenerator
 
     dummy_halos = DummyHaloGenerator(4251)
@@ -1891,40 +1891,7 @@ def test_SO_properties():
             Npart,
             particle_numbers,
         ) = dummy_halos.get_random_halo([2, 10, 100, 1000, 10000], has_neutrinos=True)
-        halo_result_template = {
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}": (
-                unyt.unyt_array(
-                    particle_numbers["PartType0"],
-                    dtype=PropertyTable.full_property_list["Ngas"][2],
-                    units="dimensionless",
-                ),
-                "Dummy Ngas for filter",
-            ),
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}": (
-                unyt.unyt_array(
-                    particle_numbers["PartType1"],
-                    dtype=PropertyTable.full_property_list["Ndm"][2],
-                    units="dimensionless",
-                ),
-                "Dummy Ndm for filter",
-            ),
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}": (
-                unyt.unyt_array(
-                    particle_numbers["PartType4"],
-                    dtype=PropertyTable.full_property_list["Nstar"][2],
-                    units="dimensionless",
-                ),
-                "Dummy Nstar for filter",
-            ),
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}": (
-                unyt.unyt_array(
-                    particle_numbers["PartType5"],
-                    dtype=PropertyTable.full_property_list["Nbh"][2],
-                    units="dimensionless",
-                ),
-                "Dummy Nbh for filter",
-            ),
-        }
+        halo_result_template = dummy_halos.get_halo_result_template(particle_numbers)
         rho_ref = Mtot / (4.0 / 3.0 * np.pi * rmax ** 3)
 
         # force the SO radius to be outside the search sphere and check that
@@ -2025,11 +1992,120 @@ def test_SO_properties():
                 unit = unyt.Unit(unit_string)
                 assert result.units.same_dimensions_as(unit.units)
 
+def calculate_SO_properties_nfw_halo(seed, num_part, c):
+    """
+    Generates a halo with an NFW profile, and calculates SO properties for it
+    """
+    from dummy_halo_generator import DummyHaloGenerator
+
+    dummy_halos = DummyHaloGenerator(seed)
+    cat_filter = CategoryFilter()
+
+    property_calculator_200crit = SOProperties(
+        dummy_halos.get_cell_grid(), filter, cat_filter, 200.0, "crit"
+    )
+
+    (
+        input_halo,
+        data,
+        rmax,
+        Mtot,
+        Npart,
+        particle_numbers,
+    ) = dummy_halos.gen_nfw_halo(100, c, num_part)
+
+    halo_result_template = dummy_halos.get_halo_result_template(particle_numbers)
+
+    property_calculator_200crit.nu_density *= 0
+    property_calculator_200crit.calculate(input_halo, rmax, data, halo_result_template)
+
+    return halo_result_template
+
+def test_concentration_nfw_halo():
+    """
+    Test if the calculated concentration is close to the input value.
+    Only tests halos with for 10000 particles.
+    Fails due to noise for small particle numbers.
+    """
+    n_part = 10000
+    for seed in range(10):
+        for concentration in [5, 10]:
+            halo_result = calculate_SO_properties_nfw_halo(seed, n_part, concentration)
+            calculated = halo_result['SO/200_crit/Concentration'][0]
+            delta = np.abs(calculated-concentration)/concentration
+            assert delta < 0.1
+
+def plot_concentrations():
+    """
+    Generate plots of input vs calculated calculation.
+    Compare with Figure D1 of Wang+23.
+    """
+    import matplotlib.pyplot as plt
+
+    n_test = 10000
+    ns = [20, 100, 1000, 10000]
+    input_concentration = 10
+
+    def rescale(concentration):
+        return np.log10(concentration + 1) - np.log10(input_concentration + 1)
+
+    data = {}
+    for n in ns:
+        print(f'Generating halos with {n} particles')
+        data[n] = {
+            'concentration': np.zeros(n_test),
+            'concentration_soft': np.zeros(n_test),
+            'concentration_dmo': np.zeros(n_test),
+            'concentration_dmo_soft': np.zeros(n_test),
+        }
+        for s in range(n_test):
+            halo_result = calculate_SO_properties_nfw_halo(s, n, input_concentration)
+            concentration = halo_result['SO/200_crit/Concentration'][0]
+            data[n]['concentration'][s] = rescale(concentration.value)
+            concentration_soft = halo_result['SO/200_crit/ConcentrationSoft'][0]
+            data[n]['concentration_soft'][s] = rescale(concentration_soft.value)
+            concentration_dmo = halo_result['SO/200_crit/DarkMatterConcentration'][0]
+            data[n]['concentration_dmo'][s] = rescale(concentration_dmo.value)
+            concentration_dmo_soft = halo_result['SO/200_crit/DarkMatterConcentrationSoft'][0]
+            data[n]['concentration_dmo_soft'][s] = rescale(concentration_dmo_soft.value)
+
+    print('Plotting concentration')
+    fig, axs = plt.subplots(len(ns), figsize=(6, 4*len(ns)))
+    for i, n in enumerate(ns):
+        bin_min = min([np.min(arr) for arr in data[n].values()])
+        bin_max = max([np.max(arr) for arr in data[n].values()])
+        bin_lim = max(-bin_min, bin_max)
+        bins = np.linspace(-bin_lim, bin_lim, 40)
+        mids = (bins[:-1] + bins[1:]) / 2
+
+        for name, arr in data[n].items():
+            color = 'tab:orange' if ('dmo' in name) else 'tab:blue'
+            ls = '--' if ('soft' in name) else '-'
+            h = np.histogram(arr, bins=bins)[0].astype('float64')
+            std = np.std(arr)
+            label = f'{name}\n$\mu=${np.median(arr):.2g}\n$\sigma=${std:.2g}\n'
+            axs[i].plot(mids, h, ls=ls, color=color, label=label)
+
+        axs[i].axvline(0, color='k', ls='--')
+        axs[i].set_xlabel('log($c_{est}$ + 1) - log($c_{input}$+1)')
+        axs[i].set_ylabel('N in bin')
+        label = f'Npart: {n}'
+        axs[i].text(0.98, 0.98, label, transform=axs[i].transAxes,
+                    horizontalalignment='right',
+                    verticalalignment='top')
+        axs[i].legend(loc='upper left', bbox_to_anchor=(1, 1))
+
+    axs[0].set_title(f'Concentration: {input_concentration}, {n_test} halos')
+    plt.tight_layout()
+    plt.savefig(f'c{input_concentration}_hist.png')
+    plt.close()
 
 if __name__ == "__main__":
     """
-    Standalone mode. Just run test_SO_properties().
+    Standalone mode for running tests.
     """
-    print("Calling test_SO_properties()...")
-    test_SO_properties()
-    print("Test passed.")
+    print("Calling test_SO_properties_random_halo()...")
+    test_SO_properties_random_halo()
+    print("Calling test_concentration_nfw_halo()...")
+    test_concentration_nfw_halo()
+    print("Tests passed.")

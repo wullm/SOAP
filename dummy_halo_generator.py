@@ -1,9 +1,11 @@
 #! /usr/bin/env python3
 
 import numpy as np
+import scipy
 import unyt
 import types
 from swift_units import unit_registry_from_snapshot
+from property_table import PropertyTable
 
 
 class DummySnapshot:
@@ -191,6 +193,160 @@ class DummyHaloGenerator:
         that are generated.
         """
         return self.dummy_cellgrid
+
+    @staticmethod
+    def get_halo_result_template(particle_numbers):
+        """
+        Return a halo_result object which only contains the number of each particle type.
+        """
+        return {
+            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}": (
+                unyt.unyt_array(
+                    particle_numbers["PartType0"],
+                    dtype=PropertyTable.full_property_list["Ngas"][2],
+                    units="dimensionless",
+                ),
+                "Dummy Ngas for filter",
+            ),
+            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}": (
+                unyt.unyt_array(
+                    particle_numbers["PartType1"],
+                    dtype=PropertyTable.full_property_list["Ndm"][2],
+                    units="dimensionless",
+                ),
+                "Dummy Ndm for filter",
+            ),
+            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}": (
+                unyt.unyt_array(
+                    particle_numbers["PartType4"],
+                    dtype=PropertyTable.full_property_list["Nstar"][2],
+                    units="dimensionless",
+                ),
+                "Dummy Nstar for filter",
+            ),
+            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}": (
+                unyt.unyt_array(
+                    particle_numbers["PartType5"],
+                    dtype=PropertyTable.full_property_list["Nbh"][2],
+                    units="dimensionless",
+                ),
+                "Dummy Nbh for filter",
+            ),
+        }
+
+    @staticmethod
+    def rnfw(n, con):
+        """
+        Return radius values from n particles from an NFW profile with the input concentration.
+        Derived from https://github.com/CullanHowlett/NFWdist
+        """
+        p = np.random.rand(int(n))
+        p *= np.log(1.0 + con)-con/(1.0 + con)
+        return (-(1.0/np.real(scipy.special.lambertw(-np.exp(-p-1))))-1)/con
+
+    def gen_nfw_halo(self, m_200, concentration, npart):
+        """
+        Generate a random halo with an NFW profile.
+        """
+
+        reg = self.unit_registry
+        # the random halo always gets GroupNr 1
+        groupnr_halo = 1
+        # structure type: central
+        structuretype = 10
+
+        # Generate NFW particle radii
+        crit_density = self.get_cell_grid().critical_density
+        m_200 = unyt.unyt_quantity(m_200, units='snap_mass', registry=reg)
+        r_200 = (m_200 / (crit_density * 200 * (4/3) * np.pi)) ** (1/3)
+        radius = r_200.value * self.rnfw(npart, concentration)
+
+        radius = np.sort(radius)
+        # Force a particle to be outside r_200
+        if radius[-1] < r_200.value:
+            radius[-1] = r_200 * 1.01
+        # Force the first particle to be at the centre
+        radius[0] = 0.0
+
+        # generate a random direction to convert the radius into an actual
+        # coordinate
+        phi = 2.0 * np.pi * np.random.random(npart)
+        sintheta = 2.0 * np.random.random(npart) - 1.0
+        costheta = np.sqrt((1.0 - sintheta) * (1.0 + sintheta))
+        cosphi = np.cos(phi)
+        sinphi = np.sin(phi)
+        coords = np.zeros((npart, 3))
+        coords[:, 0] = radius * cosphi * sintheta
+        coords[:, 1] = radius * sinphi * sintheta
+        coords[:, 2] = radius * costheta
+        coords = unyt.unyt_array(
+            coords, dtype=np.float64, units="snap_length", registry=reg
+        )
+        rmax = np.sqrt(coords[:, 0] ** 2 + coords[:, 1] ** 2 + coords[:, 2] ** 2).max()
+        rmax *= 2
+
+        # Add a (random) halo centre
+        centre = unyt.unyt_array(
+            100.0 * np.random.random(3),
+            dtype=np.float64,
+            units="snap_length",
+            registry=reg,
+        )
+        coords += centre
+        mass = unyt.unyt_array(
+            np.ones(npart) * m_200.value / npart,
+            dtype=np.float32,
+            units="snap_mass",
+            registry=reg,
+        )
+        vs = unyt.unyt_array(
+            1000.0 * (np.random.random((npart, 3)) - 0.5),
+            dtype=np.float32,
+            units="snap_length/snap_time",
+            registry=reg,
+        )
+
+        types = np.ones(npart)
+        Ngas, Nstar, Nbh = 0, 0, 0
+
+        groupnr_all = unyt.unyt_array(
+            groupnr_halo * np.ones(npart),
+            dtype=np.int32,
+            units=unyt.dimensionless,
+            registry=reg,
+        )
+        groupnr_bound = groupnr_all.copy()
+
+        Mtot = 0.0
+        data = {}
+
+        # DM properties
+        dm_mask = types == 1
+        Ndm = int(dm_mask.sum())
+        if Ndm > 0:
+            data["PartType1"] = {}
+            data["PartType1"]["Coordinates"] = coords[dm_mask]
+            data["PartType1"]["GroupNr_all"] = groupnr_all[dm_mask]
+            data["PartType1"]["GroupNr_bound"] = groupnr_bound[dm_mask]
+            data["PartType1"]["Masses"] = mass[dm_mask]
+            Mtot += data["PartType1"]["Masses"].sum()
+            data["PartType1"]["Velocities"] = vs[dm_mask]
+
+        particle_numbers = {
+            "PartType0": Ngas,
+            "PartType1": Ndm,
+            "PartType4": Nstar,
+            "PartType5": Nbh,
+        }
+
+        # set the required halo properties
+        input_halo = {}
+        input_halo["cofp"] = centre
+        input_halo["index"] = groupnr_halo
+        input_halo["Structuretype"] = structuretype
+
+        return input_halo, data, rmax, Mtot, npart, particle_numbers
+
 
     def get_random_halo(self, npart, has_neutrinos=False):
         """
