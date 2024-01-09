@@ -169,6 +169,11 @@ class SWIFTCellGrid:
             for name in infile["Cosmology"].attrs:
                 self.cosmology[name] = infile["Cosmology"].attrs[name][0]
 
+            # Read parameters
+            self.parameters = {}
+            for name in infile["Parameters"].attrs:
+                self.parameters[name] = infile["Parameters"].attrs[name]
+
             # Read constants
             self.constants = {}
             for name in infile["PhysicalConstants"]["CGS"].attrs:
@@ -205,6 +210,20 @@ class SWIFTCellGrid:
             self.critical_density = unyt.unyt_quantity(
                 critical_density, units=internal_density_unit
             )
+
+            # Read in the softening lengths, determine whether to use comoving or physical
+            self.dark_matter_softening = min(
+                float(self.parameters.get('Gravity:comoving_DM_softening', 0)) * self.a,
+                float(self.parameters.get('Gravity:max_physical_DM_softening', 0)),
+            ) * self.get_unit("code_length")
+            self.baryon_softening = min(
+                float(self.parameters.get('Gravity:comoving_baryon_softening', 0)) * self.a,
+                float(self.parameters.get('Gravity:max_physical_baryon_softening', 0)),
+            ) * self.get_unit("code_length")
+            self.nu_softening = min(
+                float(self.parameters.get('Gravity:comoving_nu_softening', 0)) * self.a,
+                float(self.parameters.get('Gravity:max_physical_nu_softening', 0)),
+            ) * self.get_unit("code_length")
 
             # Compute mean density at the redshift of the snapshot:
             # Here we compute the mean density in internal units at z=0 using

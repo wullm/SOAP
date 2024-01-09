@@ -89,6 +89,14 @@ class DummySnapshot:
                 "Unit temperature in cgs (U_T)": np.array([1.0]),
                 "Unit time in cgs (U_t)": np.array([3.08567758e19]),
             },
+            "Parameters": {
+                'Gravity:comoving_DM_softening': b'0.0446',
+                'Gravity:comoving_baryon_softening': b'0.0446',
+                'Gravity:comoving_nu_softening': b'0.0446',
+                'Gravity:max_physical_DM_softening': b'0.0114',
+                'Gravity:max_physical_baryon_softening': b'0.0114',
+                'Gravity:max_physical_nu_softening': b'0.0114',
+            }
         }
 
     def __getitem__(self, name):
@@ -140,6 +148,23 @@ class DummyCellGrid:
         comoving_length_unit = self.get_unit("snap_length", reg) * self.a_unit
         self.boxsize = unyt.unyt_quantity(100.0, units=comoving_length_unit)
         self.observer_position = unyt.unyt_array([50.0] * 3, units=comoving_length_unit)
+
+        # Read in the softening lengths, determine whether to use comoving
+        self.parameters = {}
+        for name in snap["Parameters"].attrs:
+            self.parameters[name] = snap["Parameters"].attrs[name]
+        self.dark_matter_softening = min(
+            float(self.parameters.get('Gravity:comoving_DM_softening', 0)) * self.a,
+            float(self.parameters.get('Gravity:max_physical_DM_softening', 0)),
+        ) * self.get_unit("code_length", reg)
+        self.baryon_softening = min(
+            float(self.parameters.get('Gravity:comoving_baryon_softening', 0)) * self.a,
+            float(self.parameters.get('Gravity:max_physical_baryon_softening', 0)),
+        ) * self.get_unit("code_length", reg)
+        self.nu_softening = min(
+            float(self.parameters.get('Gravity:comoving_nu_softening', 0)) * self.a,
+            float(self.parameters.get('Gravity:max_physical_nu_softening', 0)),
+        ) * self.get_unit("code_length", reg)
 
 
 class DummyHaloGenerator:
