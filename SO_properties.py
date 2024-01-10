@@ -1376,19 +1376,22 @@ class SOParticleData:
         polynomial = [-79.71, -222.46, -250.14, -140.17, -43.59, -5.07]
         c = 0
         for i, b in enumerate(polynomial[::-1]):
-            c += b * np.log10(R1)**i
+            # Ensure scale factors have been removed
+            c += b * np.log10(R1.to('dimensionless'))**i
         return unyt.unyt_quantity(10**c, dtype=np.float32, units="dimensionless")
 
     def calculate_concentration(self, r):
+        if r.shape[0] < 10:
+            return None
         R1 = np.sum(self.mass * r)
         missed_mass = self.Mtot - np.sum(self.mass)
         if self.Nnu != 0:
             # Neutrino particles within self.r
             R1 += np.sum(self.nu_mass * self.nu_radius)
             missed_mass -= np.sum(self.nu_mass)
-            # Neutrino background
-            R1 += np.pi * self.nu_density * self.r**4
-            missed_mass -= self.nu_density * 4.0 / 3.0 * np.pi * self.r ** 3
+        # Neutrino background
+        R1 += np.pi * self.nu_density * self.r**4
+        missed_mass -= self.nu_density * 4.0 / 3.0 * np.pi * self.r ** 3
         R1 += missed_mass * self.r
         # Normalize
         R1 /= self.r * self.Mtot
@@ -1396,18 +1399,16 @@ class SOParticleData:
 
     @lazy_property
     def concentration(self):
-        if self.Mtotpart == 0:
-            return None
         return self.calculate_concentration(self.radius)
 
     @lazy_property
     def concentration_soft(self):
-        if self.Mtotpart == 0:
-            return None
         soft_r = np.maximum(self.softening, self.radius)
         return self.calculate_concentration(soft_r)
 
     def calculate_concentration_dmo(self, r):
+        if r.shape[0] < 10:
+            return None
         R1 = np.sum(self.mass[self.types == "PartType1"] * r)
         R1 += self.dm_missed_mass * self.r
         R1 /= self.r * (self.Mdm + self.dm_missed_mass)
@@ -1415,15 +1416,11 @@ class SOParticleData:
 
     @lazy_property
     def concentration_dmo(self):
-        if self.Mdm == 0:
-            return None
         r = self.radius[self.types == "PartType1"]
         return self.calculate_concentration_dmo(r)
 
     @lazy_property
     def concentration_dmo_soft(self):
-        if self.Mdm == 0:
-            return None
         soft_r = np.maximum(
             self.softening[self.types == "PartType1"],
             self.radius[self.types == "PartType1"]
