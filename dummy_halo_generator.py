@@ -92,13 +92,13 @@ class DummySnapshot:
                 "Unit time in cgs (U_t)": np.array([3.08567758e19]),
             },
             "Parameters": {
-                'Gravity:comoving_DM_softening': b'0.0446',
-                'Gravity:comoving_baryon_softening': b'0.0446',
-                'Gravity:comoving_nu_softening': b'0.0446',
-                'Gravity:max_physical_DM_softening': b'0.0114',
-                'Gravity:max_physical_baryon_softening': b'0.0114',
-                'Gravity:max_physical_nu_softening': b'0.0114',
-            }
+                "Gravity:comoving_DM_softening": b"0.0446",
+                "Gravity:comoving_baryon_softening": b"0.0446",
+                "Gravity:comoving_nu_softening": b"0.0446",
+                "Gravity:max_physical_DM_softening": b"0.0114",
+                "Gravity:max_physical_baryon_softening": b"0.0114",
+                "Gravity:max_physical_nu_softening": b"0.0114",
+            },
         }
 
     def __getitem__(self, name):
@@ -156,16 +156,16 @@ class DummyCellGrid:
         for name in snap["Parameters"].attrs:
             self.parameters[name] = snap["Parameters"].attrs[name]
         self.dark_matter_softening = min(
-            float(self.parameters.get('Gravity:comoving_DM_softening', 0)) * self.a,
-            float(self.parameters.get('Gravity:max_physical_DM_softening', 0)),
+            float(self.parameters.get("Gravity:comoving_DM_softening", 0)) * self.a,
+            float(self.parameters.get("Gravity:max_physical_DM_softening", 0)),
         ) * self.get_unit("code_length", reg)
         self.baryon_softening = min(
-            float(self.parameters.get('Gravity:comoving_baryon_softening', 0)) * self.a,
-            float(self.parameters.get('Gravity:max_physical_baryon_softening', 0)),
+            float(self.parameters.get("Gravity:comoving_baryon_softening", 0)) * self.a,
+            float(self.parameters.get("Gravity:max_physical_baryon_softening", 0)),
         ) * self.get_unit("code_length", reg)
         self.nu_softening = min(
-            float(self.parameters.get('Gravity:comoving_nu_softening', 0)) * self.a,
-            float(self.parameters.get('Gravity:max_physical_nu_softening', 0)),
+            float(self.parameters.get("Gravity:comoving_nu_softening", 0)) * self.a,
+            float(self.parameters.get("Gravity:max_physical_nu_softening", 0)),
         ) * self.get_unit("code_length", reg)
 
 
@@ -241,8 +241,8 @@ class DummyHaloGenerator:
         Derived from https://github.com/CullanHowlett/NFWdist
         """
         p = np.random.rand(int(n))
-        p *= np.log(1.0 + con)-con/(1.0 + con)
-        return (-(1.0/np.real(scipy.special.lambertw(-np.exp(-p-1))))-1)/con
+        p *= np.log(1.0 + con) - con / (1.0 + con)
+        return (-(1.0 / np.real(scipy.special.lambertw(-np.exp(-p - 1)))) - 1) / con
 
     def gen_nfw_halo(self, m_200, concentration, npart):
         """
@@ -257,8 +257,8 @@ class DummyHaloGenerator:
 
         # Generate NFW particle radii
         crit_density = self.get_cell_grid().critical_density
-        m_200 = unyt.unyt_quantity(m_200, units='snap_mass', registry=reg)
-        r_200 = (m_200 / (crit_density * 200 * (4/3) * np.pi)) ** (1/3)
+        m_200 = unyt.unyt_quantity(m_200, units="snap_mass", registry=reg)
+        r_200 = (m_200 / (crit_density * 200 * (4 / 3) * np.pi)) ** (1 / 3)
         radius = r_200.value * self.rnfw(npart, concentration)
 
         radius = np.sort(radius)
@@ -346,7 +346,6 @@ class DummyHaloGenerator:
         input_halo["Structuretype"] = structuretype
 
         return input_halo, data, rmax, Mtot, npart, particle_numbers
-
 
     def get_random_halo(self, npart, has_neutrinos=False):
         """

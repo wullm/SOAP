@@ -205,7 +205,7 @@ class SOParticleData:
             typearr[:] = ptype
             types.append(typearr)
             groupnr.append(self.data[ptype]["GroupNr_bound"])
-            s = np.ones(r.shape, dtype='float64')*self.softening_of_parttype[ptype]
+            s = np.ones(r.shape, dtype="float64") * self.softening_of_parttype[ptype]
             softening.append(s)
         self.mass = unyt.array.uconcatenate(mass)
         self.radius = unyt.array.uconcatenate(radius)
@@ -229,7 +229,9 @@ class SOParticleData:
             nur = np.sqrt(np.sum(pos ** 2, axis=1))
             self.nu_mass = numass
             self.nu_radius = nur
-            self.nu_softening = np.ones_like(nur) * self.softening_of_parttype['PartType6']
+            self.nu_softening = (
+                np.ones_like(nur) * self.softening_of_parttype["PartType6"]
+            )
             all_mass = unyt.array.uconcatenate([self.mass, numass])
             all_r = unyt.array.uconcatenate([self.radius, nur])
         else:
@@ -1377,8 +1379,8 @@ class SOParticleData:
         c = 0
         for i, b in enumerate(polynomial[::-1]):
             # Ensure scale factors have been removed
-            c += b * np.log10(R1.to('dimensionless'))**i
-        return unyt.unyt_quantity(10**c, dtype=np.float32, units="dimensionless")
+            c += b * np.log10(R1.to("dimensionless")) ** i
+        return unyt.unyt_quantity(10 ** c, dtype=np.float32, units="dimensionless")
 
     def calculate_concentration(self, r):
         if r.shape[0] < 10:
@@ -1390,7 +1392,7 @@ class SOParticleData:
             R1 += np.sum(self.nu_mass * self.nu_radius)
             missed_mass -= np.sum(self.nu_mass)
         # Neutrino background
-        R1 += np.pi * self.nu_density * self.r**4
+        R1 += np.pi * self.nu_density * self.r ** 4
         missed_mass -= self.nu_density * 4.0 / 3.0 * np.pi * self.r ** 3
         R1 += missed_mass * self.r
         # Normalize
@@ -1423,9 +1425,10 @@ class SOParticleData:
     def concentration_dmo_soft(self):
         soft_r = np.maximum(
             self.softening[self.types == "PartType1"],
-            self.radius[self.types == "PartType1"]
+            self.radius[self.types == "PartType1"],
         )
         return self.calculate_concentration_dmo(soft_r)
+
 
 class SOProperties(HaloProperty):
     # Arrays which must be read in for this calculation.
@@ -1989,6 +1992,7 @@ def test_SO_properties_random_halo():
                 unit = unyt.Unit(unit_string)
                 assert result.units.same_dimensions_as(unit.units)
 
+
 def calculate_SO_properties_nfw_halo(seed, num_part, c):
     """
     Generates a halo with an NFW profile, and calculates SO properties for it
@@ -2002,14 +2006,9 @@ def calculate_SO_properties_nfw_halo(seed, num_part, c):
         dummy_halos.get_cell_grid(), filter, cat_filter, 200.0, "crit"
     )
 
-    (
-        input_halo,
-        data,
-        rmax,
-        Mtot,
-        Npart,
-        particle_numbers,
-    ) = dummy_halos.gen_nfw_halo(100, c, num_part)
+    (input_halo, data, rmax, Mtot, Npart, particle_numbers) = dummy_halos.gen_nfw_halo(
+        100, c, num_part
+    )
 
     halo_result_template = dummy_halos.get_halo_result_template(particle_numbers)
 
@@ -2017,6 +2016,7 @@ def calculate_SO_properties_nfw_halo(seed, num_part, c):
     property_calculator_200crit.calculate(input_halo, rmax, data, halo_result_template)
 
     return halo_result_template
+
 
 def test_concentration_nfw_halo():
     """
@@ -2028,9 +2028,10 @@ def test_concentration_nfw_halo():
     for seed in range(10):
         for concentration in [5, 10]:
             halo_result = calculate_SO_properties_nfw_halo(seed, n_part, concentration)
-            calculated = halo_result['SO/200_crit/Concentration'][0]
-            delta = np.abs(calculated-concentration)/concentration
+            calculated = halo_result["SO/200_crit/Concentration"][0]
+            delta = np.abs(calculated - concentration) / concentration
             assert delta < 0.1
+
 
 if __name__ == "__main__":
     """

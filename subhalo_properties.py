@@ -64,7 +64,7 @@ class SubhaloParticleData:
             typearr = np.zeros(r.shape, dtype="U9")
             typearr[:] = ptype
             types.append(typearr)
-            s = np.ones(r.shape, dtype='float64')*self.softening_of_parttype[ptype]
+            s = np.ones(r.shape, dtype="float64") * self.softening_of_parttype[ptype]
             softening.append(s)
 
         self.mass = unyt.array.uconcatenate(mass)
@@ -906,7 +906,13 @@ class SubhaloProperties(HaloProperty):
         types_present = [type for type in self.particle_properties if type in data]
 
         part_props = SubhaloParticleData(
-            input_halo, data, types_present, self.grnr, self.stellar_ages, self.filter, self.softening_of_parttype,
+            input_halo,
+            data,
+            types_present,
+            self.grnr,
+            self.stellar_ages,
+            self.filter,
+            self.softening_of_parttype,
         )
 
         if not self.bound_only:
