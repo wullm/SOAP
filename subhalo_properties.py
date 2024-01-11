@@ -11,6 +11,7 @@ from kinematic_properties import (
     get_angular_momentum_and_kappa_corot,
     get_vmax,
     get_inertia_tensor,
+    get_reduced_inertia_tensor,
     get_velocity_dispersion_matrix,
 )
 from recently_heated_gas_filter import RecentlyHeatedGasFilter
@@ -67,10 +68,10 @@ class SubhaloParticleData:
             s = np.ones(r.shape, dtype="float64") * self.softening_of_parttype[ptype]
             softening.append(s)
 
-        self.mass = unyt.array.uconcatenate(mass)
-        self.position = unyt.array.uconcatenate(position)
-        self.radius = unyt.array.uconcatenate(radius)
-        self.velocity = unyt.array.uconcatenate(velocity)
+        self.mass = np.concatenate(mass)
+        self.position = np.concatenate(position)
+        self.radius = np.concatenate(radius)
+        self.velocity = np.concatenate(velocity)
         self.types = np.concatenate(types)
         self.softening = unyt.array.uconcatenate(softening)
 
@@ -355,10 +356,10 @@ class SubhaloParticleData:
         if self.R_vmax > 0 and self.Vmax > 0:
             mask_r_vmax = self.radius <= self.R_vmax
             vrel = self.velocity[mask_r_vmax, :] - self.vcom[None, :]
-            Ltot = unyt.array.unorm(
+            Ltot = np.linalg.norm(
                 (
                     self.mass[mask_r_vmax, None]
-                    * unyt.array.ucross(self.position[mask_r_vmax, :], vrel)
+                    * np.cross(self.position[mask_r_vmax, :], vrel)
                 ).sum(axis=0)
             )
             M_r_vmax = self.mass[mask_r_vmax].sum()
@@ -371,6 +372,12 @@ class SubhaloParticleData:
         if self.Mtot == 0:
             return None
         return get_inertia_tensor(self.mass, self.position)
+
+    @lazy_property
+    def ReducedTotalInertiaTensor(self):
+        if self.Mtot == 0:
+            return None
+        return get_reduced_inertia_tensor(self.mass, self.position)
 
     @lazy_property
     def gas_mass_fraction(self):
@@ -428,6 +435,12 @@ class SubhaloParticleData:
         return get_inertia_tensor(self.mass_gas, self.pos_gas)
 
     @lazy_property
+    def ReducedGasInertiaTensor(self):
+        if self.Mgas == 0:
+            return None
+        return get_reduced_inertia_tensor(self.mass_gas, self.pos_gas)
+
+    @lazy_property
     def veldisp_matrix_gas(self):
         if self.Mgas == 0:
             return None
@@ -460,6 +473,12 @@ class SubhaloParticleData:
         if self.Mdm == 0:
             return None
         return get_inertia_tensor(self.mass_dm, self.pos_dm)
+
+    @lazy_property
+    def ReducedDMInertiaTensor(self):
+        if self.Mdm == 0:
+            return None
+        return get_reduced_inertia_tensor(self.mass_dm, self.pos_dm)
 
     @lazy_property
     def veldisp_matrix_dm(self):
@@ -545,6 +564,12 @@ class SubhaloParticleData:
         return get_inertia_tensor(self.mass_star, self.pos_star)
 
     @lazy_property
+    def ReducedStellarInertiaTensor(self):
+        if self.Mstar == 0:
+            return None
+        return get_reduced_inertia_tensor(self.mass_star, self.pos_star)
+
+    @lazy_property
     def veldisp_matrix_star(self):
         if self.Mstar == 0:
             return None
@@ -600,6 +625,12 @@ class SubhaloParticleData:
         if self.Mbaryon == 0:
             return None
         return get_inertia_tensor(self.mass_baryons, self.pos_baryons)
+
+    @lazy_property
+    def ReducedBaryonInertiaTensor(self):
+        if self.Mbaryon == 0:
+            return None
+        return get_reduced_inertia_tensor(self.mass_baryons, self.pos_baryons)
 
     @lazy_property
     def gas_mask_all(self):
@@ -807,6 +838,11 @@ class SubhaloProperties(HaloProperty):
             "DMInertiaTensor",
             "StellarInertiaTensor",
             "BaryonInertiaTensor",
+            "ReducedTotalInertiaTensor",
+            "ReducedGasInertiaTensor",
+            "ReducedDMInertiaTensor",
+            "ReducedStellarInertiaTensor",
+            "ReducedBaryonInertiaTensor",
             "veldisp_matrix_gas",
             "veldisp_matrix_dm",
             "veldisp_matrix_star",
