@@ -63,7 +63,7 @@ outfile="${outbase}/halo_properties_%(snap_nr)04d.hdf5"
 
 # Check for DMO run
 dmo_flag=""
-if [[ $sim == DMO_* ]] ; then
+if [[ $sim == *DMO_* ]] ; then
   dmo_flag="--dmo"
 fi
 
@@ -77,4 +77,6 @@ lfs setstripe --stripe-count=-1 --stripe-size=32M ${outdir}
 mpirun python3 -u -m mpi4py ./compute_halo_properties.py \
     ${swift_filename} ${chunkdir} ${vr_basename} ${outfile} ${SLURM_ARRAY_TASK_ID} \
     --chunks=${nr_chunks} ${dmo_flag} \
-    --extra-input=${extra_filename}
+    --extra-input=${extra_filename} \
+    --reference-snapshot=77 \
+    --parameters parameter_files/flamingo_SOAP_params.yml

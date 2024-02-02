@@ -114,8 +114,7 @@ def process_single_halo(
                 pos[:, :] = ((pos - offset) % boxsize) + offset
 
             # Compute the X-ray properties of the gas particles
-            if "PartType0" in particle_data:
-
+            if xray_calc.recalculate and ("PartType0" in particle_data):
                 ptype = "PartType0"
                 idx_he, idx_T, idx_n, t_z, d_z, t_T, d_T, t_nH, d_nH, t_He, d_He, abundance_to_solar, joint_mask, volumes, data_n = xray_calc.find_indices(
                     particle_data[ptype]["Densities"],
@@ -241,6 +240,20 @@ def process_single_halo(
                 ).to(
                     particle_data[ptype]["XrayPhotonLuminosities"].units
                 )
+
+                for prop_nr, halo_prop in enumerate(halo_prop_list):
+                    halo_prop.snapshot_datasets.dataset_map[
+                        "PartType0/XrayLuminosities"
+                    ] = ("PartType0", "XrayLuminosities")
+                    halo_prop.snapshot_datasets.dataset_map[
+                        "PartType0/XrayPhotonLuminosities"
+                    ] = ("PartType0", "XrayPhotonLuminosities")
+                    halo_prop.snapshot_datasets.dataset_map[
+                        "PartType0/XrayLuminositiesRestframe"
+                    ] = ("PartType0", "XrayLuminositiesRestframe")
+                    halo_prop.snapshot_datasets.dataset_map[
+                        "PartType0/XrayPhotonLuminositiesRestframe"
+                    ] = ("PartType0", "XrayPhotonLuminositiesRestframe")
 
             # Try to compute properties of this halo which haven't been done yet
             for prop_nr, halo_prop in enumerate(halo_prop_list):

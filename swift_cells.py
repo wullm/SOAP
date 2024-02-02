@@ -12,6 +12,7 @@ import scipy.spatial
 import swift_units
 import task_queue
 import shared_array
+from snapshot_datasets import SnapshotDatasets
 
 # HDF5 chunk cache parameters:
 # SWIFT writes datasets with large chunks so the default 1Mb may be too small
@@ -155,6 +156,12 @@ class SWIFTCellGrid:
 
         # Open the input file
         with h5py.File(snap_filename % {"file_nr": 0}, "r") as infile:
+
+            if snap_filename_ref is None:
+                self.snapshot_datasets = SnapshotDatasets(infile)
+            else:
+                with h5py.File(snap_filename_ref % {"file_nr": 0}, "r") as ref_file:
+                    self.snapshot_datasets = SnapshotDatasets(ref_file)
 
             # Get the snapshot unit system
             self.snap_unit_registry = swift_units.unit_registry_from_snapshot(infile)
@@ -305,7 +312,7 @@ class SWIFTCellGrid:
             )
 
         # Scan reference snapshot for missing particle types (e.g. stars or black holes at high z)
-        self.ptypes_ref = {}
+        self.ptypes_ref = []
         if snap_filename_ref is not None:
             # Determine any particle types present in the reference snapshot but not in the current snapshot
             with h5py.File(snap_filename_ref % {"file_nr": 0}, "r") as infile:

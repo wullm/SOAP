@@ -1,5 +1,6 @@
 #!/bin/env python
 
+import subprocess
 import sys
 import os
 import argparse
@@ -14,6 +15,10 @@ class ThrowingArgumentParser(argparse.ArgumentParser):
     def error(self, message):
         sys.stderr.write(message + "\n")
         raise ArgumentParserError(message)
+
+
+def get_git_hash() -> str:
+    return subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("ascii").strip()
 
 
 def get_halo_props_args(comm):
@@ -105,10 +110,24 @@ def get_halo_props_args(comm):
             default=32,
             help="Number of ranks per node reading snapshot data",
         )
+        parser.add_argument(
+            "--parameters",
+            help="Name of a parameter file containing properties and halo types to process. Default is to compute all properties for FLAMINGO-like halo types.",
+            type=str,
+            default=None,
+        )
+        parser.add_argument(
+            "--output-parameters",
+            metavar="FILENAME",
+            help="Write the actually used parameters to FILENAME.",
+            type=str,
+            default=None,
+        )
         try:
             args = parser.parse_args()
         except ArgumentParserError as e:
             args = None
+        args.git_hash = get_git_hash()
 
     else:
         args = None
