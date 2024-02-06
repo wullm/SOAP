@@ -55,7 +55,6 @@ class SharedMesh:
         for i in range(3):
             if self.pos_min[i] == self.pos_max[i]:
                 self.pos_max[i] = self.pos_min[i] + 1.0 * self.pos_min[i].units
-
         assert np.all(pos.local >= self.pos_min)
         assert np.all(pos.local <= self.pos_max)
         assert np.all(self.pos_max > self.pos_min)

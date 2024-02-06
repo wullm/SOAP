@@ -26,7 +26,7 @@ performed. See aperture_properties.py for a fully documented example.
 import numpy as np
 import unyt
 
-from halo_properties import HaloProperty
+from halo_properties import HaloProperty, ReadRadiusTooSmallError
 from dataset_names import mass_dataset
 from half_mass_radius import get_half_mass_radius
 from kinematic_properties import (
@@ -1612,7 +1612,7 @@ class SubhaloProperties(HaloProperty):
             self.snapshot_datasets,
         )
 
-        if not self.bound_only:
+        if self.bound_only:
             # this is the halo that we use for the filter particle numbers,
             # so we have the get the numbers for the category filters manually
             Ngas = part_props.Ngas
@@ -1668,6 +1668,23 @@ class SubhaloProperties(HaloProperty):
                         )
                     else:
                         subhalo[name] += val
+
+        # Check that we found the expected number of halo member particles:
+        # If not, we need to try again with a larger search radius.
+        Ntot = part_props.Ngas + part_props.Ndm + part_props.Nstar + part_props.Nbh
+        if self.bound_only:
+            Nexpected = input_halo["nr_bound_part"]
+        else:
+            Nexpected = input_halo["nr_bound_part"] + input_halo["nr_unbound_part"]
+        if Ntot < Nexpected:
+            # Try again with a larger search radius
+            # print(f"Ntot = {Ntot}, Nexpected = {Nexpected}, search_radius = {search_radius}")
+            raise ReadRadiusTooSmallError(
+                "Search radius does not contain expected number of particles!"
+            )
+        elif Ntot > Nexpected:
+            # This would indicate a bug somewhere
+            raise RuntimeError("Found more particles than expected!")
 
         # Add these properties to the output
         if self.bound_only:
