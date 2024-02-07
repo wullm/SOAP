@@ -29,7 +29,6 @@ from typing import Dict
 gas_filter_name = (
     f"BoundSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}"
 )
-)
 dm_filter_name = f"BoundSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}"
 star_filter_name = (
     f"BoundSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}"

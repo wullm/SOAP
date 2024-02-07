@@ -138,7 +138,7 @@ def compute_halo_properties():
 
     # Process parameter file
     if comm_world_rank == 0:
-        parameter_file = ParameterFile(args.parameters)
+        parameter_file = ParameterFile(args.config_filename)
     else:
         parameter_file = None
     parameter_file = comm_world.bcast(parameter_file)

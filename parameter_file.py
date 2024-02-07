@@ -308,4 +308,4 @@ class ParameterFile:
         Returns a bool indicating if xray properties should be recomputed.
         Defaults to true.
         """
-        return self.parameters.get("recalculate_xrays", True)
+        return self.parameters.get("calculations", {}).get("recalculate_xrays", True)

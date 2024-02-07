@@ -1,14 +1,18 @@
 #!/bin/env python
 
-import sys
-import os
 import argparse
+import os
+import subprocess
+import sys
 from mpi4py import MPI
 
 from virgo.mpi.util import MPIArgumentParser
 
 import combine_args
 
+
+def get_git_hash() -> str:
+    return subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("ascii").strip()
 
 def get_soap_args(comm):
     """
@@ -31,17 +35,20 @@ def get_soap_args(comm):
     parser.add_argument("--reference-snapshot", help="Specify reference snapshot number containing all particle types", metavar="N", type=int)
     parser.add_argument("--profile", metavar="LEVEL", type=int, default=0, help="Run with profiling (0=off, 1=first MPI rank only, 2=all ranks)")
     parser.add_argument("--max-ranks-reading", type=int, default=32, help="Number of ranks per node reading snapshot data")
+    parser.add_argument("--output-parameters", type=str, default='', help="Where to write the used parameters")
     all_args = parser.parse_args()
 
     # Combine with parameters from configuration file
     if comm.Get_rank() == 0:
         all_args = combine_args.combine_arguments(all_args, all_args.config_file)
+        all_args["git_hash"] = get_git_hash()
     else:
         all_args = None
     all_args = comm.bcast(all_args)
     
     # Extract parameters we need for SOAP
     args = argparse.Namespace()
+    args.config_filename = all_args["Parameters"]["config_file"]
     args.swift_filename = all_args["Snapshots"]["filename"]
     args.scratch_dir = all_args["HaloProperties"]["chunk_dir"]
     args.halo_basename = all_args["HaloFinder"]["filename"]
@@ -59,6 +66,8 @@ def get_soap_args(comm):
     args.reference_snapshot = all_args["Parameters"]["reference_snapshot"]
     args.profile = all_args["Parameters"]["profile"]
     args.max_ranks_reading = all_args["Parameters"]["max_ranks_reading"]
+    args.output_parameters = all_args["Parameters"]["output_parameters"]
+    args.git_hash = all_args["git_hash"]
 
     return args
 
