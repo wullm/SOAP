@@ -207,3 +207,14 @@ class CategoryFilter:
             # if we don't know the category, we cannot mask it
             # (e.g. "VR")
             return {"Masked": False}
+
+    def print_filters(self):
+        print('Category filter particle thresholds:')
+        print(f"  General   {self.Ngeneral}")
+        print(f"  DM        {self.Ndm}")
+        if self.dmo:
+            print("Run in DMO mode")
+        else:
+            print(f"  Gas       {self.Ngas}")
+            print(f"  Star      {self.Ngeneral}")
+            print(f"  Baryon    {self.Ngeneral}")

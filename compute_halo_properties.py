@@ -362,6 +362,7 @@ def compute_halo_properties():
         parameter_file.print_unregistered_properties()
         if parameter_file.recalculate_xrays():
             print("Recalculating xray properties")
+        category_filter.print_filters()
 
     # Ensure output dir exists
     if comm_world_rank == 0:
