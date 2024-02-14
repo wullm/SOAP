@@ -1041,7 +1041,7 @@ class PropertyTable:
             1,
             np.float32,
             "km/s",
-            "Maximum circular velocity when accounting for smoothing length.",
+            "Maximum circular velocity when accounting for softening length.",
             "basic",
             "FMantissa9",
             True,

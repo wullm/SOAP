@@ -213,8 +213,8 @@ class SWIFTCellGrid:
 
             # Read in the softening lengths, determine whether to use comoving or physical
             self.dark_matter_softening = min(
-                float(self.parameters.get("Gravity:comoving_DM_softening", 0)) * self.a,
-                float(self.parameters.get("Gravity:max_physical_DM_softening", 0)),
+                float(self.parameters["Gravity:comoving_DM_softening"]) * self.a,
+                float(self.parameters["Gravity:max_physical_DM_softening"]),
             ) * self.get_unit("code_length")
             self.baryon_softening = min(
                 float(self.parameters.get("Gravity:comoving_baryon_softening", 0))
