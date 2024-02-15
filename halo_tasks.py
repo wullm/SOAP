@@ -274,7 +274,7 @@ def process_single_halo(
                     # Calculation cause a floating point exception.
                     # Output the halo ID so we can debug this.
                     print(
-                        f"Halo ID={input_halo['ID']} encountered a floating point error"
+                        f"Halo ID={input_halo['index']} encountered a floating point error"
                     )
                     raise
                 else:

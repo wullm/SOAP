@@ -971,11 +971,11 @@ class PropertyTable:
         "MedianStellarBirthPressure": (
             "MedianStellarBirthPressure",
             1,
-            np.float32,
+            np.float64,
             "K/cm**3",
             "Median pressure of gas particles that were converted into a star particle.",
             "star",
-            "FMantissa9",
+            "DMantissa9",
             False,
             ["PartType4/BirthTemperatures", "PartType4/BirthDensities"],
         ),
