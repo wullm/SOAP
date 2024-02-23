@@ -244,6 +244,7 @@ class SOParticleData:
         observer_position: unyt.unyt_array,
         snapshot_datasets: SnapshotDatasets,
         core_excision_fraction: float,
+        softening_of_parttype: unyt.unyt_array,
     ):
         """
         Constructor.
@@ -281,6 +282,7 @@ class SOParticleData:
         self.observer_position = observer_position
         self.snapshot_datasets = snapshot_datasets
         self.core_excision_fraction = core_excision_fraction
+        self.softening_of_parttype = softening_of_parttype
         self.compute_basics()
 
     def get_dataset(self, name: str) -> unyt.unyt_array:
@@ -304,6 +306,7 @@ class SOParticleData:
         velocity = []
         types = []
         groupnr = []
+        softening = []
         for ptype in self.types_present:
             if ptype == "PartType6":
                 # add neutrinos separately, since we need to treat them
@@ -319,12 +322,15 @@ class SOParticleData:
             typearr[:] = ptype
             types.append(typearr)
             groupnr.append(self.get_dataset(f"{ptype}/GroupNr_bound"))
+            s = np.ones(r.shape, dtype="float64") * self.softening_of_parttype[ptype]
+            softening.append(s)
         self.mass = np.concatenate(mass)
         self.radius = np.concatenate(radius)
         self.position = np.concatenate(position)
         self.velocity = np.concatenate(velocity)
         self.types = np.concatenate(types)
         self.groupnr = np.concatenate(groupnr)
+        self.softening = np.concatenate(softening)
 
         # figure out which particles in the list are bound to a halo that is not the
         # central halo
@@ -360,6 +366,11 @@ class SOParticleData:
             )
             pos = self.get_dataset("PartType6/Coordinates") - self.centre[None, :]
             nur = np.sqrt(np.sum(pos ** 2, axis=1))
+            self.nu_mass = numass
+            self.nu_radius = nur
+            self.nu_softening = (
+                np.ones_like(nur) * self.softening_of_parttype["PartType6"]
+            )
             all_mass = np.concatenate([self.mass, numass / unyt.dimensionless])
             all_r = np.concatenate([self.radius, nur])
         else:
@@ -424,6 +435,22 @@ class SOParticleData:
         SO_exists = self.SO_r > 0 and self.SO_mass > 0
 
         if SO_exists:
+            # Calculate DMO mass fraction found at SO_r
+            # This is used when computing concentration_dmo
+            dm_r = self.radius[self.types == "PartType1"]
+            dm_m = self.mass[self.types == "PartType1"]
+            order = np.argsort(dm_r)
+            ordered_dm_r = dm_r[order]
+            outside_radius = ordered_dm_r > self.SO_r
+            self.dm_missed_mass = 0 * self.mass.units
+            if np.any(outside_radius):
+                i = np.argmax(outside_radius)
+                if i != 0:  # We have DM particles inside the SO radius
+                    r1 = ordered_dm_r[i - 1]
+                    r2 = ordered_dm_r[i]
+                    self.dm_missed_mass = (self.SO_r - r1) / (r2 - r1) * dm_m[order][i]
+
+            # Removing particles outside SO radius
             self.gas_selection = self.radius[self.types == "PartType0"] < self.SO_r
             self.dm_selection = self.radius[self.types == "PartType1"] < self.SO_r
             self.star_selection = self.radius[self.types == "PartType4"] < self.SO_r
@@ -436,6 +463,13 @@ class SOParticleData:
             self.velocity = self.velocity[self.all_selection]
             self.types = self.types[self.all_selection]
             self.is_bound_to_satellite = self.is_bound_to_satellite[self.all_selection]
+            self.softening = self.softening[self.all_selection]
+
+            if self.has_neutrinos:
+                self.nu_selection = self.nu_radius < self.SO_r
+                self.nu_mass = self.nu_mass[self.nu_selection]
+                self.nu_radius = self.nu_radius[self.nu_selection]
+                self.nu_softening = self.nu_softening[self.nu_selection]
 
         return SO_exists
 
@@ -2125,9 +2159,6 @@ class SOParticleData:
         Number of neutrino particles in the spherical overdensity.
         """
         if self.has_neutrinos:
-            pos = self.get_dataset("PartType6/Coordinates") - self.centre[None, :]
-            nur = np.sqrt(np.sum(pos ** 2, axis=1))
-            self.nu_selection = nur < self.SO_r
             return self.nu_selection.sum()
         else:
             return unyt.unyt_array(0, dtype=np.uint32, units="dimensionless")
@@ -2157,6 +2188,64 @@ class SOParticleData:
             self.get_dataset("PartType6/Masses")[self.nu_selection]
             * self.get_dataset("PartType6/Weights")[self.nu_selection]
         ).sum() + self.nu_density * self.SO_volume
+
+    @staticmethod
+    def concentration_from_R1(R1):
+        # This is a higher degree polynomial fit than was used in Wang+23
+        # Obtained by fitting R1-concentration radius for 1<c<1000
+        polynomial = [-79.71, -222.46, -250.14, -140.17, -43.59, -5.07]
+        c = 0
+        for i, b in enumerate(polynomial[::-1]):
+            # Ensure scale factors have been removed
+            c += b * np.log10(R1.to("dimensionless")) ** i
+        return unyt.unyt_quantity(10 ** c, dtype=np.float32, units="dimensionless")
+
+    def calculate_concentration(self, r):
+        if r.shape[0] < 10:
+            return None
+        R1 = np.sum(self.mass * r)
+        missed_mass = self.Mtot - np.sum(self.mass)
+        if self.Nnu != 0:
+            # Neutrino particles within self.r
+            R1 += np.sum(self.nu_mass * self.nu_radius)
+            missed_mass -= np.sum(self.nu_mass)
+        # Neutrino background
+        R1 += np.pi * self.nu_density * self.r ** 4
+        missed_mass -= self.nu_density * 4.0 / 3.0 * np.pi * self.r ** 3
+        R1 += missed_mass * self.r
+        # Normalize
+        R1 /= self.r * self.Mtot
+        return self.concentration_from_R1(R1)
+
+    @lazy_property
+    def concentration(self):
+        return self.calculate_concentration(self.radius)
+
+    @lazy_property
+    def concentration_soft(self):
+        soft_r = np.maximum(self.softening, self.radius)
+        return self.calculate_concentration(soft_r)
+
+    def calculate_concentration_dmo(self, r):
+        if r.shape[0] < 10:
+            return None
+        R1 = np.sum(self.mass[self.types == "PartType1"] * r)
+        R1 += self.dm_missed_mass * self.r
+        R1 /= self.r * (self.Mdm + self.dm_missed_mass)
+        return self.concentration_from_R1(R1)
+
+    @lazy_property
+    def concentration_dmo(self):
+        r = self.radius[self.types == "PartType1"]
+        return self.calculate_concentration_dmo(r)
+
+    @lazy_property
+    def concentration_dmo_soft(self):
+        soft_r = np.maximum(
+            self.softening[self.types == "PartType1"],
+            self.radius[self.types == "PartType1"],
+        )
+        return self.calculate_concentration_dmo(soft_r)
 
 
 class SOProperties(HaloProperty):
@@ -2260,6 +2349,10 @@ class SOProperties(HaloProperty):
             "starOfrac",
             "starFefrac",
             "gasmetalfrac_SF",
+            "concentration",
+            "concentration_soft",
+            "concentration_dmo",
+            "concentration_dmo_soft",
         ]
     ]
 
@@ -2479,6 +2572,7 @@ class SOProperties(HaloProperty):
                 self.observer_position,
                 self.snapshot_datasets,
                 self.core_excision_fraction,
+                self.softening_of_parttype,
             )
 
             # we need to make sure the physical radius uses the correct unit
@@ -2724,7 +2818,7 @@ class RadiusMultipleSOProperties(SOProperties):
         return
 
 
-def test_SO_properties():
+def test_SO_properties_random_halo():
     """
     Unit test for the SO property calculation.
 
@@ -2732,7 +2826,6 @@ def test_SO_properties():
     calculations return the expected results and do not lead to any
     errors.
     """
-
     from dummy_halo_generator import DummyHaloGenerator
 
     dummy_halos = DummyHaloGenerator(4251)
@@ -2791,40 +2884,7 @@ def test_SO_properties():
             Npart,
             particle_numbers,
         ) = dummy_halos.get_random_halo([2, 10, 100, 1000, 10000], has_neutrinos=True)
-        halo_result_template = {
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}": (
-                unyt.unyt_array(
-                    particle_numbers["PartType0"],
-                    dtype=PropertyTable.full_property_list["Ngas"][2],
-                    units="dimensionless",
-                ),
-                "Dummy Ngas for filter",
-            ),
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}": (
-                unyt.unyt_array(
-                    particle_numbers["PartType1"],
-                    dtype=PropertyTable.full_property_list["Ndm"][2],
-                    units="dimensionless",
-                ),
-                "Dummy Ndm for filter",
-            ),
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}": (
-                unyt.unyt_array(
-                    particle_numbers["PartType4"],
-                    dtype=PropertyTable.full_property_list["Nstar"][2],
-                    units="dimensionless",
-                ),
-                "Dummy Nstar for filter",
-            ),
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}": (
-                unyt.unyt_array(
-                    particle_numbers["PartType5"],
-                    dtype=PropertyTable.full_property_list["Nbh"][2],
-                    units="dimensionless",
-                ),
-                "Dummy Nbh for filter",
-            ),
-        }
+        halo_result_template = dummy_halos.get_halo_result_template(particle_numbers)
         rho_ref = Mtot / (4.0 / 3.0 * np.pi * rmax ** 3)
 
         # force the SO radius to be outside the search sphere and check that
@@ -3210,10 +3270,52 @@ def test_SO_properties():
     dummy_halos.get_cell_grid().snapshot_datasets.print_dataset_log()
 
 
+def calculate_SO_properties_nfw_halo(seed, num_part, c):
+    """
+    Generates a halo with an NFW profile, and calculates SO properties for it
+    """
+    from dummy_halo_generator import DummyHaloGenerator
+
+    dummy_halos = DummyHaloGenerator(seed)
+    cat_filter = CategoryFilter()
+
+    property_calculator_200crit = SOProperties(
+        dummy_halos.get_cell_grid(), filter, cat_filter, 200.0, "crit"
+    )
+
+    (input_halo, data, rmax, Mtot, Npart, particle_numbers) = dummy_halos.gen_nfw_halo(
+        100, c, num_part
+    )
+
+    halo_result_template = dummy_halos.get_halo_result_template(particle_numbers)
+
+    property_calculator_200crit.nu_density *= 0
+    property_calculator_200crit.calculate(input_halo, rmax, data, halo_result_template)
+
+    return halo_result_template
+
+
+def test_concentration_nfw_halo():
+    """
+    Test if the calculated concentration is close to the input value.
+    Only tests halos with for 10000 particles.
+    Fails due to noise for small particle numbers.
+    """
+    n_part = 10000
+    for seed in range(10):
+        for concentration in [5, 10]:
+            halo_result = calculate_SO_properties_nfw_halo(seed, n_part, concentration)
+            calculated = halo_result["SO/200_crit/Concentration"][0]
+            delta = np.abs(calculated - concentration) / concentration
+            assert delta < 0.1
+
+
 if __name__ == "__main__":
     """
-    Standalone mode. Just run test_SO_properties().
+    Standalone mode for running tests.
     """
-    print("Calling test_SO_properties()...")
-    test_SO_properties()
-    print("Test passed.")
+    print("Calling test_SO_properties_random_halo()...")
+    test_SO_properties_random_halo()
+    print("Calling test_concentration_nfw_halo()...")
+    test_concentration_nfw_halo()
+    print("Tests passed.")

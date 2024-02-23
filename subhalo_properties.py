@@ -74,6 +74,7 @@ class SubhaloParticleData:
         stellar_age_calculator: StellarAgeCalculator,
         recently_heated_gas_filter: RecentlyHeatedGasFilter,
         snapshot_datasets: SnapshotDatasets,
+        softening_of_parttype: unyt.unyt_array,
     ):
         """
         Constructor.
@@ -106,6 +107,7 @@ class SubhaloParticleData:
         self.stellar_age_calculator = stellar_age_calculator
         self.recently_heated_gas_filter = recently_heated_gas_filter
         self.snapshot_datasets = snapshot_datasets
+        self.softening_of_parttype = softening_of_parttype
         self.compute_basics()
 
     def get_dataset(self, name: str) -> unyt.unyt_array:
@@ -127,6 +129,7 @@ class SubhaloParticleData:
         radius = []
         velocity = []
         types = []
+        softening = []
         for ptype in self.types_present:
             grnr = self.get_dataset(f"{ptype}/{self.grnr}")
             in_halo = grnr == self.index
@@ -142,12 +145,15 @@ class SubhaloParticleData:
             typearr = np.zeros(r.shape, dtype="U9")
             typearr[:] = ptype
             types.append(typearr)
+            s = np.ones(r.shape, dtype="float64") * self.softening_of_parttype[ptype]
+            softening.append(s)
 
         self.mass = np.concatenate(mass)
         self.position = np.concatenate(position)
         self.radius = np.concatenate(radius)
         self.velocity = np.concatenate(velocity)
         self.types = np.concatenate(types)
+        self.softening = unyt.array.uconcatenate(softening)
 
     @lazy_property
     def gas_mask_sh(self) -> NDArray[bool]:
@@ -613,6 +619,14 @@ class SubhaloParticleData:
         if not hasattr(self, "vmax"):
             self.r_vmax, self.vmax = get_vmax(self.mass, self.radius)
         return self.vmax
+
+    @lazy_property
+    def Vmax_soft(self):
+        if self.Mtot == 0:
+            return None
+        soft_r = np.maximum(self.softening, self.radius)
+        _, vmax = get_vmax(self.mass, soft_r)
+        return vmax
 
     @lazy_property
     def spin_parameter(self) -> unyt.unyt_quantity:
@@ -1454,6 +1468,7 @@ class SubhaloProperties(HaloProperty):
             "StellarLuminosity",
             "starmetalfrac",
             "Vmax",
+            "Vmax_soft",
             "R_vmax",
             "DM_Vmax",
             "DM_R_vmax",
@@ -1611,6 +1626,7 @@ class SubhaloProperties(HaloProperty):
             self.stellar_ages,
             self.filter,
             self.snapshot_datasets,
+            self.softening_of_parttype,
         )
 
         if self.bound_only:
