@@ -265,9 +265,9 @@ def read_vr_catalogue(comm, basename, a_unit, registry, boxsize):
 
     # Datasets we need to read from the .properties files
     datasets = (
-        "Xcminpot",
-        "Ycminpot",
-        "Zcminpot",
+        "Xcmbp",
+        "Ycmbp",
+        "Zcmbp",
         "Xc",
         "Yc",
         "Zc",
@@ -305,11 +305,11 @@ def read_vr_catalogue(comm, basename, a_unit, registry, boxsize):
     del local_halo["Yc"]
     del local_halo["Zc"]
     local_halo["cofp"] = np.column_stack(
-        (local_halo["Xcminpot"], local_halo["Ycminpot"], local_halo["Zcminpot"])
+        (local_halo["Xcmbp"], local_halo["Ycmbp"], local_halo["Zcmbp"])
     )
-    del local_halo["Xcminpot"]
-    del local_halo["Ycminpot"]
-    del local_halo["Zcminpot"]
+    del local_halo["Xcmbp"]
+    del local_halo["Ycmbp"]
+    del local_halo["Zcmbp"]
 
     # Extract unit information from the first file
     if comm_rank == 0:

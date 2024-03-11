@@ -187,6 +187,7 @@ def read_rockstar_catalogue(comm, basename, a_unit, registry, boxsize):
 
         local_halo['index'].append(np.array(data['ID']))
 
+        # Note this is not the most bound particle
         x = np.array(data['X']).reshape(-1, 1)
         y = np.array(data['Y']).reshape(-1, 1)
         z = np.array(data['Z']).reshape(-1, 1)
