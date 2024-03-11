@@ -258,7 +258,7 @@ def test_read_gadget4_groupnr(basename):
     comm_rank = comm.Get_rank()
     comm_size = comm.Get_size()
 
-    ids, grnr = read_gadget4_groupnr(basename)
+    n_halo, ids, grnr = read_gadget4_groupnr(basename)
     del ids  # Don't need the particle IDs
 
     # Find maximum group number
