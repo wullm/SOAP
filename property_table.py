@@ -3125,7 +3125,7 @@ class PropertyTable:
             )
         print("}")
 
-    def print_table(self, tablefile: str, footnotefile: str, timestampfile: str):
+    def print_table(self, tablefile: str, footnotefile: str, timestampfile: str, filterfile: str):
         """
         Print the table in .tex format and generate the documentation.
 
@@ -3243,9 +3243,9 @@ Name & Shape & Type & Units & SH & ES & IS & EP & SO & Category & Compression\\\
                     fnstr = ifile.read()
                 fnstr = fnstr.replace("$FOOTNOTE_NUMBER$", f"{i+1}")
                 ofile.write(f"{fnstr}\n\n")
-
-        # print the standalone table to the stdout
-        print(f"{headstr}\n{tablestr}\n{tailstr}")
+        with open(filterfile, "w") as ofile:
+            for name, value in parameters['filters'].items():
+                ofile.write(f'\\newcommand{{\\{name}filter}}{{{value}}}\n')
 
 
 class DummyProperties:
@@ -3268,6 +3268,8 @@ if __name__ == "__main__":
     types and print the property table or the documentation. The latter is the
     default; the former can be achieved by changing the boolean in the condition
     below.
+
+    You must pass a parameter file to run this script
     """
 
     from parameter_file import ParameterFile
@@ -3284,8 +3286,8 @@ if __name__ == "__main__":
     try:
         parameters = ParameterFile(sys.argv[1]).parameters
     except IndexError:
-        print("No parameter file passed. Outputting all properties")
-        parameters = {}
+        print("No parameter file passed.")
+        exit()
 
     table = PropertyTable(parameters)
     table.add_properties(ExclusiveSphereProperties, "ApertureProperties")
@@ -3306,4 +3308,5 @@ if __name__ == "__main__":
             "documentation/table.tex",
             "documentation/footnotes.tex",
             "documentation/timestamp.tex",
+            "documentation/filters.tex",
         )
