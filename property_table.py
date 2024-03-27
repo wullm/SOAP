@@ -3139,16 +3139,15 @@ class PropertyTable:
             except KeyError:
                 pass
 
-            if prop_units not in ['cMpc']:
-                prop_units = (
-                    unyt.unyt_quantity(1, units=prop_units)
-                    .units.latex_repr.replace(
-                        "\\rm{km} \\cdot \\rm{kpc}", "\\rm{kpc} \\cdot \\rm{km}"
-                    )
-                    .replace(
-                        "\\frac{\\rm{km}^{2}}{\\rm{s}^{2}}", "\\rm{km}^{2} / \\rm{s}^{2}"
-                    )
+            prop_units = (
+                unyt.unyt_quantity(1, units=prop_units)
+                .units.latex_repr.replace(
+                    "\\rm{km} \\cdot \\rm{kpc}", "\\rm{kpc} \\cdot \\rm{km}"
                 )
+                .replace(
+                    "\\frac{\\rm{km}^{2}}{\\rm{s}^{2}}", "\\rm{km}^{2} / \\rm{s}^{2}"
+                )
+            )
 
             prop_dtype = prop_dtype.__name__
             if prop_name in self.properties:
@@ -3378,6 +3377,10 @@ if __name__ == "__main__":
     from SO_properties import SOProperties, CoreExcisedSOProperties
     from subhalo_properties import SubhaloProperties
 
+    # Add cMpc unit needed for cofp
+    unyt.define_unit('cMpc', 1*unyt.Mpc)
+
+    # Parse parameter file
     try:
         parameters = ParameterFile(sys.argv[1]).parameters
     except IndexError:
