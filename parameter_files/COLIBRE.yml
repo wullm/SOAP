@@ -9,23 +9,26 @@ Snapshots:
   # Use {snap_nr:04d} for the snapshot number and {file_nr} for the file number.
   filename: "{sim_dir}/colibre_{snap_nr:04d}.hdf5"
 
+# Which halo finder we're using, and base name for halo finder output files
 HaloFinder:
-  # Which halo finder we're using : VR, HBTplus or Subfind
   type: HBTplus
-  # Base name for halo finder output file names:
-  filename: "{sim_dir}/HBT/{snap_nr:03d}/SubSnap_{snap_nr:03d}"
+  filename: "{sim_dir}/HBTplus/{snap_nr:03d}/SubSnap_{snap_nr:03d}"
+  #type: VR
+  #filename: "{sim_dir}/halo_{snap_nr:04d}"
+  #type: Subfind
+  #filename: "{sim_dir}/snapdir_{snap_nr:03d}/snapshot_{snap_nr:03d}"
 
 GroupMembership:
   # Where to write the group membership files
-  filename: "{output_dir}/SOAP_uncompressed/HBT/membership_{snap_nr:04d}.hdf5"
+  filename: "{output_dir}/SOAP_uncompressed/{halo_finder}/membership_{snap_nr:04d}.hdf5"
   # Where to write halo size information
-  halo_sizes_file: "{output_dir}/SOAP_uncompressed/HBT/membership_{snap_nr:04d}.nr_particles.hdf5"
+  halo_sizes_file: "{output_dir}/SOAP_uncompressed/{halo_finder}/membership_{snap_nr:04d}.nr_particles.hdf5"
 
 HaloProperties:
   # Where to write the halo properties file
-  filename: "{output_dir}/SOAP_uncompressed/HBT/halo_properties_{snap_nr:04d}.hdf5"
+  filename: "{output_dir}/SOAP_uncompressed/{halo_finder}/halo_properties_{snap_nr:04d}.hdf5"
   # Where to write temporary chunk output
-  chunk_dir: "{scratch_dir}/SOAP-tmp/HBT/"
+  chunk_dir: "{scratch_dir}/SOAP-tmp/{halo_finder}/"
 
 ApertureProperties:
   properties:

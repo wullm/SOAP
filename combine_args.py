@@ -43,6 +43,8 @@ def combine_arguments(command_line_args, config_file):
             format_values[name] = all_args["Parameters"][name]
     format_values["snap_nr"] = None
     format_values["file_nr"] = None
+    # Add halo_finder. Currently this must be passed through config_file
+    format_values["halo_finder"] = config_file_args['HaloFinder']['type']
             
     # Now copy any extra sections from the config file while substituting in
     # parameters from the Parameters section
