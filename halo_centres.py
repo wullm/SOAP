@@ -11,7 +11,7 @@ import virgo.mpi.gather_array as g
 import domain_decomposition
 import read_vr
 import read_hbtplus
-import read_gadget4
+import read_subfind
 import read_rockstar
 
 
@@ -90,8 +90,8 @@ class SOCatalogue:
             halo_data = read_hbtplus.read_hbtplus_catalogue(
                 comm, halo_basename, a_unit, registry, boxsize, halo_size_file
             )
-        elif halo_format == "Gadget4":
-            halo_data = read_gadget4.read_gadget4_catalogue(
+        elif halo_format == "Subfind":
+            halo_data = read_subfind.read_gadget4_catalogue(
                 comm, halo_basename, a_unit, registry, boxsize
             )
         elif halo_format == "Rockstar":

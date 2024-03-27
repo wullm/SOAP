@@ -14,7 +14,7 @@ import lustre
 import combine_args
 import read_vr
 import read_hbtplus
-import read_gadget4
+import read_subfind
 import read_rockstar
 
 from mpi4py import MPI
@@ -73,9 +73,9 @@ if __name__ == "__main__":
         )
         ids_unbound = None  # HBTplus does not output unbound particles
         grnr_unbound = None
-    elif halo_format == "Gadget4":
+    elif halo_format == "Subfind":
         # Read Gadget-4 subfind output
-        total_nr_halos, ids_bound, grnr_bound = read_gadget4.read_gadget4_groupnr(
+        total_nr_halos, ids_bound, grnr_bound = read_subfind.read_gadget4_groupnr(
             halo_basename
         )
         ids_unbound = None
