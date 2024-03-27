@@ -2942,7 +2942,7 @@ class ApertureProperties(HaloProperty):
            Filter used to mask out gas particles that represent cold, dense gas.
          - category_filter: CategoryFilter
            Filter used to determine which properties can be calculated for this halo.
-           This depends on the number of particles in the FOF subhalo and the category
+           This depends on the number of particles in the subhalo and the category
            of each property.
          - inclusive: bool
            Should properties include particles that are not gravitationally bound to the
@@ -3154,7 +3154,7 @@ class ExclusiveSphereProperties(ApertureProperties):
            Filter used to mask out gas particles that represent cold, dense gas.
          - category_filter: CategoryFilter
            Filter used to determine which properties can be calculated for this halo.
-           This depends on the number of particles in the FOF subhalo and the category
+           This depends on the number of particles in the Bound subhalo and the category
            of each property.
         """
         super().__init__(
@@ -3211,7 +3211,7 @@ class InclusiveSphereProperties(ApertureProperties):
            Filter used to mask out gas particles that represent cold, dense gas.
          - category_filter: CategoryFilter
            Filter used to determine which properties can be calculated for this halo.
-           This depends on the number of particles in the FOF subhalo and the category
+           This depends on the number of particles in the Bound subhalo and the category
            of each property.
         """
         super().__init__(
@@ -3284,8 +3284,6 @@ def test_aperture_properties():
         cat_filter,
     )
 
-    parameters.write_parameters("aperture.used_parameters.yml")
-
     # generate 100 random halos
     for i in range(100):
         input_halo, data, _, _, _, particle_numbers = dummy_halos.get_random_halo(
@@ -3356,7 +3354,7 @@ def test_aperture_properties():
         )
 
         halo_result_template = {
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}": (
+            f"BoundSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}": (
                 unyt.unyt_array(
                     particle_numbers["PartType0"],
                     dtype=PropertyTable.full_property_list["Ngas"][2],
@@ -3364,7 +3362,7 @@ def test_aperture_properties():
                 ),
                 "Dummy Ngas for filter",
             ),
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}": (
+            f"BoundSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}": (
                 unyt.unyt_array(
                     particle_numbers["PartType1"],
                     dtype=PropertyTable.full_property_list["Ndm"][2],
@@ -3372,7 +3370,7 @@ def test_aperture_properties():
                 ),
                 "Dummy Ndm for filter",
             ),
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}": (
+            f"BoundSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}": (
                 unyt.unyt_array(
                     particle_numbers["PartType4"],
                     dtype=PropertyTable.full_property_list["Nstar"][2],
@@ -3380,7 +3378,7 @@ def test_aperture_properties():
                 ),
                 "Dummy Nstar for filter",
             ),
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}": (
+            f"BoundSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}": (
                 unyt.unyt_array(
                     particle_numbers["PartType5"],
                     dtype=PropertyTable.full_property_list["Nbh"][2],

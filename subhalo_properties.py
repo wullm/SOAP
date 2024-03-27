@@ -153,7 +153,7 @@ class SubhaloParticleData:
         self.radius = np.concatenate(radius)
         self.velocity = np.concatenate(velocity)
         self.types = np.concatenate(types)
-        self.softening = unyt.array.uconcatenate(softening)
+        self.softening = np.concatenate(softening)
 
     @lazy_property
     def gas_mask_sh(self) -> NDArray[bool]:
@@ -1537,10 +1537,10 @@ class SubhaloProperties(HaloProperty):
            scale factor and the birth scale factor of the star particles.
          - category_filter: CategoryFilter
            Filter used to determine which properties can be calculated for this halo.
-           This depends on the number of particles in the FOF subhalo and the category
+           This depends on the number of particles in the subhalo and the category
            of each property.
          - bound_only: bool
-           Should properties include all particles in the FOF group, or only
+           Should properties include all particles in the 6DFOF group, or only
            gravitationally bound particles?
         """
 
@@ -1771,8 +1771,6 @@ def test_subhalo_properties():
         cat_filter,
         False,
     )
-    parameters.write_parameters("subhalo.used_parameters.yml")
-
     # generate 100 random halos
     for i in range(100):
         input_halo, data, _, _, _, _ = dummy_halos.get_random_halo(
@@ -1781,8 +1779,8 @@ def test_subhalo_properties():
 
         halo_result = {}
         for subhalo_name, prop_calc in [
-            ("FOFSubhaloProperties", property_calculator_both),
             ("BoundSubhaloProperties", property_calculator_bound),
+            # ("FOFSubhaloProperties", property_calculator_both),
         ]:
             input_data = {}
             for ptype in prop_calc.particle_properties:
@@ -1838,7 +1836,7 @@ def test_subhalo_properties():
         )
         halo_result = {}
         for subhalo_name, prop_calc in [
-            ("FOFSubhaloProperties", property_calculator_both),
+            # ("FOFSubhaloProperties", property_calculator_both),
             ("BoundSubhaloProperties", property_calculator_bound),
         ]:
             input_data = {}

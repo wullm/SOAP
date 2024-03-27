@@ -384,8 +384,9 @@ class SOParticleData:
         )
         # add mean neutrino mass
         cumulative_mass += self.nu_density * 4.0 / 3.0 * np.pi * ordered_radius ** 3
-        # Determine FOF ID of object using the central particle
-        fofid = self.fofid[order[0]]
+        # Determine FOF ID of object using the central non-neutrino particle
+        non_neutrino_order = order[order<self.radius.shape[0]]
+        fofid = self.fofid[non_neutrino_order[0]]
 
         # Compute density within radius of each particle.
         # Will need to skip any at zero radius.
@@ -2397,7 +2398,7 @@ class SOProperties(HaloProperty):
            AGN feedback.
          - category_filter: CategoryFilter
            Filter used to determine which properties can be calculated for this halo.
-           This depends on the number of particles in the FOF subhalo and the category
+           This depends on the number of particles in the subhalo and the category
            of each property.
          - SOval: float
            SO threshold value. The precise meaning of this parameter depends on
@@ -2751,7 +2752,7 @@ class RadiusMultipleSOProperties(SOProperties):
            AGN feedback.
          - category_filter: CategoryFilter
            Filter used to determine which properties can be calculated for this halo.
-           This depends on the number of particles in the FOF subhalo and the category
+           This depends on the number of particles in the subhalo and the category
            of each property.
          - SOval: float
            SO threshold value. The precise meaning of this parameter depends on
@@ -2890,8 +2891,6 @@ def test_SO_properties_random_halo():
     property_calculator_5x2500mean = RadiusMultipleSOProperties(
         dummy_halos.get_cell_grid(), parameters, filter, cat_filter, 2500.0, 5.0, "mean"
     )
-
-    parameters.write_parameters("SO.used_parameters.yml")
 
     for i in range(100):
         (
@@ -3066,7 +3065,7 @@ def test_SO_properties_random_halo():
         )
 
         halo_result_template = {
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}": (
+            f"BoundSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}": (
                 unyt.unyt_array(
                     particle_numbers["PartType0"],
                     dtype=PropertyTable.full_property_list["Ngas"][2],
@@ -3074,7 +3073,7 @@ def test_SO_properties_random_halo():
                 ),
                 "Dummy Ngas for filter",
             ),
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}": (
+            f"BoundSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}": (
                 unyt.unyt_array(
                     particle_numbers["PartType1"],
                     dtype=PropertyTable.full_property_list["Ndm"][2],
@@ -3082,7 +3081,7 @@ def test_SO_properties_random_halo():
                 ),
                 "Dummy Ndm for filter",
             ),
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}": (
+            f"BoundSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}": (
                 unyt.unyt_array(
                     particle_numbers["PartType4"],
                     dtype=PropertyTable.full_property_list["Nstar"][2],
@@ -3090,7 +3089,7 @@ def test_SO_properties_random_halo():
                 ),
                 "Dummy Nstar for filter",
             ),
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}": (
+            f"BoundSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}": (
                 unyt.unyt_array(
                     particle_numbers["PartType5"],
                     dtype=PropertyTable.full_property_list["Nbh"][2],
@@ -3126,6 +3125,14 @@ def test_SO_properties_random_halo():
                     input_data[ptype] = {}
                     for dset in prop_calc.particle_properties[ptype]:
                         input_data[ptype][dset] = data[ptype][dset]
+            # Adding Restframe luminosties as they are calculated in halo_tasks
+            if "PartType0" in input_data:
+                for dset in [
+                    "XrayLuminositiesRestframe",
+                    "XrayPhotonLuminositiesRestframe",
+                ]:
+                    input_data["PartType0"][dset] = data["PartType0"][dset]
+                    input_data["PartType0"][dset] = data["PartType0"][dset]
             input_halo_copy = input_halo.copy()
             input_data_copy = input_data.copy()
             prop_calc.calculate(input_halo, rmax, input_data, halo_result)
@@ -3203,7 +3210,7 @@ def test_SO_properties_random_halo():
         )
 
         halo_result_template = {
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}": (
+            f"BoundSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}": (
                 unyt.unyt_array(
                     particle_numbers["PartType0"],
                     dtype=PropertyTable.full_property_list["Ngas"][2],
@@ -3211,7 +3218,7 @@ def test_SO_properties_random_halo():
                 ),
                 "Dummy Ngas for filter",
             ),
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}": (
+            f"BoundSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}": (
                 unyt.unyt_array(
                     particle_numbers["PartType1"],
                     dtype=PropertyTable.full_property_list["Ndm"][2],
@@ -3219,7 +3226,7 @@ def test_SO_properties_random_halo():
                 ),
                 "Dummy Ndm for filter",
             ),
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}": (
+            f"BoundSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}": (
                 unyt.unyt_array(
                     particle_numbers["PartType4"],
                     dtype=PropertyTable.full_property_list["Nstar"][2],
@@ -3227,7 +3234,7 @@ def test_SO_properties_random_halo():
                 ),
                 "Dummy Nstar for filter",
             ),
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}": (
+            f"BoundSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}": (
                 unyt.unyt_array(
                     particle_numbers["PartType5"],
                     dtype=PropertyTable.full_property_list["Nbh"][2],
@@ -3263,6 +3270,14 @@ def test_SO_properties_random_halo():
                     input_data[ptype] = {}
                     for dset in prop_calc.particle_properties[ptype]:
                         input_data[ptype][dset] = data[ptype][dset]
+            # Adding Restframe luminosties as they are calculated in halo_tasks
+            if "PartType0" in input_data:
+                for dset in [
+                    "XrayLuminositiesRestframe",
+                    "XrayPhotonLuminositiesRestframe",
+                ]:
+                    input_data["PartType0"][dset] = data["PartType0"][dset]
+                    input_data["PartType0"][dset] = data["PartType0"][dset]
             input_halo_copy = input_halo.copy()
             input_data_copy = input_data.copy()
             prop_calc.calculate(input_halo, rmax, input_data, halo_result)
@@ -3295,10 +3310,35 @@ def calculate_SO_properties_nfw_halo(seed, num_part, c):
     from dummy_halo_generator import DummyHaloGenerator
 
     dummy_halos = DummyHaloGenerator(seed)
-    cat_filter = CategoryFilter()
+    cat_filter = CategoryFilter(
+        {"general": 100, "gas": 100, "dm": 100, "star": 100, "baryon": 100}
+    )
+    parameters = ParameterFile(
+        parameter_dictionary={
+            "aliases": {
+                "PartType0/ElementMassFractions": "PartType0/SmoothedElementMassFractions",
+                "PartType4/ElementMassFractions": "PartType4/SmoothedElementMassFractions",
+                "PartType0/XrayLuminositiesRestframe": "PartType0/XrayLuminositiesRestframe",
+                "PartType0/XrayPhotonLuminositiesRestframe": "PartType0/XrayPhotonLuminositiesRestframe",
+            }
+        }
+    )
+    dummy_halos.get_cell_grid().snapshot_datasets.setup_aliases(
+        parameters.get_aliases()
+    )
+    parameters.get_halo_type_variations(
+        "SOProperties",
+        {
+            "50_kpc": {"value": 50.0, "type": "physical"},
+            "2500_mean": {"value": 2500.0, "type": "mean"},
+            "2500_crit": {"value": 2500.0, "type": "crit"},
+            "BN98": {"value": 0.0, "type": "BN98"},
+            "5xR2500_mean": {"value": 2500.0, "type": "mean", "radius_multiple": 5.0},
+        },
+    )
 
     property_calculator_200crit = SOProperties(
-        dummy_halos.get_cell_grid(), filter, cat_filter, 200.0, "crit"
+        dummy_halos.get_cell_grid(), parameters, filter, cat_filter, 200.0, "crit"
     )
 
     (input_halo, data, rmax, Mtot, Npart, particle_numbers) = dummy_halos.gen_nfw_halo(

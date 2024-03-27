@@ -1152,7 +1152,7 @@ class ProjectedApertureProperties(HaloProperty):
            in units of kpc.
          - category_filter: CategoryFilter
            Filter used to determine which properties can be calculated for this halo.
-           This depends on the number of particles in the FOF subhalo and the category
+           This depends on the number of particles in the subhalo and the category
            of each property.
         """
         super().__init__(cellgrid)
@@ -1346,8 +1346,6 @@ def test_projected_aperture_properties():
         dummy_halos.get_cell_grid(), parameters, 30.0, category_filter
     )
 
-    parameters.write_parameters("projected_apertures.used_parameters.yml")
-
     for i in range(100):
         input_halo, data, _, _, _, particle_numbers = dummy_halos.get_random_halo(
             [1, 10, 100, 1000, 10000]
@@ -1402,7 +1400,7 @@ def test_projected_aperture_properties():
         )
 
         halo_result_template = {
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}": (
+            f"BoundSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}": (
                 unyt.unyt_array(
                     particle_numbers["PartType0"],
                     dtype=PropertyTable.full_property_list["Ngas"][2],
@@ -1410,7 +1408,7 @@ def test_projected_aperture_properties():
                 ),
                 "Dummy Ngas for filter",
             ),
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}": (
+            f"BoundSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}": (
                 unyt.unyt_array(
                     particle_numbers["PartType1"],
                     dtype=PropertyTable.full_property_list["Ndm"][2],
@@ -1418,7 +1416,7 @@ def test_projected_aperture_properties():
                 ),
                 "Dummy Ndm for filter",
             ),
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}": (
+            f"BoundSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}": (
                 unyt.unyt_array(
                     particle_numbers["PartType4"],
                     dtype=PropertyTable.full_property_list["Nstar"][2],
@@ -1426,7 +1424,7 @@ def test_projected_aperture_properties():
                 ),
                 "Dummy Nstar for filter",
             ),
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}": (
+            f"BoundSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}": (
                 unyt.unyt_array(
                     particle_numbers["PartType5"],
                     dtype=PropertyTable.full_property_list["Nbh"][2],

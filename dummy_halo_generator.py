@@ -163,6 +163,7 @@ class DummySnapshotDatasets(SnapshotDatasets):
                 "Coordinates",
                 "Masses",
                 "Velocities",
+                "FOFGroupIDs",
                 "MetalMassFractions",
                 "Temperatures",
                 "LastAGNFeedbackScaleFactors",
@@ -180,11 +181,12 @@ class DummySnapshotDatasets(SnapshotDatasets):
                 "ElementMassFractionsDiffuse",
                 "SmoothedElementMassFractions",
             ],
-            "PartType1": ["Coordinates", "Masses", "Velocities"],
+            "PartType1": ["Coordinates", "Masses", "Velocities", "FOFGroupIDs"],
             "PartType4": [
                 "Coordinates",
                 "Masses",
                 "Velocities",
+                "FOFGroupIDs",
                 "InitialMasses",
                 "Luminosities",
                 "MetalMassFractions",
@@ -199,6 +201,7 @@ class DummySnapshotDatasets(SnapshotDatasets):
                 "Coordinates",
                 "DynamicalMasses",
                 "Velocities",
+                "FOFGroupIDs",
                 "SubgridMasses",
                 "LastAGNFeedbackScaleFactors",
                 "ParticleIDs",
@@ -490,7 +493,7 @@ class DummyHaloGenerator:
         Return a halo_result object which only contains the number of each particle type.
         """
         return {
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}": (
+            f"BoundSubhaloProperties/{PropertyTable.full_property_list['Ngas'][0]}": (
                 unyt.unyt_array(
                     particle_numbers["PartType0"],
                     dtype=PropertyTable.full_property_list["Ngas"][2],
@@ -498,7 +501,7 @@ class DummyHaloGenerator:
                 ),
                 "Dummy Ngas for filter",
             ),
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}": (
+            f"BoundSubhaloProperties/{PropertyTable.full_property_list['Ndm'][0]}": (
                 unyt.unyt_array(
                     particle_numbers["PartType1"],
                     dtype=PropertyTable.full_property_list["Ndm"][2],
@@ -506,7 +509,7 @@ class DummyHaloGenerator:
                 ),
                 "Dummy Ndm for filter",
             ),
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}": (
+            f"BoundSubhaloProperties/{PropertyTable.full_property_list['Nstar'][0]}": (
                 unyt.unyt_array(
                     particle_numbers["PartType4"],
                     dtype=PropertyTable.full_property_list["Nstar"][2],
@@ -514,7 +517,7 @@ class DummyHaloGenerator:
                 ),
                 "Dummy Nstar for filter",
             ),
-            f"FOFSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}": (
+            f"BoundSubhaloProperties/{PropertyTable.full_property_list['Nbh'][0]}": (
                 unyt.unyt_array(
                     particle_numbers["PartType5"],
                     dtype=PropertyTable.full_property_list["Nbh"][2],
@@ -606,6 +609,7 @@ class DummyHaloGenerator:
             registry=reg,
         )
         groupnr_bound = groupnr_all.copy()
+        fof_group_ids = groupnr_all.copy()
 
         Mtot = 0.0
         data = {}
@@ -618,6 +622,7 @@ class DummyHaloGenerator:
             data["PartType1"]["Coordinates"] = coords[dm_mask]
             data["PartType1"]["GroupNr_all"] = groupnr_all[dm_mask]
             data["PartType1"]["GroupNr_bound"] = groupnr_bound[dm_mask]
+            data["PartType1"]["FOFGroupIDs"] = fof_group_ids[dm_mask]
             data["PartType1"]["Masses"] = mass[dm_mask]
             Mtot += data["PartType1"]["Masses"].sum()
             data["PartType1"]["Velocities"] = vs[dm_mask]
@@ -633,6 +638,7 @@ class DummyHaloGenerator:
         input_halo = {}
         input_halo["cofp"] = centre
         input_halo["index"] = groupnr_halo
+        input_halo["is_central"] = np.ones_like(groupnr_halo)
         input_halo["Structuretype"] = structuretype
 
         return input_halo, data, rmax, Mtot, npart, particle_numbers
@@ -831,6 +837,8 @@ class DummyHaloGenerator:
         index = np.random.choice(groupnr_all.shape[0], npart // 10, replace=False)
         groupnr_bound = groupnr_all.copy()
         groupnr_bound[index] = -1
+        # Set all particles as part of 3D FOF
+        fof_group_ids = groupnr_all.copy()
 
         Mtot = 0.0
         data = {}
@@ -872,6 +880,7 @@ class DummyHaloGenerator:
             data["PartType0"]["ElectronNumberDensities"][idx0] = 0.0
             data["PartType0"]["GroupNr_all"] = groupnr_all[gas_mask]
             data["PartType0"]["GroupNr_bound"] = groupnr_bound[gas_mask]
+            data["PartType0"]["FOFGroupIDs"] = fof_group_ids[gas_mask]
             # we assume a fixed "snapshot" redshift of 0.1, so we make sure
             # the random values span a range of scale factors that is lower
             data["PartType0"]["LastAGNFeedbackScaleFactors"] = unyt.unyt_array(
@@ -996,6 +1005,7 @@ class DummyHaloGenerator:
             data["PartType1"]["Coordinates"] = coords[dm_mask]
             data["PartType1"]["GroupNr_all"] = groupnr_all[dm_mask]
             data["PartType1"]["GroupNr_bound"] = groupnr_bound[dm_mask]
+            data["PartType1"]["FOFGroupIDs"] = fof_group_ids[dm_mask]
             data["PartType1"]["Masses"] = mass[dm_mask]
             Mtot += data["PartType1"]["Masses"].sum()
             data["PartType1"]["Velocities"] = vs[dm_mask]
@@ -1026,6 +1036,7 @@ class DummyHaloGenerator:
             data["PartType4"]["Coordinates"] = coords[star_mask]
             data["PartType4"]["GroupNr_all"] = groupnr_all[star_mask]
             data["PartType4"]["GroupNr_bound"] = groupnr_bound[star_mask]
+            data["PartType4"]["FOFGroupIDs"] = fof_group_ids[star_mask]
             # initial masses are always larger than the actual mass
             data["PartType4"]["InitialMasses"] = unyt.unyt_array(
                 mass[star_mask].value * (1.0 + np.random.random(Nstar)),
@@ -1090,6 +1101,7 @@ class DummyHaloGenerator:
             Mtot += data["PartType5"]["DynamicalMasses"].sum()
             data["PartType5"]["GroupNr_all"] = groupnr_all[bh_mask]
             data["PartType5"]["GroupNr_bound"] = groupnr_bound[bh_mask]
+            data["PartType5"]["FOFGroupIDs"] = fof_group_ids[bh_mask]
             data["PartType5"]["LastAGNFeedbackScaleFactors"] = unyt.unyt_array(
                 1.0 / 1.1 + 0.01 * np.random.random(Nbh),
                 dtype=np.float32,
@@ -1139,6 +1151,8 @@ class DummyHaloGenerator:
         input_halo["cofp"] = centre
         input_halo["index"] = groupnr_halo
         input_halo["is_central"] = is_central
+        input_halo["nr_bound_part"] = np.sum(groupnr_bound == groupnr_halo)
+        input_halo["nr_unbound_part"] = np.sum(groupnr_all == groupnr_halo)
 
         nu_density = (
             self.dummy_cellgrid.cosmology["Omega_nu_0"]

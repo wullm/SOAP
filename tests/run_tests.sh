@@ -9,5 +9,5 @@ python3 -W error -m pytest subhalo_properties.py
 
 # Tests that won't run with pytest
 python3 test_SO_radius_calculation.py
-mpirun -np 8 python3 ./shared_mesh.py
-mpirun -np 8 python3 ./io_test.py
+mpirun -np 8 python3 shared_mesh.py
+mpirun -np 8 python3 io_test.py
