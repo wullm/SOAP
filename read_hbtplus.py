@@ -287,13 +287,23 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize, halo_size_
         is_central, units=unyt.dimensionless, dtype=int, registry=registry
     )
 
-    # HostHaloID
-    host_halo_id = subhalo["HostHaloId"][keep]
+    # Subhalo tracking information
+    track_id = unyt.unyt_array(
+        subhalo["TrackId"][keep], units=unyt.dimensionless, dtype=int, registry=registry
+    )
     host_halo_id = unyt.unyt_array(
-        host_halo_id, units=unyt.dimensionless, dtype=int, registry=registry
+        subhalo["HostHaloId"][keep], units=unyt.dimensionless, dtype=int, registry=registry
+    )
+    depth = unyt.unyt_array(
+        subhalo["Depth"][keep], units=unyt.dimensionless, dtype=int, registry=registry
+    )
+    snapshot_birth = unyt.unyt_array(
+        subhalo["SnapshotIndexOfBirth"][keep], units=unyt.dimensionless, dtype=int, registry=registry
+    )
+    parent_id = unyt.unyt_array(
+        subhalo["NestedParentTrackId"][keep], units=unyt.dimensionless, dtype=int, registry=registry
     )
 
-    # TODO: Decide which properties to keep
     # Peak mass
     max_mass = (subhalo["LastMaxMass"][keep] * MassInMsunh / h ) * swift_msun
     snapshot_max_mass = subhalo["SnapshotIndexOfLastMaxMass"][keep]
@@ -319,6 +329,10 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize, halo_size_
         "is_central": is_central,
         "nr_bound_part": nr_bound_part,
         "HostHaloId": host_halo_id,
+        "Depth": depth,
+        "TrackId": track_id,
+        "SnapshotIndexOfBirth": snapshot_birth,
+        "NestedParentTrackId": parent_id,
         "LastMaxMass": max_mass,
         "SnapshotIndexOfLastMaxMass": snapshot_max_mass,
         "VmaxPhysical": vmax,
