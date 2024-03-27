@@ -84,7 +84,6 @@ class RecentlyHeatedGasFilter:
             registry=cellgrid.snap_unit_registry,
         ).to("1/s")
 
-        print(cellgrid.cosmology)
         Omega_b = cellgrid.cosmology["Omega_b"]
         Omega_lambda = cellgrid.cosmology["Omega_lambda"]
         Omega_g = cellgrid.cosmology["Omega_g"]

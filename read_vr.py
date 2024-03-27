@@ -274,7 +274,6 @@ def read_vr_catalogue(comm, basename, a_unit, registry, boxsize):
         "R_size",
         "Structuretype",
         "ID",
-        "npart",
         "hostHaloID",
         "numSubStruct",
     )
@@ -347,7 +346,6 @@ def read_vr_catalogue(comm, basename, a_unit, registry, boxsize):
             "Structuretype",
             "ID",
             "index",
-            "npart",
             "hostHaloID",
             "numSubStruct",
             "Parent_halo_ID",
@@ -383,6 +381,10 @@ def read_vr_catalogue(comm, basename, a_unit, registry, boxsize):
 
     # Store the initial search radius
     local_halo["search_radius"] = local_halo["R_size"] * 1.01 + dist
+
+    # Remove properties no longer needed
+    del local_halo['cofm']
+    del local_halo['R_size']
 
     return local_halo
 

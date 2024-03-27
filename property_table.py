@@ -102,11 +102,6 @@ class PropertyTable:
       Mstar_info = PropertyTable.full_property_list["Mstar"]
     """
 
-    # categories: the first 6 are used for filtering, 'VR' is an extra
-    # category used for properties copied over directly from the Velociraptor
-    # output. VR properties should not be included by any of the halo types,
-    # they are only there to complete the documentation!
-    categories = ["basic", "general", "gas", "dm", "star", "baryon", "VR", "SOAP"]
     # some properties require an additional explanation in the form of a
     # footnote. These footnotes are .tex files in the 'documentation' folder
     # (that should exist). The name of the file acts as a key in the dictionary
@@ -252,8 +247,7 @@ class PropertyTable:
     #  - description: Description string that will be used to describe the
     #      property in the output.
     #  - category: Category used to decide if this property should be calculated
-    #      for a particular halo (filtering), or 'VR' for properties that are
-    #      copied over from the Velociraptor output.
+    #      for a particular halo (filtering).
     #  - lossy compression filter: Lossy compression filter used in the output
     #      to reduce the file size. Note that SOAP does not actually compress
     #      the output; this is done by a separate script. We support all lossy
@@ -1532,7 +1526,7 @@ class PropertyTable:
             1,
             np.float32,
             "K",
-            "ComptonY-weighted mean gas temperature, excluding the inner {core_excision}.",
+            "ComptonY-weighted mean gas temperature, excluding the inner excised core.",
             "gas",
             "FMantissa9",
             False,
@@ -1547,7 +1541,7 @@ class PropertyTable:
             1,
             np.float32,
             "K",
-            "ComptonY-weighted mean gas temperature, excluding the inner {core_excision} and gas that was recently heated by AGN.",
+            "ComptonY-weighted mean gas temperature, excluding the inner excised core and gas that was recently heated by AGN.",
             "gas",
             "FMantissa9",
             False,
@@ -1563,7 +1557,7 @@ class PropertyTable:
             1,
             np.float32,
             "K",
-            "Mass-weighted mean gas temperature, excluding the inner {core_excision}.",
+            "Mass-weighted mean gas temperature, excluding the inner excised core.",
             "gas",
             "FMantissa9",
             False,
@@ -1574,7 +1568,7 @@ class PropertyTable:
             1,
             np.float32,
             "K",
-            "Mass-weighted mean gas temperature, excluding the inner {core_excision} and gas below 1e5 K.",
+            "Mass-weighted mean gas temperature, excluding the inner excised core and gas below 1e5 K.",
             "gas",
             "FMantissa9",
             False,
@@ -1585,7 +1579,7 @@ class PropertyTable:
             1,
             np.float32,
             "K",
-            "Mass-weighted mean gas temperature, excluding the inner {core_excision}, and gas that was recently heated by AGN.",
+            "Mass-weighted mean gas temperature, excluding the inner excised core, and gas that was recently heated by AGN.",
             "gas",
             "FMantissa9",
             False,
@@ -1601,7 +1595,7 @@ class PropertyTable:
             1,
             np.float32,
             "K",
-            "Mass-weighted mean gas temperature, excluding the inner {core_excision}, gas below 1e5 K and gas that was recently heated by AGN.",
+            "Mass-weighted mean gas temperature, excluding the inner excised core, gas below 1e5 K and gas that was recently heated by AGN.",
             "gas",
             "FMantissa9",
             False,
@@ -1662,116 +1656,6 @@ class PropertyTable:
                 "PartType5/Coordinates",
                 "PartType5/DynamicalMasses",
             ],
-        ),
-        "VR/ID": (
-            "ID",
-            1,
-            np.uint64,
-            "dimensionless",
-            "ID assigned to this halo by VR.",
-            "VR",
-            "None",
-            True,
-            [],
-        ),
-        "VR/Parent_halo_ID": (
-            "ParentHaloID",
-            1,
-            np.int64,
-            "dimensionless",
-            "VR/ID of the direct parent of this halo. -1 for field halos.",
-            "VR",
-            "None",
-            True,
-            [],
-        ),
-        "VR/Structuretype": (
-            "StructureType",
-            1,
-            np.int32,
-            "dimensionless",
-            "Structure type identified by VR. Field halos are 10, higher numbers are for satellites.",
-            "VR",
-            "None",
-            True,
-            [],
-        ),
-        "cofp": (
-            "CentreOfPotential",
-            3,
-            np.float64,
-            "Mpc",
-            "Centre of potential. Used as reference for all relative positions. Equal to the position of the most bound particle in the subhalo.",
-            "Input",
-            "DScale5",
-            True,
-            [],
-        ),
-        "index": (
-            "Index",
-            1,
-            np.int64,
-            "dimensionless",
-            "Index of this halo in the original halo finder catalogue (first halo has index=0).",
-            "Input",
-            "None",
-            True,
-            [],
-        ),
-        "read_radius": (
-            "read_radius",
-            1,
-            np.float64,
-            "cMpc",
-            "Radius about the halo which was read in by SOAP.",
-            "Input",
-            "None",
-            True,
-            [],
-        ),
-        "search_radius": (
-            "search_radius",
-            1,
-            np.float64,
-            "cMpc",
-            "Radius about the halo which was searched for SO quantities",
-            "Input",
-            "None",
-            True,
-            [],
-        ),
-        "is_central": (
-            "is_central",
-            1,
-            np.int64,
-            "dimensionless",
-            "Whether the halo finder flagged the halo as central (1) or satellite (0).",
-            "Input",
-            "None",
-            True,
-            [],
-        ),
-        "VR/hostHaloID": (
-            "HostHaloID",
-            1,
-            np.int64,
-            "dimensionless",
-            "VR/ID of the top level parent of this halo. -1 for field halos.",
-            "VR",
-            "None",
-            True,
-            [],
-        ),
-        "VR/numSubStruct": (
-            "NumberOfSubstructures",
-            1,
-            np.uint64,
-            "dimensionless",
-            "Number of sub-structures within this halo.",
-            "VR",
-            "None",
-            True,
-            [],
         ),
         "Vmax": (
             "MaximumCircularVelocity",
@@ -1850,7 +1734,6 @@ class PropertyTable:
             # Can't include PartType0/XrayLuminositiesRestframe as it is
             # calculated by SOAP. The following properties are required
             # for the Xray calculator (which computes restframe quantities).
-            # TODO: Is it always calculated by SOAP or just for flamingo?
             [
                 "PartType0/XrayLuminosities",
                 "PartType0/Densities",
@@ -1896,7 +1779,7 @@ class PropertyTable:
             3,
             np.float64,
             "erg/s",
-            "Total observer-frame Xray luminosity in three bands. Excludes gas in the inner {core_excision}",
+            "Total observer-frame Xray luminosity in three bands. Excludes gas in the inner excised core",
             "gas",
             "DMantissa9",
             False,
@@ -1907,7 +1790,7 @@ class PropertyTable:
             3,
             np.float64,
             "erg/s",
-            "Total rest-frame Xray luminosity in three bands. Excludes gas in the inner {core_excision}",
+            "Total rest-frame Xray luminosity in three bands. Excludes gas in the inner excised core",
             "gas",
             "DMantissa9",
             False,
@@ -1923,7 +1806,7 @@ class PropertyTable:
             3,
             np.float64,
             "erg/s",
-            "Total observer-frame Xray luminosity in three bands. Excludes gas that was recently heated by AGN. Excludes gas in the inner {core_excision}",
+            "Total observer-frame Xray luminosity in three bands. Excludes gas that was recently heated by AGN. Excludes gas in the inner excised core",
             "gas",
             "DMantissa9",
             False,
@@ -1939,7 +1822,7 @@ class PropertyTable:
             3,
             np.float64,
             "erg/s",
-            "Total rest-frame Xray luminosity in three bands. Excludes gas that was recently heated by AGN. Excludes gas in the inner {core_excision}",
+            "Total rest-frame Xray luminosity in three bands. Excludes gas that was recently heated by AGN. Excludes gas in the inner excised core",
             "gas",
             "DMantissa9",
             False,
@@ -2015,7 +1898,7 @@ class PropertyTable:
             3,
             np.float64,
             "1/s",
-            "Total observer-frame Xray photon luminosity in three bands. Excludes gas in the inner {core_excision}",
+            "Total observer-frame Xray photon luminosity in three bands. Excludes gas in the inner excised core",
             "gas",
             "DMantissa9",
             False,
@@ -2031,7 +1914,7 @@ class PropertyTable:
             3,
             np.float64,
             "1/s",
-            "Total rest-frame Xray photon luminosity in three bands. Excludes gas in the inner {core_excision}",
+            "Total rest-frame Xray photon luminosity in three bands. Excludes gas in the inner excised core",
             "gas",
             "DMantissa9",
             False,
@@ -2047,7 +1930,7 @@ class PropertyTable:
             3,
             np.float64,
             "1/s",
-            "Total observer-frame Xray photon luminosity in three bands. Exclude gas that was recently heated by AGN. Excludes gas in the inner {core_excision}",
+            "Total observer-frame Xray photon luminosity in three bands. Exclude gas that was recently heated by AGN. Excludes gas in the inner excised core",
             "gas",
             "DMantissa9",
             False,
@@ -2063,7 +1946,7 @@ class PropertyTable:
             3,
             np.float64,
             "1/s",
-            "Total rest-frame Xray photon luminosity in three bands. Exclude gas that was recently heated by AGN. Excludes gas in the inner {core_excision}",
+            "Total rest-frame Xray photon luminosity in three bands. Exclude gas that was recently heated by AGN. Excludes gas in the inner excised core",
             "gas",
             "DMantissa9",
             False,
@@ -2107,7 +1990,7 @@ class PropertyTable:
             1,
             np.float32,
             "K",
-            "Spectroscopic-like gas temperature. Excludes gas in the inner {core_excision}",
+            "Spectroscopic-like gas temperature. Excludes gas in the inner excised core",
             "gas",
             "FMantissa9",
             False,
@@ -2124,7 +2007,7 @@ class PropertyTable:
             1,
             np.float32,
             "K",
-            "Spectroscopic-like gas temperature. Exclude gas that was recently heated by AGN. Excludes gas in the inner {core_excision}",
+            "Spectroscopic-like gas temperature. Exclude gas that was recently heated by AGN. Excludes gas in the inner excised core",
             "gas",
             "FMantissa9",
             False,
@@ -2429,7 +2312,7 @@ class PropertyTable:
             1,
             np.float32,
             "Mpc",
-            "Radius of a sphere {label}",
+            "Radius of a sphere satisfying the spherical overdensity criterion.",
             "basic",
             "FMantissa9",
             True,
@@ -2941,17 +2824,6 @@ class PropertyTable:
                 "PartType4/IronMassFractionsFromSNIa",
             ],
         ),
-        "SOAPSubhaloRankByBoundMass": (
-            "SubhaloRankByBoundMass",
-            1,
-            np.int32,
-            "dimensionless",
-            "Ranking by mass of the halo within its parent field halo. Zero for the most massive halo in the field halo.",
-            "SOAP",
-            "None",
-            True,
-            [],
-        ),
         "LinearMassWeightedIronFromSNIaOverHydrogenOfStars": (
             "LinearMassWeightedIronFromSNIaOverHydrogenOfStars",
             1,
@@ -2967,13 +2839,259 @@ class PropertyTable:
                 "PartType4/IronMassFractionsFromSNIa",
             ],
         ),
+        # InputHalo properties
+        "cofp": (
+            "cofp",
+            3,
+            np.float64,
+            "cMpc",
+            "Centre of potential. Used as reference for all relative positions. Equal to the position of the most bound particle in the subhalo.",
+            "Input",
+            "DScale5",
+            True,
+            [],
+        ),
+        "index": (
+            "index",
+            1,
+            np.int64,
+            "dimensionless",
+            "Index of this halo in the original halo finder catalogue (first halo has index=0).",
+            "Input",
+            "None",
+            True,
+            [],
+        ),
+        "read_radius": (
+            "read_radius",
+            1,
+            np.float64,
+            "cMpc",
+            "Radius about the halo which was read in by SOAP.",
+            "Input",
+            "None",
+            True,
+            [],
+        ),
+        "search_radius": (
+            "search_radius",
+            1,
+            np.float64,
+            "cMpc",
+            "Radius about the halo which was searched for SO quantities",
+            "Input",
+            "None",
+            True,
+            [],
+        ),
+        "is_central": (
+            "is\_central",
+            1,
+            np.int64,
+            "dimensionless",
+            "Whether the halo finder flagged the halo as central (1) or satellite (0).",
+            "Input",
+            "None",
+            True,
+            [],
+        ),
+        "nr_bound_part": (
+            "nr\_bound\_part",
+            1,
+            np.int64,
+            "dimensionless",
+            "Total number of particles bound to the subhalo.",
+            "Input",
+            "None",
+            True,
+            [],
+        ),
+        # Velociraptor properties
+        "VR/ID": (
+            "ID",
+            1,
+            np.uint64,
+            "dimensionless",
+            "ID assigned to this halo by VR.",
+            "VR",
+            "None",
+            True,
+            [],
+        ),
+        "VR/Parent_halo_ID": (
+            "ParentHaloID",
+            1,
+            np.int64,
+            "dimensionless",
+            "VR/ID of the direct parent of this halo. -1 for field halos.",
+            "VR",
+            "None",
+            True,
+            [],
+        ),
+        "VR/Structuretype": (
+            "StructureType",
+            1,
+            np.int32,
+            "dimensionless",
+            "Structure type identified by VR. Field halos are 10, higher numbers are for satellites.",
+            "VR",
+            "None",
+            True,
+            [],
+        ),
+        "VR/hostHaloID": (
+            "HostHaloID",
+            1,
+            np.int64,
+            "dimensionless",
+            "VR/ID of the top level parent of this halo. -1 for field halos.",
+            "VR",
+            "None",
+            True,
+            [],
+        ),
+        "VR/numSubStruct": (
+            "NumberOfSubstructures",
+            1,
+            np.uint64,
+            "dimensionless",
+            "Number of sub-structures within this halo.",
+            "VR",
+            "None",
+            True,
+            [],
+        ),
+        # HBT properties
+        "HBTplus/Depth": (
+            "Depth",
+            1,
+            np.uint64,
+            "dimensionless",
+            "Level of the subhalo in the merging hierarchy.",
+            "HBTplus",
+            "None",
+            True,
+            [],
+        ),
+        "HBTplus/HostHaloId": (
+            "HostHaloId",
+            1,
+            np.int64,
+            "dimensionless",
+            "ID of the host FOF halo of this subhalo. Hostless halos have HostHaloId == -1",
+            "HBTplus",
+            "None",
+            True,
+            [],
+        ),
+        "HBTplus/TrackId": (
+            "TrackId",
+            1,
+            np.uint64,
+            "dimensionless",
+            "Unique ID for this subhalo which is consistent across snapshots.",
+            "HBTplus",
+            "None",
+            True,
+            [],
+        ),
+        "HBTplus/SnapshotIndexOfBirth": (
+            "SnapshotIndexOfBirth",
+            1,
+            np.uint64,
+            "dimensionless",
+            "Snapshot when this subhalo was formed.",
+            "HBTplus",
+            "None",
+            True,
+            [],
+        ),
+        "HBTplus/NestedParentTrackId": (
+            "NestedParentTrackId",
+            1,
+            np.uint64,
+            "dimensionless",
+            "TrackId of the parent of this subhalo.",
+            "HBTplus",
+            "None",
+            True,
+            [],
+        ),
+        "HBTplus/LastMaxMass": (
+            "LastMaxMass",
+            1,
+            np.float32,
+            "Msun",
+            "Maximum mass of this subhalo across its evolutionary history",
+            "HBTplus",
+            "FMantissa9",
+            True,
+            [],
+        ),
+        "HBTplus/SnapshotIndexOfLastMaxMass": (
+            "SnapshotIndexOfLastMaxMass",
+            1,
+            np.uint64,
+            "dimensionless",
+            "Latest snapshot when this subhalo had its maximum mass.",
+            "HBTplus",
+            "None",
+            True,
+            [],
+        ),
+        "HBTplus/VmaxPhysical": (
+            "VmaxPhysical",
+            1,
+            np.float32,
+            "km/s",
+            "Maximum circular velocity of this subhalo",
+            "HBTplus",
+            "FMantissa9",
+            True,
+            [],
+        ),
+        "HBTplus/LastMaxVmaxPhysical": (
+            "LastMaxVmaxPhysical",
+            1,
+            np.float32,
+            "km/s",
+            "Largest value of maximum circular velocity of this subhalo across its evolutionary history",
+            "HBTplus",
+            "FMantissa9",
+            True,
+            [],
+        ),
+        "HBTplus/SnapshotIndexOfLastMaxVmax": (
+            "SnapshotIndexOfLastMaxVmax",
+            1,
+            np.uint64,
+            "dimensionless",
+            "Latest snapshot when this subhalo had its largest maximum circular velocity.",
+            "HBTplus",
+            "None",
+            True,
+            [],
+        ),
+        # SOAP properties
+        "SubhaloRankByBoundMass": (
+            "SubhaloRankByBoundMass",
+            1,
+            np.int32,
+            "dimensionless",
+            "Ranking by mass of the halo within its parent field halo. Zero for the most massive halo in the field halo.",
+            "SOAP",
+            "None",
+            True,
+            [],
+        ),
     }
 
     # halo properties derived from other properties by SOAP
     soap_properties = [
-        soapname[4:]
-        for soapname in full_property_list.keys()
-        if soapname.startswith("SOAP")
+        name
+        for name, info in full_property_list.items()
+        if info[5] == 'SOAP'
     ]
 
     # object member variables
@@ -3008,12 +3126,11 @@ class PropertyTable:
         self.footnotes = []
         self.parameters = parameters
 
-    def add_properties(self, halo_property: HaloProperty, base_halo_type: str):
+    def add_properties(self, halo_property: HaloProperty, halo_type: str):
         """
         Add all the properties calculated for a particular halo type to the
         internal dictionary.
         """
-        halo_type = halo_property.__name__
         props = halo_property.property_list
         for (
             i,
@@ -3033,6 +3150,9 @@ class PropertyTable:
             # Don't include property if it's set to false in parameter file
             # Do include property if it isn't defined in parameter file
             try:
+                base_halo_type = halo_type
+                if halo_type in ['ExclusiveSphereProperties', 'InclusiveSphereProperties']:
+                    base_halo_type = 'ApertureProperties'
                 parameter_file_properties = self.parameters[base_halo_type][
                     "properties"
                 ]
@@ -3041,20 +3161,19 @@ class PropertyTable:
             except KeyError:
                 pass
 
-            prop_units = (
-                unyt.unyt_quantity(1, units=prop_units)
-                .units.latex_repr.replace(
-                    "\\rm{km} \\cdot \\rm{kpc}", "\\rm{kpc} \\cdot \\rm{km}"
+            if prop_units not in ['cMpc']:
+                prop_units = (
+                    unyt.unyt_quantity(1, units=prop_units)
+                    .units.latex_repr.replace(
+                        "\\rm{km} \\cdot \\rm{kpc}", "\\rm{kpc} \\cdot \\rm{km}"
+                    )
+                    .replace(
+                        "\\frac{\\rm{km}^{2}}{\\rm{s}^{2}}", "\\rm{km}^{2} / \\rm{s}^{2}"
+                    )
                 )
-                .replace(
-                    "\\frac{\\rm{km}^{2}}{\\rm{s}^{2}}", "\\rm{km}^{2} / \\rm{s}^{2}"
-                )
-            )
+
             prop_dtype = prop_dtype.__name__
             if prop_name in self.properties:
-                if not prop_cat in self.categories:
-                    print(f"Unknown category: {prop_cat}!")
-                    exit()
                 # run some checks
                 if prop_shape != self.properties[prop_name]["shape"]:
                     print("Shape mismatch!")
@@ -3144,10 +3263,11 @@ class PropertyTable:
 
         # sort the properties by category and then alphabetically within each
         # category
+        category_order = ["basic", "general", "gas", "dm", "star", "baryon", "Input", "VR", "HBTplus", "SOAP"]
         prop_names = sorted(
             self.properties.keys(),
             key=lambda key: (
-                self.categories.index(self.properties[key]["category"]),
+                category_order.index(self.properties[key]["category"]),
                 self.properties[key]["name"].lower(),
             ),
         )
@@ -3177,17 +3297,14 @@ Name & Shape & Type & Units & SH & ES & IS & EP & SO & Category & Compression\\\
         for prop_name in prop_names:
             prop = self.properties[prop_name]
             footnotes = self.get_footnotes(prop_name)
-            prop_outputname = f"{prop['name'].replace('_','')}{footnotes}"
+            prop_outputname = f"{prop['name']}{footnotes}"
             prop_outputname = word_wrap_name(prop_outputname)
             prop_shape = f'{prop["shape"]}'
             prop_dtype = prop["dtype"]
-            prop_units = f'${prop["units"]}$' if prop["units"] != "" else "(no unit)"
+            prop_units = f'${prop["units"]}$' if prop["units"] != "" else "dimensionless"
             prop_cat = prop["category"]
             prop_comp = self.compression_description[prop["compression"]]
-            prop_description = prop["description"].format(
-                label="satisfying a spherical overdensity criterion.",
-                core_excision="excised core",
-            )
+            prop_description = prop["description"]
             checkmark = "\\ding{51}"
             xmark = "\\ding{53}"
             prop_subhalo = checkmark if "SubhaloProperties" in prop["types"] else xmark
@@ -3200,7 +3317,7 @@ Name & Shape & Type & Units & SH & ES & IS & EP & SO & Category & Compression\\\
             prop_projected = (
                 checkmark if "ProjectedApertureProperties" in prop["types"] else xmark
             )
-            prop_SO = checkmark if "CoreExcisedSOProperties" in prop["types"] else xmark
+            prop_SO = checkmark if "SOProperties" in prop["types"] else xmark
             table_props = [
                 prop_outputname,
                 prop_shape,
@@ -3254,12 +3371,12 @@ class DummyProperties:
     for any halo type (e.g. the 'VR' properties).
     """
 
-    property_list = [
-        (prop, *PropertyTable.full_property_list[prop])
-        for prop in PropertyTable.full_property_list.keys()
-        if prop.startswith(("SOAP", "VR"))
-    ]
-
+    def __init__(self, halo_finder):
+        self.property_list = [
+            (prop, *info)
+            for prop, info in PropertyTable.full_property_list.items()
+            if info[5] in ("SOAP", "Input", halo_finder)
+        ]
 
 if __name__ == "__main__":
     """
@@ -3280,7 +3397,7 @@ if __name__ == "__main__":
     # imported from another script
     from aperture_properties import ExclusiveSphereProperties, InclusiveSphereProperties
     from projected_aperture_properties import ProjectedApertureProperties
-    from SO_properties import CoreExcisedSOProperties
+    from SO_properties import SOProperties, CoreExcisedSOProperties
     from subhalo_properties import SubhaloProperties
 
     try:
@@ -3290,23 +3407,24 @@ if __name__ == "__main__":
         exit()
 
     table = PropertyTable(parameters)
-    table.add_properties(ExclusiveSphereProperties, "ApertureProperties")
-    table.add_properties(InclusiveSphereProperties, "ApertureProperties")
-    table.add_properties(ProjectedApertureProperties, "ProjectedApertureProperties")
-    table.add_properties(CoreExcisedSOProperties, "SOProperties")
+    # Add standard halo definitions
     table.add_properties(SubhaloProperties, "SubhaloProperties")
-    table.add_properties(DummyProperties, "")
-
-    # set to 'True' to print the internal property table
-    # the resulting stdout output can be directly copy-pasted above to replace
-    # the full_property_list (please run 'python3 -m black property_table.py'
-    # after that to reformat the table).
-    if False:
-        table.print_dictionary()
+    table.add_properties(ExclusiveSphereProperties, "ExclusiveSphereProperties")
+    table.add_properties(InclusiveSphereProperties, "InclusiveSphereProperties")
+    table.add_properties(ProjectedApertureProperties, "ProjectedApertureProperties")
+    # Decide whether to add core excised properties
+    for _, variation in parameters['SOProperties']['variations'].items():
+        if variation.get('core_excision_fraction', 0):
+            table.add_properties(CoreExcisedSOProperties, "SOProperties")
+            break
     else:
-        table.print_table(
-            "documentation/table.tex",
-            "documentation/footnotes.tex",
-            "documentation/timestamp.tex",
-            "documentation/filters.tex",
-        )
+        table.add_properties(SOProperties, "SOProperties")
+    # Add InputHalos and SOAP properties
+    table.add_properties(DummyProperties(parameters['HaloFinder']['type']), "")
+
+    table.print_table(
+        "documentation/table.tex",
+        "documentation/footnotes.tex",
+        "documentation/timestamp.tex",
+        "documentation/filters.tex",
+    )

@@ -57,7 +57,7 @@ def combine_chunks(
     # output but will be computed by combining other halo properties.
     soap_metadata = []
     for soapkey in PropertyTable.soap_properties:
-        props = PropertyTable.full_property_list[f"SOAP{soapkey}"]
+        props = PropertyTable.full_property_list[f"{soapkey}"]
         name = f"SOAP/{soapkey}"
         size = props[1]
         if size == 1:
@@ -99,6 +99,8 @@ def combine_chunks(
 
             # Create datasets for all halo properties
             for name, size, unit, dtype, description in ref_metadata + soap_metadata:
+                if description == 'No description available':
+                    print(f'{name} not found in property table')
                 shape = (total_nr_halos,) + size
                 dataset = outfile.create_dataset(
                     name, shape=shape, dtype=dtype, fillvalue=None
