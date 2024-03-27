@@ -312,7 +312,7 @@ def process_single_halo(
 
     # Store input halo quantites
     for name in input_halo:
-        if name not in ("done", "task_id"):
+        if name not in ("done", "task_id", "read_radius", "search_radius"):
             try:
                 props = PropertyTable.full_property_list[name]
             except KeyError:
