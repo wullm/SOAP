@@ -1,6 +1,6 @@
 #!/bin/bash -l
 #
-# Compute VR group membership for each particle in a snapshot.
+# Compute group membership for each particle in a snapshot.
 #
 # Job name determines which of the L1000N0900 runs we process.
 # Array job index is the snapshot number to do.
@@ -9,12 +9,12 @@
 #
 # cd SOAP
 # mkdir logs
-# sbatch -J HYDRO_FIDUCIAL --array=0-77%4 ./scripts/FLAMINGO/L1000N0900/hbt_membership_L1000N0900.sh
+# sbatch -J HYDRO_FIDUCIAL --array=0-77%4 ./scripts/FLAMINGO/L1000N0900/group_membership_L1000N0900.sh
 #
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=1
-#SBATCH --tasks-per-node=16
-#SBATCH -o ./logs/hbt_membership_L1000N0900_%x.%a.out
+#SBATCH --tasks-per-node=128
+#SBATCH -o ./logs/group_membership_L1000N0900_%x.%a.out
 #SBATCH -p cosma8
 #SBATCH -A dp004
 #SBATCH --exclusive
@@ -32,4 +32,7 @@ sim="L1000N0900/${SLURM_JOB_NAME}"
 
 # Run the code
 mpirun python3 -u -m mpi4py ./group_membership.py \
-       ./scripts/FLAMINGO/L1000N0900/hbt_parameters.yml --sim-name=${sim} --snap-nr=${snapnum}
+       --sim-name=${sim} --snap-nr=${snapnum} \
+       parameter_files/FLAMINGO.yml
+
+echo "Job complete!"
