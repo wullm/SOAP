@@ -141,55 +141,54 @@ ApertureProperties:
     TotalMass: true
     TotalSNIaRate: false
   variations:
-     {}
-    #exclusive_1000_kpc:
-      #inclusive: false
-      #radius_in_kpc: 1000.0
-    #exclusive_100_kpc:
-      #inclusive: false
-      #radius_in_kpc: 100.0
-    #exclusive_10_kpc:
-      #inclusive: false
-      #radius_in_kpc: 10.0
-    #exclusive_3000kpc:
-      #inclusive: false
-      #radius_in_kpc: 3000.0
-    #exclusive_300kpc:
-      #inclusive: false
-      #radius_in_kpc: 300.0
-    #exclusive_30_kpc:
-      #inclusive: false
-      #radius_in_kpc: 30.0
-    #exclusive_500_kpc:
-      #inclusive: false
-      #radius_in_kpc: 500.0
-    #exclusive_50_kpc:
-      #inclusive: false
-      #radius_in_kpc: 50.0
-    #inclusive_1000_kpc:
-      #inclusive: true
-      #radius_in_kpc: 1000.0
-    #inclusive_100_kpc:
-      #inclusive: true
-      #radius_in_kpc: 100.0
-    #inclusive_10_kpc:
-      #inclusive: true
-      #radius_in_kpc: 10.0
-    #inclusive_3000kpc:
-      #inclusive: true
-      #radius_in_kpc: 3000.0
-    #inclusive_300kpc:
-      #inclusive: true
-      #radius_in_kpc: 300.0
-    #inclusive_30_kpc:
-      #inclusive: true
-      #radius_in_kpc: 30.0
-    #inclusive_500_kpc:
-      #inclusive: true
-      #radius_in_kpc: 500.0
-    #inclusive_50_kpc:
-      #inclusive: true
-      #radius_in_kpc: 50.0
+    exclusive_1000_kpc:
+      inclusive: false
+      radius_in_kpc: 1000.0
+    exclusive_100_kpc:
+      inclusive: false
+      radius_in_kpc: 100.0
+    exclusive_10_kpc:
+      inclusive: false
+      radius_in_kpc: 10.0
+    exclusive_3000kpc:
+      inclusive: false
+      radius_in_kpc: 3000.0
+    exclusive_300kpc:
+      inclusive: false
+      radius_in_kpc: 300.0
+    exclusive_30_kpc:
+      inclusive: false
+      radius_in_kpc: 30.0
+    exclusive_500_kpc:
+      inclusive: false
+      radius_in_kpc: 500.0
+    exclusive_50_kpc:
+      inclusive: false
+      radius_in_kpc: 50.0
+    inclusive_1000_kpc:
+      inclusive: true
+      radius_in_kpc: 1000.0
+    inclusive_100_kpc:
+      inclusive: true
+      radius_in_kpc: 100.0
+    inclusive_10_kpc:
+      inclusive: true
+      radius_in_kpc: 10.0
+    inclusive_3000kpc:
+      inclusive: true
+      radius_in_kpc: 3000.0
+    inclusive_300kpc:
+      inclusive: true
+      radius_in_kpc: 300.0
+    inclusive_30_kpc:
+      inclusive: true
+      radius_in_kpc: 30.0
+    inclusive_500_kpc:
+      inclusive: true
+      radius_in_kpc: 500.0
+    inclusive_50_kpc:
+      inclusive: true
+      radius_in_kpc: 50.0
 ProjectedApertureProperties:
   properties:
     AtomicHydrogenMass: false
@@ -457,9 +456,6 @@ SubhaloProperties:
 aliases:
   PartType0/ElementMassFractions: PartType0/SmoothedElementMassFractions
   PartType4/ElementMassFractions: PartType4/SmoothedElementMassFractions
-  # PartType0/LastSNIIKineticFeedbackDensities: PartType0/DensitiesAtLastSupernovaEvent
-  # PartType0/LastSNIIThermalFeedbackDensities: PartType0/DensitiesAtLastSupernovaEvent
-  # PartType0/MetalMassFractionsDiffuse: PartType0/MetalMassFractions
 filters:
   baryon: 100
   dm: 100

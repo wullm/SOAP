@@ -19,8 +19,8 @@ sim="L1000N1800/HYDRO_FIDUCIAL"
 # Snapshot number to do
 snapnum=0050
 
-# Halo IDs to do: all halos with x<10, y<10, and z<10Mpc in snap 50
-halo_ids="2208 3360 7167 12861 15349 33465 40199 41557 44559 73863 74544 77349 81088 87230 88604 99175 99725 111048 118709 118710"
+# Halo indices to do: all halos with x<10, y<10, and z<10Mpc in snap 50
+halo_indices="2208 3360 7167 12861 15349 33465 40199 41557 44559 73863 74544 77349 81088 87230 88604 99175 99725 111048 118709 118710"
 
 # Where to write the output
 outfile="./output/halo_properties.${snap_nr}.hdf5"
@@ -32,6 +32,6 @@ mkdir -p "${outdir}"
 # Run SOAP on eight cores processing the selected halos. Use 'python3 -m pdb' to start in the debugger.
 mpirun -np 8 python3 -u -m mpi4py ./compute_halo_properties.py \
        ./tests/FLAMINGO/parameters.yml \
-       --halo-ids ${halo_ids} \
+       --halo-indices ${halo_indices} \
        --sim-name=${sim} --snap-nr=${snapnum} --chunks=1
 
