@@ -121,7 +121,10 @@ def combine_chunks(
     outfile = h5py.File(output_file, "r+", driver="mpio", comm=comm_world)
 
     # Certain properties are needed to compute subhalo ranking by mass
-    props_to_keep = ("VR/ID", "BoundSubhaloProperties/TotalMass", "VR/HostHaloID")
+    subhalo_rank_props = {
+        'VR': ("InputHalos/VR/ID", "BoundSubhaloProperties/TotalMass", "InputHalos/VR/hostHaloID"),
+        'HBTplus': ("InputHalos/HBTplus/HostHaloId", "BoundSubhaloProperties/TotalMass", "InputHalos/HBTplus/TrackId"),
+    }.get(args.halo_format, ())
     props_kept = {}
 
     with MPITimer("Writing output properties", comm_world):
@@ -143,7 +146,7 @@ def combine_chunks(
 
             # Keep a reference to any arrays we'll need later
             for name in names:
-                if name in props_to_keep:
+                if name in subhalo_rank_props:
                     props_kept[name] = data[name]
 
             # Write these properties to the output file
@@ -154,12 +157,21 @@ def combine_chunks(
 
             del data
 
-    with MPITimer("Writing subhalo ranking by mass", comm_world):
-        # Now write out subhalo ranking by mass within host halos, if we computed all the required quantities.
-        if len(props_kept) == len(props_to_keep):
+    # Now write out subhalo ranking by mass within host halos, if we have all the required quantities.
+    if (len(subhalo_rank_props) > 0) and (len(props_kept) == len(subhalo_rank_props)):
+        with MPITimer("Calculate and write subhalo ranking by mass", comm_world):
+            if args.halo_format == 'VR':
+                # Set field halos to be their own host (VR sets hostid=-1 in this case)
+                field = props_kept["InputHalos/VR/hostHaloID"] < 0
+                host_id = props_kept["InputHalos/VR/hostHaloID"].copy() # avoid modifying input
+                host_id[field] = props_kept["InputHalos/VR/ID"][field]
+            elif args.halo_format == 'HBTplus':
+                # Set hostless halos to have a unique FOF group by using -TrackId
+                hostless = props_kept["InputHalos/HBTplus/HostHaloId"] < 0
+                host_id = props_kept["InputHalos/HBTplus/HostHaloId"].copy()
+                host_id[hostless] = -props_kept["InputHalos/HBTplus/TrackId"][hostless]
             subhalo_rank = compute_subhalo_rank(
-                props_kept["VR/HostHaloID"],
-                props_kept["VR/ID"],
+                host_id,
                 props_kept["BoundSubhaloProperties/TotalMass"],
                 comm_world,
             )
@@ -170,6 +182,9 @@ def combine_chunks(
                 create_dataset=False,
                 comm=comm_world,
             )
+    else:
+        if comm_world.Get_rank() == 0:
+            print('Not calculating subhalo ranking by mass')
 
     # Done.
     outfile.close()
