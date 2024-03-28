@@ -422,7 +422,7 @@ def compute_halo_properties():
         cellgrid.boxsize,
         args.max_halos,
         args.centrals_only,
-        args.halo_ids,
+        args.halo_indices,
         halo_prop_list,
         args.chunks,
         args.halo_sizes_file.format(snap_nr=args.snapshot_nr),

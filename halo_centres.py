@@ -33,7 +33,7 @@ class SOCatalogue:
         boxsize,
         max_halos,
         centrals_only,
-        halo_ids,
+        halo_indices,
         halo_prop_list,
         nr_chunks,
         halo_size_file,
@@ -112,10 +112,10 @@ class SOCatalogue:
         del halo_data
 
         # Only keep halos in the supplied list of halo IDs.
-        if (halo_ids is not None) and (local_halo['index'].shape[0]):
-            halo_ids = np.asarray(halo_ids, dtype=np.int64)
+        if (halo_indices is not None) and (local_halo['index'].shape[0]):
+            halo_indices = np.asarray(halo_indices, dtype=np.int64)
             keep = np.zeros_like(local_halo["index"], dtype=bool)
-            matching_index = virgo.util.match.match(halo_ids, local_halo["index"])
+            matching_index = virgo.util.match.match(halo_indices, local_halo["index"])
             have_match = matching_index >= 0
             keep[matching_index[have_match]] = True
             for name in local_halo:

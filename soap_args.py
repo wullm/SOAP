@@ -30,7 +30,7 @@ def get_soap_args(comm):
     parser.add_argument("--dmo", action="store_true", help="Run in dark matter only mode")
     parser.add_argument("--centrals-only", action="store_true", help="Only process central halos")
     parser.add_argument("--max-halos", metavar="N", type=int, default=0, help="(For debugging) only process the first N halos in the catalogue")
-    parser.add_argument("--halo-ids", nargs="*", type=int, help="Only process the specified halo IDs")
+    parser.add_argument("--halo-indices", nargs="*", type=int, help="Only process the specified halo indices")
     parser.add_argument("--calculations", nargs="*", help="Which calculations to do (default is to do all)")
     parser.add_argument("--reference-snapshot", help="Specify reference snapshot number containing all particle types", metavar="N", type=int)
     parser.add_argument("--profile", metavar="LEVEL", type=int, default=0, help="Run with profiling (0=off, 1=first MPI rank only, 2=all ranks)")
@@ -61,7 +61,7 @@ def get_soap_args(comm):
     args.centrals_only = all_args["Parameters"]["centrals_only"]
     args.dmo = all_args["Parameters"]["dmo"]
     args.max_halos = all_args["Parameters"]["max_halos"]
-    args.halo_ids = all_args["Parameters"]["halo_ids"]
+    args.halo_indices = all_args["Parameters"]["halo_indices"]
     args.calculations = all_args["Parameters"]["calculations"]
     args.reference_snapshot = all_args["Parameters"]["reference_snapshot"]
     args.profile = all_args["Parameters"]["profile"]

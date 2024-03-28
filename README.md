@@ -146,7 +146,7 @@ to the expansion factor a.
 
 ## Tests
 
-The script `./tests/run_tests.sh` will run the unit tests for SOAP. Some tests
+The command `./tests/run_tests.sh` will run the unit tests for SOAP. Some tests
 rely on data stored on cosma, and therefore cannot be run from other systems.
 
 The scripts in `tests/FLAMINGO` for showing how to
@@ -166,10 +166,10 @@ mpirun.
 The `-Werror` flag is useful for making pdb stop on warnings. E.g. division by
 zero in the halo property calculations will be caught.
 
-It is also possible to select individual halos to process with the `--halo-ids`
-flag. This specifies the VELOCIraptor IDs of the required halos. E.g.
+It is also possible to select individual halos to process with the `--halo-indices`
+flag. This specifies the index of the required halos in the halo catalogue. E.g.
 ```
-python3 -Werror -m pdb ./compute_halo_properties.py --halo-ids 1 2 3 ...
+python3 -Werror -m pdb ./compute_halo_properties.py --halo-indices 1 2 3 ...
 ```
 
 ## Profiling

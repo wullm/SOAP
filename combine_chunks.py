@@ -87,8 +87,8 @@ def combine_chunks(
             params.attrs["centrals_only"] = 0 if args.centrals_only == False else 1
             calc_names = sorted([hp.name for hp in halo_prop_list])
             params.attrs["calculations"] = calc_names
-            params.attrs["halo_ids"] = (
-                args.halo_ids if args.halo_ids is not None else np.ndarray(0, dtype=int)
+            params.attrs["halo_indices"] = (
+                args.halo_indices if args.halo_indices is not None else np.ndarray(0, dtype=int)
             )
             params.attrs["git_hash"] = args.git_hash
             # NOTE: FLAMINGO
