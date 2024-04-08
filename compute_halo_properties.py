@@ -361,7 +361,7 @@ def compute_halo_properties():
             print("for central and satellite halos")
         parameter_file.print_unregistered_properties()
         if parameter_file.recalculate_xrays():
-            print("Recalculating xray properties")
+            print(f"Recalculating xray properties using table: {parameter_file.get_xray_table_path()}")
         category_filter.print_filters()
 
     # Ensure output dir exists
@@ -370,7 +370,6 @@ def compute_halo_properties():
     comm_world.barrier()
 
     if comm_world_rank == 0:
-        table_path = "/cosma8/data/dp004/flamingo/Tables/Xray/X_Ray_table_new_redshift_restframe.hdf5"
         xray_bands = [
             "erosita-low",
             "erosita-high",
@@ -401,7 +400,7 @@ def compute_halo_properties():
         ]
         xray_calculator = XrayCalculator(
             cellgrid.z,
-            table_path,
+            parameter_file.get_xray_table_path(),
             xray_bands,
             observing_types,
             parameter_file.recalculate_xrays(),
