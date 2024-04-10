@@ -303,6 +303,15 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize, halo_size_
     parent_id = unyt.unyt_array(
         subhalo["NestedParentTrackId"][keep], units=unyt.dimensionless, dtype=int, registry=registry
     )
+    m_bound = unyt.unyt_array(
+        subhalo["Mbound"][keep], units=unyt.dimensionless, dtype=float, registry=registry
+    )
+    n_bound = unyt.unyt_array(
+        subhalo["Nbound"][keep], units=unyt.dimensionless, dtype=int, registry=registry
+    )
+    rank = unyt.unyt_array(
+        subhalo["Rank"][keep], units=unyt.dimensionless, dtype=int, registry=registry
+    )
 
     # Peak mass
     max_mass = (subhalo["LastMaxMass"][keep] * MassInMsunh / h ) * swift_msun
@@ -331,6 +340,9 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize, halo_size_
         "HostHaloId": host_halo_id,
         "Depth": depth,
         "TrackId": track_id,
+        "Mbound": m_bound,
+        "Nbound": n_bound,
+        "Rank": rank,
         "SnapshotIndexOfBirth": snapshot_birth,
         "NestedParentTrackId": parent_id,
         "LastMaxMass": max_mass,
