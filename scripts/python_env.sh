@@ -13,18 +13,18 @@ if [ ! -d "venv" ]; then
     echo "Upgrading pip"
     venv/bin/pip install --upgrade pip
     echo "Installing mpi4py"
-    venv/bin/pip install mpi4py
+    venv/bin/pip install mpi4py==3.1.5
     echo "Installing h5py"
     export CC="mpicc"
     export HDF5_MPI="ON"
     export HDF5_DIR=${HDF5_HOME}
-    venv/bin/pip install --no-binary h5py h5py
+    venv/bin/pip install --no-binary h5py h5py==3.10
     echo "Installing VirgoDC"
     # https for people without ssh setup
     git clone https://github.com/jchelly/VirgoDC.git venv/VirgoDC
     venv/bin/pip install venv/VirgoDC/python
-    echo "Installing unyt"
-    venv/bin/pip install unyt
+    echo "Installing other packages"
+    venv/bin/pip install astropy numba scipy pandas unyt
 fi 
 
 source "venv/bin/activate"
