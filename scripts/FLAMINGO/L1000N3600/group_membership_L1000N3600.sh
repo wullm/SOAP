@@ -9,12 +9,12 @@
 #
 # cd SOAP
 # mkdir logs
-# sbatch -J HYDRO_FIDUCIAL --array=0-77%4 ./scripts/FLAMINGO/L1000N3600/group_membership_L1000N3600.sh
+# sbatch -J HYDRO_FIDUCIAL --array=0-78%4 ./scripts/FLAMINGO/L1000N3600/group_membership_L1000N3600.sh
 #
 #SBATCH --nodes=8
 #SBATCH --cpus-per-task=1
 #SBATCH --tasks-per-node=32
-#SBATCH -o ./logs/group_membership_L1000N3600_%x.%a.out
+#SBATCH -o ./logs/group_membership_L1000N3600_%x.%a.%j.out
 #SBATCH -p cosma8
 #SBATCH -A dp004
 #SBATCH --exclusive
