@@ -44,11 +44,21 @@ def combine_chunks(
         scratch_file_format, file_idx=range(nr_chunks), comm=comm_world
     )
 
-    # Read the halo index from the scratch files and make a sorting index to put them in order
-    with MPITimer("Establishing ID ordering of halos", comm_world):
-        halo_index = scratch_file.read("InputHalos/index")
-        order = psort.parallel_sort(halo_index, return_index=True, comm=comm_world)
-        del halo_index
+    # Sort halos based on what cell their centre is in
+    with MPITimer("Establishing ordering of halos based on SWIFT cell structure", comm_world):
+        halo_cofp = scratch_file.read('InputHalos/cofp') * cellgrid.boxsize.units
+        cell_indices = (halo_cofp // cellgrid.cell_size).value.astype('int64')
+        assert cellgrid.dimension[0] >= cellgrid.dimension[1] >= cellgrid.dimension[2]
+        sort_hash = cell_indices[:, 0] * cellgrid.dimension[0] ** 2
+        sort_hash += cell_indices[:, 1] * cellgrid.dimension[1]
+        sort_hash += cell_indices[:, 2]
+        order = psort.parallel_sort(sort_hash, return_index=True, comm=comm_world)
+        del halo_cofp
+
+        # Calculate local count of halos in each cell, and combine on rank 0
+        local_cell_counts = np.bincount(sort_hash, minlength=cellgrid.nr_cells[0]).astype('int64')
+        assert local_cell_counts.shape[0] == np.prod(cellgrid.dimension)
+        cell_counts = comm_world.reduce(local_cell_counts)
 
     # Determine total number of halos
     total_nr_halos = comm_world.allreduce(len(order))
@@ -96,6 +106,21 @@ def combine_chunks(
             recently_heated_gas_params = outfile.create_group("RecentlyHeatedGasFilter")
             for at, val in recently_heated_gas_metadata.items():
                 recently_heated_gas_params.attrs[at] = val
+
+            # Write cell information
+            cells = outfile.create_group("Cells")
+            cells_metadata = cells.create_group("Meta-data")
+            cells_metadata.attrs['dimension'] = cellgrid.dimension
+            cells_metadata.attrs['nr_cells'] = cellgrid.nr_cells
+            cell_size_cMpc = cellgrid.cell_size.to(cellgrid.boxsize.units).value
+            cells_metadata.attrs['size'] = cell_size_cMpc
+            cells.create_dataset('Centres', data=cellgrid.cell_centres)
+            cells.create_dataset('Counts/Subhalos', data=cell_counts)
+            cells.create_dataset(
+                'Files/Subhalos', data=np.zeros(cellgrid.nr_cells[0], dtype='int32')
+            )
+            cell_offsets = np.cumsum(cell_counts) - cell_counts
+            cells.create_dataset('OffsetsInFile/Subhalos', data=cell_offsets)
 
             # Create datasets for all halo properties
             for name, size, unit, dtype, description in ref_metadata + soap_metadata:

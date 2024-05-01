@@ -295,6 +295,7 @@ class SWIFTCellGrid:
             self.cell_size = unyt.unyt_array(
                 infile["Cells/Meta-data"].attrs["size"], units=comoving_length_unit
             )
+            self.cell_centres = infile["Cells/Centres"][...]
             for name in infile["Cells/Counts"]:
                 self.ptypes.append(name)
 
