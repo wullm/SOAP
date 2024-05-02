@@ -132,7 +132,7 @@ def combine_chunks(
                 )
                 # Add units and description
                 attrs = swift_units.attributes_from_units(unit)
-                attrs["Description"] = description
+                attrs["Description"] = np.bytes_(description.encode('utf-8'))
                 mask_metadata = category_filter.get_filter_metadata(name)
                 attrs.update(mask_metadata)
                 compression_metadata = category_filter.get_compression_metadata(name)
