@@ -88,7 +88,7 @@ def combine_chunks(
             # Create the file
             outfile = h5py.File(output_file, "w")
             # Write parameters etc
-            cellgrid.write_metadata(outfile.create_group("SWIFT"))
+            cellgrid.write_metadata(outfile)
             params = outfile.create_group("Parameters")
             params.attrs["swift_filename"] = args.swift_filename
             params.attrs["halo_basename"] = args.halo_basename
