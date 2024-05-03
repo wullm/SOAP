@@ -605,34 +605,22 @@ class SWIFTCellGrid:
 
         return data
 
-    def write_metadata(self, outfile):
+    def copy_swift_metadata(self, outfile):
         """
         Write simulation information etc to the specified HDF5 group
         """
 
-        # Write cosmology
-        cosmo = outfile.create_group("Cosmology")
-        for name, value in self.cosmology.items():
-            cosmo.attrs[name] = [value]
-
-        # Write physical constants
-        const = outfile.create_group("PhysicalConstants")
-        const = const.create_group("CGS")
-        for name, value in self.constants.items():
-            const.attrs[name] = [value]
-
-        # Write units
-        units = outfile.create_group("Units")
-        for name, value in self.swift_units_group.items():
-            units.attrs[name] = [value]
-        units = outfile.create_group("InternalCodeUnits")
-        for name, value in self.swift_internal_units_group.items():
-            units.attrs[name] = [value]
+        group = outfile.create_group("SWIFT")
 
         # Write header
-        header = outfile.create_group("Header")
+        header = group.create_group("Header")
         for name, value in self.swift_header_group.items():
             header.attrs[name] = value
+
+        # Write parameters
+        params = group.create_group("Parameters")
+        for name, value in self.parameters.items():
+            params.attrs[name] = value
 
     def complete_radius_from_mask(self, mask):
         """

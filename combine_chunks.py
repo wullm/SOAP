@@ -1,5 +1,7 @@
 #!/bin/env python
 
+import socket
+import time
 import numpy as np
 import h5py
 import unyt
@@ -87,8 +89,8 @@ def combine_chunks(
         if comm_world.Get_rank() == 0:
             # Create the file
             outfile = h5py.File(output_file, "w")
-            # Write parameters etc
-            cellgrid.write_metadata(outfile)
+
+            # Write parameters
             params = outfile.create_group("Parameters")
             params.attrs["swift_filename"] = args.swift_filename
             params.attrs["halo_basename"] = args.halo_basename
@@ -100,12 +102,63 @@ def combine_chunks(
             params.attrs["halo_indices"] = (
                 args.halo_indices if args.halo_indices is not None else np.ndarray(0, dtype=int)
             )
-            params.attrs["git_hash"] = args.git_hash
-            # NOTE: FLAMINGO
             recently_heated_gas_metadata = recently_heated_gas_filter.get_metadata()
-            recently_heated_gas_params = outfile.create_group("RecentlyHeatedGasFilter")
+            recently_heated_gas_params = params.create_group("RecentlyHeatedGasFilter")
             for at, val in recently_heated_gas_metadata.items():
                 recently_heated_gas_params.attrs[at] = val
+
+            # Write code information
+            code = outfile.create_group('Code')
+            code.attrs["Code"] = np.bytes_('Code'.encode('utf-8'))
+            code.attrs["git_hash"] = np.bytes_(args.git_hash.encode('utf-8'))
+
+            # Copy swift metadata
+            params = cellgrid.copy_swift_metadata(outfile)
+
+            # Generate header
+            header = outfile.create_group('Header')
+            for attr in [
+                    'BoxSize',
+                    'Dimension',
+                    'NumPartTypes',
+                    'Redshift',
+                    'RunName',
+                    'Scale-factor',
+                ]:
+                header.attrs[attr] = cellgrid.swift_header_group[attr]
+            header.attrs['Code'] = np.bytes_('SOAP'.encode('utf-8'))
+            header.attrs['Dimension'] = cellgrid.swift_header_group['Dimension']
+            header.attrs['NumFilesPerSnapshot'] = np.array([1], dtype='int32')
+            header.attrs['NumSubhalos_ThisFile'] = np.array([total_nr_halos], dtype='int32')
+            header.attrs['NumSubhalos_Total'] = np.array([total_nr_halos], dtype='int32')
+            n_part_type = cellgrid.swift_header_group['NumPartTypes'][0]
+            header.attrs['NumPart_ThisFile'] = np.zeros(n_part_type, dtype='int32')
+            header.attrs['NumPart_Total'] = np.zeros(n_part_type, dtype='uint32')
+            header.attrs['NumPart_Total_Highword'] = np.zeros(n_part_type, dtype='uint32')
+            header.attrs['OutputType'] = np.bytes_('SOAP'.encode('utf-8'))
+            snapshot_date = time.strftime("%H:%M:%S %Y-%m-%d GMT", time.gmtime())
+            header.attrs['SnapshotDate'] = np.bytes_(snapshot_date.encode('utf-8'))
+            # TODO:
+            header.attrs['System'] = np.bytes_(socket.gethostname().encode('utf-8'))
+            header.attrs['ThisFile'] = np.array([0], dtype='int32')
+
+            # Write cosmology
+            cosmo = outfile.create_group("Cosmology")
+            for name, value in cellgrid.cosmology.items():
+                cosmo.attrs[name] = [value]
+
+            # Write units
+            units = outfile.create_group("Units")
+            for name, value in cellgrid.swift_units_group.items():
+                units.attrs[name] = [value]
+            # TODO: Is this correct?
+            units.attrs['Unit mass in cgs (U_M)'] = [unyt.solar_mass.to('g')]
+
+            # Write physical constants
+            const = outfile.create_group("PhysicalConstants")
+            const = const.create_group("CGS")
+            for name, value in cellgrid.constants.items():
+                const.attrs[name] = [value]
 
             # Write cell information
             cells = outfile.create_group("Cells")
@@ -123,7 +176,9 @@ def combine_chunks(
             cells.create_dataset('OffsetsInFile/Subhalos', data=cell_offsets)
 
             # Create datasets for all halo properties
+            subhalo_types = set()
             for name, size, unit, dtype, description in ref_metadata + soap_metadata:
+                subhalo_types.add(name.split('/')[0])
                 if description == 'No description available':
                     print(f'{name} not found in property table')
                 shape = (total_nr_halos,) + size
@@ -139,6 +194,8 @@ def combine_chunks(
                 attrs.update(compression_metadata)
                 for attr_name, attr_value in attrs.items():
                     dataset.attrs[attr_name] = attr_value
+            # Save the names of the groups containing the data
+            header.attrs['SubhaloTypes'] = list(np.bytes_(subhalo_type.encode('utf-8')) for subhalo_type in subhalo_types)
             outfile.close()
     comm_world.barrier()
 

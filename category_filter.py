@@ -24,6 +24,7 @@ BoundSubhaloProperties properties.
 
 from property_table import PropertyTable
 from typing import Dict
+import numpy as np
 
 # Hardcoded names of the particle number data to use:
 gas_filter_name = (
@@ -127,9 +128,10 @@ class CategoryFilter:
             if prop[0] == base_output_name:
                 compression = prop[6]
         if compression is None:
-            return {"Lossy Compression Algorithm": "None", "Is Compressed": False}
+
+            return {"Lossy compression filter": np.bytes_("None".encode('utf-8')), "Is Compressed": False}
         else:
-            return {"Lossy Compression Algorithm": compression, "Is Compressed": False}
+            return {"Lossy compression filter": np.bytes_(compression.encode('utf-8')), "Is Compressed": False}
 
     def get_filter_metadata(self, property_output_name: str) -> Dict:
         """
