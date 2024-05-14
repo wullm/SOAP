@@ -27,7 +27,6 @@ from scipy.optimize import brentq
 
 from halo_properties import HaloProperty, ReadRadiusTooSmallError
 from kinematic_properties import (
-    get_velocity_dispersion_matrix,
     get_angular_momentum,
     get_angular_momentum_and_kappa_corot,
     get_vmax,

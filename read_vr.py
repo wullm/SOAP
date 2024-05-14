@@ -8,8 +8,6 @@ import unyt
 
 import virgo.mpi.util
 import virgo.mpi.parallel_hdf5 as phdf5
-import virgo.mpi.gather_array as ga
-import virgo.mpi.parallel_sort as ps
 
 from mpi4py import MPI
 

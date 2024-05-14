@@ -1,11 +1,8 @@
 #!/bin/env python
 
-import os.path
-import h5py
 import numpy as np
 import unyt
 import virgo.util.match
-import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.gather_array as g
 
 import domain_decomposition

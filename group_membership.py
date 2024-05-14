@@ -1,8 +1,5 @@
 #!/bin/env python
 
-import sys
-import os.path
-import re
 import numpy as np
 import h5py
 

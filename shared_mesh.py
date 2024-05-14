@@ -260,8 +260,6 @@ def test_periodic_box(
     comm_size = comm.Get_size()
     comm_rank = comm.Get_rank()
 
-    import unyt
-    import shared_array
 
     if comm_rank == 0:
         print(

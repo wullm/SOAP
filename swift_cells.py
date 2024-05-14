@@ -4,7 +4,6 @@ import collections
 
 import numpy as np
 import h5py
-import time
 from mpi4py import MPI
 import unyt
 import scipy.spatial
