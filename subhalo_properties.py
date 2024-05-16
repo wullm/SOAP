@@ -145,7 +145,7 @@ class SubhaloParticleData:
             typearr = np.zeros(r.shape, dtype="U9")
             typearr[:] = ptype
             types.append(typearr)
-            s = np.ones(r.shape, dtype="float64") * self.softening_of_parttype[ptype]
+            s = np.ones(r.shape, dtype=np.float64) * self.softening_of_parttype[ptype]
             softening.append(s)
 
         self.mass = np.concatenate(mass)
@@ -1276,7 +1276,7 @@ class SubhaloParticleData:
         if self.Nstar == 0:
             return None
         # Pressure in physical units can overflow float32
-        birth_densities = self.stellar_birth_density.astype('float64') / unyt.mh
+        birth_densities = self.stellar_birth_density.astype(np.float64) / unyt.mh
         return birth_densities * self.stellar_birth_temperature
 
     @lazy_property

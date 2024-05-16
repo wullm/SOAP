@@ -323,7 +323,7 @@ class SOParticleData:
             types.append(typearr)
             groupnr.append(self.get_dataset(f"{ptype}/GroupNr_bound"))
             fofid.append(self.get_dataset(f"{ptype}/FOFGroupIDs"))
-            s = np.ones(r.shape, dtype="float64") * self.softening_of_parttype[ptype]
+            s = np.ones(r.shape, dtype=np.float64) * self.softening_of_parttype[ptype]
             softening.append(s)
         self.mass = np.concatenate(mass)
         self.radius = np.concatenate(radius)
