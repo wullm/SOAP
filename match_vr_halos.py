@@ -7,7 +7,6 @@ import virgo.mpi.parallel_sort as psort
 import virgo.mpi.parallel_hdf5 as phdf5
 
 import lustre
-import command_line_args
 import read_vr
 
 from mpi4py import MPI
@@ -319,7 +318,7 @@ def get_match_vr_halos_args(comm):
 if __name__ == "__main__":
 
     # Read command line parameters
-    args = command_line_args.get_match_vr_halos_args(comm)
+    args = get_match_vr_halos_args(comm)
 
     # Ensure output dir exists
     if comm_rank == 0:
