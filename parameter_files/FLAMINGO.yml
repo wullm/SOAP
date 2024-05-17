@@ -1,8 +1,8 @@
 # Values in this section are substituted into the other sections
 Parameters:
-  sim_dir:     /cosma8/data/dp004/flamingo/Runs/
-  output_dir:  /cosma8/data/dp004/FLAMINGO/ScienceRuns/
-  scratch_dir: /snap8/scratch/dp004/FLAMINGO/ScienceRuns/
+  sim_dir: 
+  output_dir: 
+  scratch_dir: 
 
 # Location of the Swift snapshots:
 Snapshots:
