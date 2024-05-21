@@ -252,10 +252,10 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize):
         subhalo["ComovingMostBoundPosition"][keep, :] * LengthInMpch / h
     ) * swift_cmpc
 
-    # Initial guess at search radius for each halo - twice the half mass radius.
+    # Initial guess at search radius for each halos.
     # Search radius will be expanded if we don't find all of the bound particles.
     search_radius = (
-        2.0 * (subhalo["RHalfComoving"][keep] * LengthInMpch / h) * swift_cmpc
+        1.01 * (subhalo["REncloseComoving"][keep] * LengthInMpch / h) * swift_cmpc
     )
 
     # Central halo flag
