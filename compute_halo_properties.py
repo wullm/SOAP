@@ -417,7 +417,6 @@ def compute_halo_properties():
         args.halo_indices,
         halo_prop_list,
         args.chunks,
-        args.halo_sizes_file.format(snap_nr=args.snapshot_nr),
     )
 
     # Generate the chunk task list

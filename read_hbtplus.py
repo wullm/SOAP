@@ -147,7 +147,7 @@ def read_hbtplus_groupnr(basename):
     return total_nr_halos, ids_bound, grnr_bound, rank_bound
 
 
-def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize, halo_size_file):
+def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize):
     """
     Read in the HBTplus halo catalogue, distributed over communicator comm.
 
@@ -229,35 +229,12 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize, halo_size_
     mf = phdf5.MultiFile(filename, file_nr_dataset="NumberOfFiles", comm=comm)
     subhalo = mf.read("Subhalos")
 
-    # Subhalo["Nbound"] includes duplicate particle IDs so we can't use it here.
-    # Read the halo sizes file from group_membership.py instead.
-    halo_size_data = {}
-    with h5py.File(halo_size_file, "r", driver="mpio", comm=comm) as infile:
-        for ptype in sorted(list(infile)):
-            halo_size_data[ptype] = phdf5.collective_read(
-                infile[ptype]["nr_particles_bound"], comm
-            )
-
-    # Sum over particle types
-    nr_bound_part = None
-    for ptype in halo_size_data:
-        if nr_bound_part is None:
-            nr_bound_part = np.zeros_like(halo_size_data[ptype])
-        nr_bound_part += halo_size_data[ptype]
-    del halo_size_data
-
-    # Ensure that nr_bound_part is split over MPI ranks in the same way as the subhalos
-    ndesired = len(subhalo)
-    ndesired = comm.allgather(ndesired)
-    nr_bound_part = psort.repartition(nr_bound_part, ndesired, comm=comm)
-
-    # Wrap in a unyt array
+    # Load the number of bound particles
     nr_bound_part = unyt.unyt_array(
-        nr_bound_part, units=unyt.dimensionless, dtype=int, registry=registry
+        subhalo['Nbound'], units=unyt.dimensionless, dtype=int, registry=registry
     )
 
     # Only process resolved subhalos (HBTplus also outputs unresolved "orphan" subhalos)
-    # Here we use the number of particles EXCLUDING duplicates, i.e. not nbound from HBTplus.
     keep = nr_bound_part > 1
 
     # Assign indexes to halos: for each halo we're going to process we store the

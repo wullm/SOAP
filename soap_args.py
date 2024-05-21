@@ -53,7 +53,6 @@ def get_soap_args(comm):
     args.scratch_dir = all_args["HaloProperties"]["chunk_dir"]
     args.halo_basename = all_args["HaloFinder"]["filename"]
     args.halo_format = all_args["HaloFinder"]["type"]
-    args.halo_sizes_file = all_args["GroupMembership"]["halo_sizes_file"]
     args.output_file = all_args["HaloProperties"]["filename"]
     args.snapshot_nr = all_args["Parameters"]["snap_nr"]
     args.chunks = all_args["Parameters"]["chunks"]
