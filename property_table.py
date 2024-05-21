@@ -2863,7 +2863,7 @@ class PropertyTable:
             [],
         ),
         "is_central": (
-            "is\_central",
+            r"is\_central",
             1,
             np.int64,
             "dimensionless",
@@ -2874,7 +2874,7 @@ class PropertyTable:
             [],
         ),
         "nr_bound_part": (
-            "nr\_bound\_part",
+            r"nr\_bound\_part",
             1,
             np.int64,
             "dimensionless",
