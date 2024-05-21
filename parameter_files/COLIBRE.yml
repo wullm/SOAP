@@ -21,8 +21,6 @@ HaloFinder:
 GroupMembership:
   # Where to write the group membership files
   filename: "{output_dir}/SOAP_uncompressed/{halo_finder}/membership_{snap_nr:04d}.hdf5"
-  # Where to write halo size information
-  halo_sizes_file: "{output_dir}/SOAP_uncompressed/{halo_finder}/membership_{snap_nr:04d}.nr_particles.hdf5"
 
 HaloProperties:
   # Where to write the halo properties file
