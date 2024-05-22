@@ -2996,6 +2996,17 @@ class PropertyTable:
             True,
             [],
         ),
+        "HBTplus/DescendantTrackId": (
+            "DescendantTrackId",
+            1,
+            np.uint64,
+            "dimensionless",
+            "TrackId of the descendant of this subhalo.",
+            "HBTplus",
+            "None",
+            True,
+            [],
+        ),
         "HBTplus/Mbound": (
             "Mbound",
             1,

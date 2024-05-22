@@ -280,6 +280,9 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize):
     parent_id = unyt.unyt_array(
         subhalo["NestedParentTrackId"][keep], units=unyt.dimensionless, dtype=int, registry=registry
     )
+    descendant_id = unyt.unyt_array(
+        subhalo["DescendantTrackId"][keep], units=unyt.dimensionless, dtype=int, registry=registry
+    )
     m_bound = unyt.unyt_array(
         subhalo["Mbound"][keep], units=unyt.dimensionless, dtype=float, registry=registry
     )
@@ -322,6 +325,7 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize):
         "Rank": rank,
         "SnapshotIndexOfBirth": snapshot_birth,
         "NestedParentTrackId": parent_id,
+        "DescendantTrackId": descendant_id,
         "LastMaxMass": max_mass,
         "SnapshotIndexOfLastMaxMass": snapshot_max_mass,
         "VmaxPhysical": vmax,
