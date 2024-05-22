@@ -102,47 +102,13 @@ def read_hbtplus_groupnr(basename):
     del halo_offset
     del halo_index
 
-    # Now check for duplicates. HBTplus can assign the same particle to multiple
-    # subhalos in cases where a subhalo escapes its host and enters another halo.
-    # Here we assign such particles to the subhalo in which their rank_bound is lowest.
-    # Make a key to sort the particles by ID and then by bound rank where ID is equal.
-    sort_key_t = np.dtype([("id", ids_bound.dtype), ("rank", rank_bound.dtype)])
-    sort_key = np.ndarray(len(ids_bound), dtype=sort_key_t)
-    sort_key["id"] = ids_bound
-    sort_key["rank"] = rank_bound
-    assert np.all(sort_key["rank"] >= 0)  # HBTplus does not output unbound particles
-
-    # Sort the particles by ID and then by bound rank where the ID is the same.
-    order = psort.parallel_sort(sort_key, return_index=True, comm=comm)
-    del sort_key
-    ids_bound = psort.fetch_elements(ids_bound, order, comm=comm)
-    grnr_bound = psort.fetch_elements(grnr_bound, order, comm=comm)
-    rank_bound = psort.fetch_elements(rank_bound, order, comm=comm)
-    del order
-
-    # Then find the unique particle IDs
+    # HBTplus originally output duplicate particles, so this script previously
+    # assigned duplicate particles to a single subhalo based on their bound rank.
+    # HBT should no longer have duplicates, which is tested by this assert
     unique_ids_bound, unique_counts = psort.parallel_unique(
-        ids_bound, comm=comm, arr_sorted=True, return_counts=True
+        ids_bound, comm=comm, arr_sorted=False, return_counts=True
     )
-
-    # Compute sum of the counts of unique IDs on this MPI rank. This is
-    # not necessarily the same as len(ids_bound).
-    nr_ids_local = np.sum(unique_counts, dtype=int)
-
-    # Compute sum of the counts of unique IDs on all previous MPI ranks
-    nr_ids_prev_rank = comm.scan(nr_ids_local) - nr_ids_local
-
-    # Find the global offset of the first instance of each unique ID in the
-    # full array of IDs
-    unique_offsets = np.cumsum(unique_counts) - unique_counts + nr_ids_prev_rank
-
-    # Fetch the ID, grnr_bound and rank_bound of the first instance of each particle ID
-    ids_bound = psort.fetch_elements(ids_bound, unique_offsets, comm=comm)
-    assert np.all(
-        ids_bound == unique_ids_bound
-    )  # Check we computed unique_offsets correctly
-    rank_bound = psort.fetch_elements(rank_bound, unique_offsets, comm=comm)
-    grnr_bound = psort.fetch_elements(grnr_bound, unique_offsets, comm=comm)
+    assert np.max(unique_counts) == 1
 
     return total_nr_halos, ids_bound, grnr_bound, rank_bound
 
