@@ -1,8 +1,10 @@
 # Values in this section are substituted into the other sections
+# The simulation name (box size and resolution) and snapshot will be appended
+# to these to get the full name of the input/output files/directories
 Parameters:
-  sim_dir: 
-  output_dir: 
-  scratch_dir: 
+  sim_dir: /cosma8/data/dp004/flamingo/Runs
+  output_dir: /cosma8/data/dp004/dc-mcgi1/flamingo/Runs
+  scratch_dir: /snap8/scratch/dp004/dc-mcgi1/flamingo/Runs
 
 # Location of the Swift snapshots:
 Snapshots:

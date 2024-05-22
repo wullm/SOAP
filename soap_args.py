@@ -68,4 +68,12 @@ def get_soap_args(comm):
     args.output_parameters = all_args["Parameters"]["output_parameters"]
     args.git_hash = all_args["git_hash"]
 
+    # Check we can write to the halo properties file
+    if comm.Get_rank() == 0:
+        dirname = os.path.dirname(os.path.abspath(args.output_file))
+        # Directory may not exist yet, so move up the tree until we find one that does
+        while not os.path.exists(dirname):
+            dirname = os.path.dirname(dirname)
+        assert os.access(dirname, os.W_OK), "Can't write to output directory"
+
     return args
