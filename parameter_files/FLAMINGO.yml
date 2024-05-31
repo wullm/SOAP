@@ -1,8 +1,8 @@
 # Values in this section are substituted into the other sections
 Parameters:
-  sim_dir:     /cosma8/data/dp004/flamingo/Runs/
-  output_dir:  /cosma8/data/dp004/FLAMINGO/ScienceRuns/
-  scratch_dir: /snap8/scratch/dp004/FLAMINGO/ScienceRuns/
+  sim_dir: /cosma8/data/dp004/flamingo/Runs
+  output_dir: /snap8/scratch/dp004/jch/SOAP-test/
+  scratch_dir: /snap8/scratch/dp004/jch/SOAP-test/
 
 # Location of the Swift snapshots:
 Snapshots:
@@ -11,10 +11,10 @@ Snapshots:
 
 # Which halo finder we're using, and base name for halo finder output files
 HaloFinder:
-  type: VR
-  filename: "{sim_dir}/{sim_name}/VR/catalogue_{snap_nr:04d}/vr_catalogue_{snap_nr:04d}"
-  #type: HBTplus
-  #filename: "{sim_dir}/{sim_name}/HBTplus/{snap_nr:03d}/SubSnap_{snap_nr:03d}"
+  #type: VR
+  #filename: "{sim_dir}/{sim_name}/VR/catalogue_{snap_nr:04d}/vr_catalogue_{snap_nr:04d}"
+  type: HBTplus
+  filename: "/snap8/scratch/dp004/dc-foro1/hbt_runs_latest/outputs/{sim_name}/{snap_nr:03d}/SubSnap_{snap_nr:03d}"
   #type: Subfind
   #filename: "{sim_dir}/{sim_name}/snapdir_{snap_nr:03d}/snapshot_{snap_nr:03d}"
   #type: Rockstar

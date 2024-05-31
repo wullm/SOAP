@@ -46,9 +46,14 @@ def combine_chunks(
         scratch_file_format, file_idx=range(nr_chunks), comm=comm_world
     )
 
+    # Determine units of halo centres:
+    # ref_metadata is a list of (name, dimensions, units, description) for each property.
+    cofp_metadata = [rm for rm in ref_metadata if rm[0] == "InputHalos/cofp"][0]
+    cofp_units = cofp_metadata[2]
+    
     # Sort halos based on what cell their centre is in
     with MPITimer("Establishing ordering of halos based on SWIFT cell structure", comm_world):
-        halo_cofp = scratch_file.read('InputHalos/cofp') * cellgrid.boxsize.units
+        halo_cofp = scratch_file.read('InputHalos/cofp') * cofp_units
         cell_indices = (halo_cofp // cellgrid.cell_size).value.astype('int64')
         assert cellgrid.dimension[0] >= cellgrid.dimension[1] >= cellgrid.dimension[2]
         sort_hash = cell_indices[:, 0] * cellgrid.dimension[0] ** 2
