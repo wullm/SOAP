@@ -1286,6 +1286,9 @@ class ProjectedApertureProperties(HaloProperty):
                                 registry=registry,
                             )
                         else:
+                            err = f'Overflow for halo {input_halo["index"]} when'
+                            err += f'calculating {name} in projected_properties'
+                            assert np.max(np.abs(val.to(unit).value)) < float('inf'), err
                             projected_aperture[name] += val
 
             # add the new properties to the halo_result dictionary

@@ -2660,6 +2660,9 @@ class SOProperties(HaloProperty):
                                     registry=registry,
                                 )
                             else:
+                                err = f'Overflow for halo {input_halo["index"]} when'
+                                err += f'calculating {name} in SO_properties'
+                                assert np.max(np.abs(val.to(unit).value)) < float('inf'), err
                                 SO[name] += val
 
         # Return value should be a dict containing unyt_arrays and descriptions.

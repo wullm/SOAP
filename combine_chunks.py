@@ -48,7 +48,7 @@ def combine_chunks(
 
     # Determine units of halo centres:
     # ref_metadata is a list of (name, dimensions, units, description) for each property.
-    cofp_metadata = [rm for rm in ref_metadata if rm[0] == "InputHalos/cofp"][0]
+    cofp_metadata = [rm for rm in ref_metadata if rm[0] == "InputHalos/HaloCentre"][0]
     cofp_units = cofp_metadata[2]
     
     # Sort halos based on what cell their centre is in
@@ -132,8 +132,8 @@ def combine_chunks(
 
             # Write code information
             code = outfile.create_group('Code')
-            code.attrs["Code"] = np.bytes_('Code'.encode('utf-8'))
-            code.attrs["git_hash"] = np.bytes_(args.git_hash.encode('utf-8'))
+            code.attrs["Code"] = 'SOAP'
+            code.attrs["git_hash"] = args.git_hash
 
             # Copy swift metadata
             params = cellgrid.copy_swift_metadata(outfile)
@@ -149,7 +149,7 @@ def combine_chunks(
                     'Scale-factor',
                 ]:
                 header.attrs[attr] = cellgrid.swift_header_group[attr]
-            header.attrs['Code'] = np.bytes_('SOAP'.encode('utf-8'))
+            header.attrs['Code'] = 'SOAP'
             header.attrs['Dimension'] = cellgrid.swift_header_group['Dimension']
             header.attrs['NumFilesPerSnapshot'] = np.array([1], dtype='int32')
             header.attrs['NumSubhalos_ThisFile'] = np.array([total_nr_halos], dtype='int32')
@@ -158,11 +158,11 @@ def combine_chunks(
             header.attrs['NumPart_ThisFile'] = np.zeros(n_part_type, dtype='int32')
             header.attrs['NumPart_Total'] = np.zeros(n_part_type, dtype='uint32')
             header.attrs['NumPart_Total_Highword'] = np.zeros(n_part_type, dtype='uint32')
-            header.attrs['OutputType'] = np.bytes_('SOAP'.encode('utf-8'))
+            header.attrs['OutputType'] = 'SOAP'
             snapshot_date = time.strftime("%H:%M:%S %Y-%m-%d GMT", time.gmtime())
-            header.attrs['SnapshotDate'] = np.bytes_(snapshot_date.encode('utf-8'))
+            header.attrs['SnapshotDate'] = snapshot_date
             # TODO:
-            header.attrs['System'] = np.bytes_(socket.gethostname().encode('utf-8'))
+            header.attrs['System'] = socket.gethostname()
             header.attrs['ThisFile'] = np.array([0], dtype='int32')
 
             # Write cosmology
@@ -174,8 +174,6 @@ def combine_chunks(
             units = outfile.create_group("Units")
             for name, value in cellgrid.swift_units_group.items():
                 units.attrs[name] = [value]
-            # TODO: Is this correct?
-            units.attrs['Unit mass in cgs (U_M)'] = [unyt.solar_mass.to('g')]
 
             # Write physical constants
             const = outfile.create_group("PhysicalConstants")
@@ -208,7 +206,7 @@ def combine_chunks(
                 )
                 # Add units and description
                 attrs = swift_units.attributes_from_units(unit)
-                attrs["Description"] = np.bytes_(description.encode('utf-8'))
+                attrs["Description"] = description
                 mask_metadata = category_filter.get_filter_metadata(name)
                 attrs.update(mask_metadata)
                 compression_metadata = category_filter.get_compression_metadata(name)

@@ -1693,6 +1693,9 @@ class SubhaloProperties(HaloProperty):
                             registry=registry,
                         )
                     else:
+                        err = f'Overflow for halo {input_halo["index"]} when'
+                        err += f'calculating {name} in subhalo_properties'
+                        assert np.max(np.abs(val.to(unit).value)) < float('inf'), err
                         subhalo[name] += val
 
         # Check that we found the expected number of halo member particles:
