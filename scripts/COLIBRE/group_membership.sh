@@ -29,6 +29,6 @@ snapnum=`printf '%04d' ${SLURM_ARRAY_TASK_ID}`
 # Run the code
 mpirun python3 -u -m mpi4py ./group_membership.py \
        parameter_files/COLIBRE.yml \
-       --sim-name=${sim} --snap-nr=${snapnum}
+       --snap-nr=${snapnum}
 
 echo "Job complete!"

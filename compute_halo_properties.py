@@ -12,21 +12,14 @@ comm_world_size = comm_world.Get_size()
 
 import os
 import os.path
-import sys
-import traceback
 import time
 import numpy as np
-import h5py
 import unyt
 
-import virgo.mpi.parallel_hdf5 as phdf5
-import virgo.mpi.parallel_sort as psort
 
 import halo_centres
 import swift_cells
 import chunk_tasks
-import swift_units
-import halo_properties
 import task_queue
 import lustre
 import soap_args
@@ -165,12 +158,12 @@ def compute_halo_properties():
     )
 
     # Get the full list of property calculations we can do
-    # Note that the order matters: we need to do the BoundSubhaloProperties first,
+    # Note that the order matters: we need to do the BoundSubhalo first,
     # since quantities are filtered based on the particle numbers in there
     # Similarly, things like SO 5xR500_crit can only be done after
     # SO 500_crit for obvious reasons
     halo_prop_list = []
-    # Make sure BoundSubhaloProperties is always first
+    # Make sure BoundSubhalo is always first
     subhalo_variations = parameter_file.get_halo_type_variations(
         "SubhaloProperties",
         {"Bound": {"bound_only": True}},
@@ -187,7 +180,7 @@ def compute_halo_properties():
                     bound_only=subhalo_variations[variation]["bound_only"],
                 )
             )
-    assert len(halo_prop_list) > 0, 'BoundSubhaloProperties must be calculated'
+    assert len(halo_prop_list) > 0, 'BoundSubhalo must be calculated'
     # Adding FOFSubhaloProperties if present
     for variation in subhalo_variations:
         if not subhalo_variations[variation]["bound_only"]:
@@ -424,20 +417,15 @@ def compute_halo_properties():
         args.halo_indices,
         halo_prop_list,
         args.chunks,
-        args.halo_sizes_file.format(snap_nr=args.snapshot_nr),
     )
-
+    so_cat.start_request_thread()
+    
     # Generate the chunk task list
+    nr_chunks = so_cat.nr_chunks
     if comm_world_rank == 0:
-        task_list = chunk_tasks.ChunkTaskList(
-            cellgrid, so_cat, halo_prop_list=halo_prop_list
-        )
-        tasks = task_list.tasks
-        nr_chunks = len(tasks)
+        tasks = [chunk_tasks.ChunkTask(halo_prop_list, chunk_nr, nr_chunks) for chunk_nr in range(nr_chunks)]
     else:
         tasks = None
-        nr_chunks = None
-    nr_chunks = comm_world.bcast(nr_chunks)
 
     # Report initial set-up time
     comm_world.barrier()
@@ -447,9 +435,6 @@ def compute_halo_properties():
             "Reading %d input halos and setting up %d chunk(s) took %.1fs"
             % (so_cat.nr_halos, len(tasks), t1 - t0)
         )
-
-    # We no longer need the catalogue, since halo centres etc are stored in the chunk tasks
-    del so_cat
 
     # Make a format string to generate the name of the file each chunk task will write to
     scratch_file_format = (
@@ -475,6 +460,7 @@ def compute_halo_properties():
     timings = []
     task_args = (
         cellgrid,
+        so_cat,
         comm_intra_node,
         inter_node_rank,
         timings,
@@ -488,9 +474,11 @@ def compute_halo_properties():
         comm_all=comm_world,
         comm_master=comm_inter_node,
         comm_workers=comm_intra_node,
-        task_type=chunk_tasks.ChunkTask,
     )
 
+    # Can stop the halo request thread now that all chunk tasks have executed
+    so_cat.stop_request_thread()
+    
     # Check metadata for consistency between chunks. Sets ref_metadata on all ranks,
     # including those that processed no halos.
     ref_metadata = result_set.check_metadata(metadata, comm_inter_node, comm_world)
