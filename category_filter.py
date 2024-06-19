@@ -129,9 +129,9 @@ class CategoryFilter:
                 compression = prop[6]
         if compression is None:
 
-            return {"Lossy compression filter": np.bytes_("None".encode('utf-8')), "Is Compressed": False}
+            return {"Lossy compression filter": "None", "Is Compressed": False}
         else:
-            return {"Lossy compression filter": np.bytes_(compression.encode('utf-8')), "Is Compressed": False}
+            return {"Lossy compression filter": compression, "Is Compressed": False}
 
     def get_filter_metadata(self, property_output_name: str) -> Dict:
         """
