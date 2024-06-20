@@ -161,7 +161,6 @@ def combine_chunks(
             header.attrs['OutputType'] = 'SOAP'
             snapshot_date = time.strftime("%H:%M:%S %Y-%m-%d GMT", time.gmtime())
             header.attrs['SnapshotDate'] = snapshot_date
-            # TODO:
             header.attrs['System'] = socket.gethostname()
             header.attrs['ThisFile'] = np.array([0], dtype='int32')
 
@@ -216,8 +215,8 @@ def combine_chunks(
 
             # Save the names of the groups containing the data
             subhalo_types = set()
-            for name, size, unit, dtype, description in ref_metadata + soap_metadata:
-                subhalo_types.add(name.split('/')[0])
+            for name, size, unit, dtype, description in ref_metadata + soap_metadata + fof_metadata:
+                subhalo_types.add('/'.join(name.split('/')[:-1]))
             header.attrs['SubhaloTypes'] = list(subhalo_types)
             outfile.close()
     comm_world.barrier()

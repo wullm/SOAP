@@ -67,7 +67,7 @@ def unit_registry_from_snapshot(snap):
     # Create a registry using this base unit system
     reg = unyt.unit_registry.UnitRegistry(lut=reg.lut, unit_system=us)
 
-    # Add some units which might be useful for dealing with VR data
+    # Add some units which might be useful for dealing with input halo catalogues
     unyt.define_unit(
         "swift_mpc", 1.0e6 * physical_constants_cgs["parsec"] * unyt.cm, registry=reg
     )
@@ -78,10 +78,6 @@ def unit_registry_from_snapshot(snap):
         "newton_G",
         physical_constants_cgs["newton_G"] * unyt.cm ** 3 / unyt.g / unyt.s ** 2,
         registry=reg,
-    )
-    a_unit = unyt.Unit("a", registry=reg)
-    unyt.define_unit(
-        "cMpc", 1 * a_unit * unyt.Mpc, registry=reg
     )
 
     return reg

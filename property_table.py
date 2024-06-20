@@ -336,7 +336,7 @@ class PropertyTable:
             "MostMassiveBlackHolePosition",
             3,
             np.float64,
-            "snap_length",
+            "a*snap_length",
             "Position of most massive black hole.",
             "general",
             "DScale5",
@@ -401,7 +401,7 @@ class PropertyTable:
             "MaximumDarkMatterCircularVelocityRadius",
             1,
             np.float32,
-            "snap_length",
+            "a*snap_length",
             "Radius at which Vmax is reached for dark matter particles.",
             "dm",
             "FMantissa9",
@@ -790,7 +790,7 @@ class PropertyTable:
             "HalfMassRadiusBaryons",
             1,
             np.float32,
-            "snap_length",
+            "a*snap_length",
             "Baryonic (gas and stars) half mass radius.",
             "baryon",
             "FMantissa9",
@@ -806,7 +806,7 @@ class PropertyTable:
             "HalfMassRadiusDarkMatter",
             1,
             np.float32,
-            "snap_length",
+            "a*snap_length",
             "Dark matter half mass radius.",
             "dm",
             "FMantissa9",
@@ -817,7 +817,7 @@ class PropertyTable:
             "HalfMassRadiusGas",
             1,
             np.float32,
-            "snap_length",
+            "a*snap_length",
             "Gas half mass radius.",
             "gas",
             "FMantissa9",
@@ -828,7 +828,7 @@ class PropertyTable:
             "HalfMassRadiusStars",
             1,
             np.float32,
-            "snap_length",
+            "a*snap_length",
             "Stellar half mass radius.",
             "basic",
             "FMantissa9",
@@ -839,7 +839,7 @@ class PropertyTable:
             "HalfMassRadiusTotal",
             1,
             np.float32,
-            "snap_length",
+            "a*snap_length",
             "Total half mass radius.",
             "general",
             "FMantissa9",
@@ -859,7 +859,7 @@ class PropertyTable:
             "EncloseRadius",
             1,
             np.float32,
-            "cMpc",
+            "a*snap_length",
             "Radius of the particle furthest from the halo centre",
             "basic",
             "FMantissa9",
@@ -1407,7 +1407,7 @@ class PropertyTable:
             "MaximumCircularVelocityRadius",
             1,
             np.float32,
-            "snap_length",
+            "a*snap_length",
             "Radius at which Vmax is reached.",
             "basic",
             "FMantissa9",
@@ -3071,7 +3071,7 @@ class PropertyTable:
             "Centres",
             3,
             np.float64,
-            "cMpc",
+            "a*snap_length",
             "Centre of mass of the host FOF halo of this subhalo. Zero for satellite and hostless subhalos.",
             "FOF",
             "DScale5",
@@ -3199,19 +3199,15 @@ class PropertyTable:
             except KeyError:
                 pass
 
-            # Special case for cMpc, so we don't have to define a comoving unit
-            if prop_units == 'cMpc':
-                prop_units = r'\rm{cMpc}'
-            else:
-                prop_units = (
-                    unyt.unyt_quantity(1, units=prop_units)
-                    .units.latex_repr.replace(
-                        "\\rm{km} \\cdot \\rm{kpc}", "\\rm{kpc} \\cdot \\rm{km}"
-                    )
-                    .replace(
-                        "\\frac{\\rm{km}^{2}}{\\rm{s}^{2}}", "\\rm{km}^{2} / \\rm{s}^{2}"
-                    )
+            prop_units = (
+                unyt.unyt_quantity(1, units=prop_units)
+                .units.latex_repr.replace(
+                    "\\rm{km} \\cdot \\rm{kpc}", "\\rm{kpc} \\cdot \\rm{km}"
                 )
+                .replace(
+                    "\\frac{\\rm{km}^{2}}{\\rm{s}^{2}}", "\\rm{km}^{2} / \\rm{s}^{2}"
+                )
+            )
 
             prop_dtype = prop_dtype.__name__
             if prop_name in self.properties:
@@ -3487,7 +3483,7 @@ if __name__ == "__main__":
         print("No snapshot file passed.")
         exit()
     # Define scale factor unit
-    unyt.define_unit('a', 1*unyt.dimensionless, tex_repr='a')
+    unyt.define_unit('a', 1*unyt.dimensionless, tex_repr='\\rm{a}')
 
     table = PropertyTable(parameters)
     # Add standard halo definitions

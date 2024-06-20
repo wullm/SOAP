@@ -24,7 +24,6 @@ BoundSubhalo properties.
 
 from property_table import PropertyTable
 from typing import Dict
-import numpy as np
 
 # Hardcoded names of the particle number data to use:
 gas_filter_name = (
