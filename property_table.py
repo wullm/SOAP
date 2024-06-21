@@ -3015,6 +3015,7 @@ class PropertyTable:
         "HBTplus/DescendantTrackId": (
             "DescendantTrackId",
             1,
+            np.int64,
             "dimensionless",
             "TrackId of the descendant of this subhalo.",
             "HBTplus",
