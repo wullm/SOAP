@@ -256,6 +256,9 @@ class PropertyTable:
     #  - Particle properties: Particle fields that are required to compute this
     #      property. Used to determine which particle fields to read for a
     #      particular SOAP configuration (as defined in the parameter file).
+    #  - Output physical: Whether to output this value as physical or co-moving.
+    #  - a-scale exponent: What a-scale exponent to set for this property. If set
+    #      to None this marks that the property can not be converted to comoving
     #
     # Note that there is no good reason to have a diffent internal name and
     # output name; this was mostly done for historical reasons. This means that
@@ -276,6 +279,8 @@ class PropertyTable:
                 "PartType0/SpeciesFractions",
                 "PartType0/ElementMassFractions",
             ],
+            True,
+            0,
         ),
         "BHlasteventa": (
             "BlackHolesLastEventScalefactor",
@@ -287,6 +292,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType5/LastAGNFeedbackScaleFactors"],
+            True,
+            None,
         ),
         "BHmaxAR": (
             "MostMassiveBlackHoleAccretionRate",
@@ -298,6 +305,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType5/SubgridMasses", "PartType5/AccretionRates"],
+            True,
+            None,
         ),
         "BHmaxID": (
             "MostMassiveBlackHoleID",
@@ -309,6 +318,8 @@ class PropertyTable:
             "Nbit40",
             False,
             ["PartType5/SubgridMasses", "PartType5/ParticleIDs"],
+            True,
+            None,
         ),
         "BHmaxM": (
             "MostMassiveBlackHoleMass",
@@ -320,6 +331,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType5/SubgridMasses"],
+            True,
+            0,
         ),
         "BHmaxlasteventa": (
             "MostMassiveBlackHoleLastEventScalefactor",
@@ -331,17 +344,21 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType5/SubgridMasses", "PartType5/LastAGNFeedbackScaleFactors"],
+            True,
+            None,
         ),
         "BHmaxpos": (
             "MostMassiveBlackHolePosition",
             3,
             np.float64,
-            "a*snap_length",
+            "snap_length",
             "Position of most massive black hole.",
             "general",
             "DScale5",
             False,
             ["PartType5/Coordinates", "PartType5/SubgridMasses"],
+            False,
+            1,
         ),
         "BHmaxvel": (
             "MostMassiveBlackHoleVelocity",
@@ -353,6 +370,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType5/SubgridMasses", "PartType5/Velocities"],
+            False,
+            1,
         ),
         "BaryonInertiaTensor": (
             "BaryonInertiaTensor",
@@ -369,6 +388,8 @@ class PropertyTable:
                 "PartType4/Coordinates",
                 "PartType4/Masses",
             ],
+            True,
+            2,
         ),
         "ReducedBaryonInertiaTensor": (
             "ReducedBaryonInertiaTensor",
@@ -385,6 +406,8 @@ class PropertyTable:
                 "PartType4/Coordinates",
                 "PartType4/Masses",
             ],
+            True,
+            0,
         ),
         "DMInertiaTensor": (
             "DarkMatterInertiaTensor",
@@ -396,17 +419,21 @@ class PropertyTable:
             "FMantissa9",
             True,
             ["PartType1/Coordinates", "PartType1/Masses"],
+            True,
+            2,
         ),
         "DM_R_vmax": (
             "MaximumDarkMatterCircularVelocityRadius",
             1,
             np.float32,
-            "a*snap_length",
+            "snap_length",
             "Radius at which Vmax is reached for dark matter particles.",
             "dm",
             "FMantissa9",
             False,
             ["PartType1/Coordinates", "PartType1/Masses"],
+            False,
+            1,
         ),
         "DM_Vmax": (
             "MaximumDarkMatterCircularVelocity",
@@ -418,6 +445,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType1/Coordinates", "PartType1/Masses"],
+            True,
+            0,
         ),
         "DiffuseCarbonMass": (
             "DiffuseCarbonMass",
@@ -429,6 +458,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Masses", "PartType0/ElementMassFractionsDiffuse"],
+            True,
+            0,
         ),
         "DiffuseIronMass": (
             "DiffuseIronMass",
@@ -440,6 +471,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Masses", "PartType0/ElementMassFractionsDiffuse"],
+            True,
+            0,
         ),
         "DiffuseMagnesiumMass": (
             "DiffuseMagnesiumMass",
@@ -451,6 +484,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Masses", "PartType0/ElementMassFractionsDiffuse"],
+            True,
+            0,
         ),
         "DiffuseOxygenMass": (
             "DiffuseOxygenMass",
@@ -462,6 +497,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Masses", "PartType0/ElementMassFractionsDiffuse"],
+            True,
+            0,
         ),
         "DiffuseSiliconMass": (
             "DiffuseSiliconMass",
@@ -473,6 +510,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Masses", "PartType0/ElementMassFractionsDiffuse"],
+            True,
+            0,
         ),
         "ReducedDMInertiaTensor": (
             "ReducedDarkMatterInertiaTensor",
@@ -484,6 +523,8 @@ class PropertyTable:
             "FMantissa9",
             True,
             ["PartType1/Coordinates", "PartType1/Masses"],
+            True,
+            0,
         ),
         "DopplerB": (
             "DopplerB",
@@ -500,6 +541,8 @@ class PropertyTable:
                 "PartType0/ElectronNumberDensities",
                 "PartType0/Densities",
             ],
+            False,
+            1,
         ),
         "DtoTgas": (
             "DiscToTotalGasMassFraction",
@@ -511,6 +554,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Coordinates", "PartType0/Masses", "PartType0/Velocities"],
+            True,
+            0,
         ),
         "DtoTstar": (
             "DiscToTotalStellarMassFraction",
@@ -522,6 +567,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/Coordinates", "PartType4/Velocities", "PartType4/Masses"],
+            True,
+            0,
         ),
         "DustGraphiteMass": (
             "DustGraphiteMass",
@@ -533,6 +580,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Masses", "PartType0/DustMassFractions"],
+            True,
+            0,
         ),
         "DustGraphiteMassInAtomicGas": (
             "DustGraphiteMassInAtomicGas",
@@ -549,6 +598,8 @@ class PropertyTable:
                 "PartType0/ElementMassFractions",
                 "PartType0/SpeciesFractions",
             ],
+            True,
+            0,
         ),
         "DustGraphiteMassInMolecularGas": (
             "DustGraphiteMassInMolecularGas",
@@ -565,6 +616,8 @@ class PropertyTable:
                 "PartType0/SpeciesFractions",
                 "PartType0/ElementMassFractions",
             ],
+            True,
+            0,
         ),
         "DustGraphiteMassInColdDenseGas": (
             "DustGraphiteMassInColdDenseGas",
@@ -581,6 +634,8 @@ class PropertyTable:
                 "PartType0/Densities",
                 "PartType0/Temperatures",
             ],
+            True,
+            0,
         ),
         "DustLargeGrainMass": (
             "DustLargeGrainMass",
@@ -592,6 +647,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Masses", "PartType0/DustMassFractions"],
+            True,
+            0,
         ),
         "DustLargeGrainMassInMolecularGas": (
             "DustLargeGrainMassInMolecularGas",
@@ -608,6 +665,8 @@ class PropertyTable:
                 "PartType0/SpeciesFractions",
                 "PartType0/ElementMassFractions",
             ],
+            True,
+            0,
         ),
         "DustLargeGrainMassInColdDenseGas": (
             "DustLargeGrainMassInColdDenseGas",
@@ -624,6 +683,8 @@ class PropertyTable:
                 "PartType0/Densities",
                 "PartType0/Temperatures",
             ],
+            True,
+            0,
         ),
         "DustSilicatesMass": (
             "DustSilicatesMass",
@@ -635,6 +696,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Masses", "PartType0/DustMassFractions"],
+            True,
+            0,
         ),
         "DustSilicatesMassInAtomicGas": (
             "DustSilicatesMassInAtomicGas",
@@ -651,6 +714,8 @@ class PropertyTable:
                 "PartType0/SpeciesFractions",
                 "PartType0/ElementMassFractions",
             ],
+            True,
+            0,
         ),
         "DustSilicatesMassInMolecularGas": (
             "DustSilicatesMassInMolecularGas",
@@ -667,6 +732,8 @@ class PropertyTable:
                 "PartType0/SpeciesFractions",
                 "PartType0/ElementMassFractions",
             ],
+            True,
+            0,
         ),
         "DustSilicatesMassInColdDenseGas": (
             "DustSilicatesMassInColdDenseGas",
@@ -683,6 +750,8 @@ class PropertyTable:
                 "PartType0/Densities",
                 "PartType0/Temperatures",
             ],
+            True,
+            0,
         ),
         "DustSmallGrainMass": (
             "DustSmallGrainMass",
@@ -698,6 +767,8 @@ class PropertyTable:
                 "PartType0/DustMassFractions",
                 "PartType0/ElementMassFractions",
             ],
+            True,
+            0,
         ),
         "DustSmallGrainMassInMolecularGas": (
             "DustSmallGrainMassInMolecularGas",
@@ -714,6 +785,8 @@ class PropertyTable:
                 "PartType0/SpeciesFractions",
                 "PartType0/ElementMassFractions",
             ],
+            True,
+            0,
         ),
         "DustSmallGrainMassInColdDenseGas": (
             "DustSmallGrainMassInColdDenseGas",
@@ -730,6 +803,8 @@ class PropertyTable:
                 "PartType0/Densities",
                 "PartType0/Temperatures",
             ],
+            True,
+            0,
         ),
         "Ekin_gas": (
             "KineticEnergyGas",
@@ -741,6 +816,8 @@ class PropertyTable:
             "DMantissa9",
             False,
             ["PartType0/Masses", "PartType0/Velocities"],
+            True,
+            -2,
         ),
         "Ekin_star": (
             "KineticEnergyStars",
@@ -752,6 +829,8 @@ class PropertyTable:
             "DMantissa9",
             False,
             ["PartType4/Masses", "PartType4/Velocities"],
+            True,
+            -2,
         ),
         "Etherm_gas": (
             "ThermalEnergyGas",
@@ -763,6 +842,8 @@ class PropertyTable:
             "DMantissa9",
             False,
             ["PartType0/Densities", "PartType0/Pressures", "PartType0/Masses"],
+            True,
+            -2,
         ),
         "GasInertiaTensor": (
             "GasInertiaTensor",
@@ -774,6 +855,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Coordinates", "PartType0/Masses"],
+            True,
+            2,
         ),
         "ReducedGasInertiaTensor": (
             "ReducedGasInertiaTensor",
@@ -785,12 +868,14 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Coordinates", "PartType0/Masses"],
+            True,
+            0,
         ),
         "HalfMassRadiusBaryon": (
             "HalfMassRadiusBaryons",
             1,
             np.float32,
-            "a*snap_length",
+            "snap_length",
             "Baryonic (gas and stars) half mass radius.",
             "baryon",
             "FMantissa9",
@@ -801,45 +886,53 @@ class PropertyTable:
                 "PartType4/Coordinates",
                 "PartType4/Masses",
             ],
+            False,
+            1,
         ),
         "HalfMassRadiusDM": (
             "HalfMassRadiusDarkMatter",
             1,
             np.float32,
-            "a*snap_length",
+            "snap_length",
             "Dark matter half mass radius.",
             "dm",
             "FMantissa9",
             True,
             ["PartType1/Coordinates", "PartType1/Masses"],
+            False,
+            1,
         ),
         "HalfMassRadiusGas": (
             "HalfMassRadiusGas",
             1,
             np.float32,
-            "a*snap_length",
+            "snap_length",
             "Gas half mass radius.",
             "gas",
             "FMantissa9",
             False,
             ["PartType0/Coordinates", "PartType0/Masses"],
+            False,
+            1,
         ),
         "HalfMassRadiusStar": (
             "HalfMassRadiusStars",
             1,
             np.float32,
-            "a*snap_length",
+            "snap_length",
             "Stellar half mass radius.",
             "basic",
             "FMantissa9",
             False,
             ["PartType4/Coordinates", "PartType4/Masses"],
+            False,
+            1,
         ),
         "HalfMassRadiusTot": (
             "HalfMassRadiusTotal",
             1,
             np.float32,
-            "a*snap_length",
+            "snap_length",
             "Total half mass radius.",
             "general",
             "FMantissa9",
@@ -854,12 +947,14 @@ class PropertyTable:
                 "PartType5/Coordinates",
                 "PartType5/DynamicalMasses",
             ],
+            False,
+            1,
         ),
         "EncloseRadius": (
             "EncloseRadius",
             1,
             np.float32,
-            "a*snap_length",
+            "snap_length",
             "Radius of the particle furthest from the halo centre",
             "basic",
             "FMantissa9",
@@ -870,6 +965,8 @@ class PropertyTable:
                 "PartType4/Coordinates",
                 "PartType5/Coordinates",
             ],
+            False,
+            1,
         ),
         "HeliumMass": (
             "HeliumMass",
@@ -881,6 +978,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Masses", "PartType0/ElementMassFractions"],
+            True,
+            0,
         ),
         "HydrogenMass": (
             "HydrogenMass",
@@ -892,6 +991,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Masses", "PartType0/ElementMassFractions"],
+            True,
+            0,
         ),
         "IonisedHydrogenMass": (
             "IonisedHydrogenMass",
@@ -907,6 +1008,8 @@ class PropertyTable:
                 "PartType0/SpeciesFractions",
                 "PartType0/ElementMassFractions",
             ],
+            True,
+            0,
         ),
         "LastSupernovaEventMaximumGasDensity": (
             "LastSupernovaEventMaximumGasDensity",
@@ -921,6 +1024,8 @@ class PropertyTable:
                 "PartType0/LastSNIIThermalFeedbackDensities",
                 "PartType0/LastSNIIKineticFeedbackDensities",
             ],
+            True,
+            None,
         ),
         "Lbaryons": (
             "AngularMomentumBaryons",
@@ -939,6 +1044,8 @@ class PropertyTable:
                 "PartType4/Masses",
                 "PartType4/Velocities",
             ],
+            True,
+            2,
         ),
         "Ldm": (
             "AngularMomentumDarkMatter",
@@ -950,6 +1057,8 @@ class PropertyTable:
             "FMantissa9",
             True,
             ["PartType1/Coordinates", "PartType1/Masses", "PartType1/Velocities"],
+            True,
+            2,
         ),
         "Lgas": (
             "AngularMomentumGas",
@@ -961,6 +1070,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Coordinates", "PartType0/Masses", "PartType0/Velocities"],
+            True,
+            2,
         ),
         "MedianStellarBirthDensity": (
             "MedianStellarBirthDensity",
@@ -972,6 +1083,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/BirthDensities"],
+            True,
+            None,
         ),
         "MedianStellarBirthTemperature": (
             "MedianStellarBirthTemperature",
@@ -983,6 +1096,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/BirthTemperatures"],
+            True,
+            None,
         ),
         "MedianStellarBirthPressure": (
             "MedianStellarBirthPressure",
@@ -994,6 +1109,8 @@ class PropertyTable:
             "DMantissa9",
             False,
             ["PartType4/BirthTemperatures", "PartType4/BirthDensities"],
+            True,
+            None,
         ),
         "Lstar": (
             "AngularMomentumStars",
@@ -1005,6 +1122,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/Coordinates", "PartType4/Masses", "PartType4/Velocities"],
+            True,
+            2,
         ),
         "MaximumStellarBirthDensity": (
             "MaximumStellarBirthDensity",
@@ -1016,6 +1135,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/BirthDensities"],
+            True,
+            None,
         ),
         "MaximumStellarBirthTemperature": (
             "MaximumStellarBirthTemperature",
@@ -1027,6 +1148,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/BirthTemperatures"],
+            True,
+            None,
         ),
         "MaximumStellarBirthPressure": (
             "MaximumStellarBirthPressure",
@@ -1038,6 +1161,8 @@ class PropertyTable:
             "DMantissa9",
             False,
             ["PartType4/BirthTemperatures", "PartType4/BirthDensities"],
+            True,
+            None,
         ),
         "Mbh_dynamical": (
             "BlackHolesDynamicalMass",
@@ -1049,6 +1174,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType5/DynamicalMasses"],
+            True,
+            0,
         ),
         "Mbh_subgrid": (
             "BlackHolesSubgridMass",
@@ -1060,6 +1187,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType5/SubgridMasses"],
+            True,
+            0,
         ),
         "Mdm": (
             "DarkMatterMass",
@@ -1071,6 +1200,8 @@ class PropertyTable:
             "FMantissa9",
             True,
             ["PartType1/Masses"],
+            True,
+            0,
         ),
         "Mfrac_satellites": (
             "MassFractionSatellites",
@@ -1095,6 +1226,8 @@ class PropertyTable:
                 "PartType4/GroupNr_bound",
                 "PartType5/GroupNr_bound",
             ],
+            True,
+            0,
         ),
         "Mfrac_external": (
             "MassFractionExternal",
@@ -1119,6 +1252,8 @@ class PropertyTable:
                 "PartType4/GroupNr_bound",
                 "PartType5/GroupNr_bound",
             ],
+            True,
+            0,
         ),
         "Mgas": (
             "GasMass",
@@ -1130,6 +1265,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Masses"],
+            True,
+            0,
         ),
         "Mgas_SF": (
             "StarFormingGasMass",
@@ -1141,6 +1278,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Masses", "PartType0/StarFormationRates"],
+            True,
+            0,
         ),
         "Mhotgas": (
             "HotGasMass",
@@ -1152,6 +1291,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Masses", "PartType0/Temperatures"],
+            True,
+            0,
         ),
         "GasMassInColdDenseGas": (
             "GasMassInColdDenseGas",
@@ -1163,6 +1304,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Masses", "PartType0/Densities", "PartType0/Temperatures"],
+            True,
+            0,
         ),
         "MinimumStellarBirthDensity": (
             "MinimumStellarBirthDensity",
@@ -1174,6 +1317,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/BirthDensities"],
+            True,
+            None,
         ),
         "MinimumStellarBirthTemperature": (
             "MinimumStellarBirthTemperature",
@@ -1185,6 +1330,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/BirthTemperatures"],
+            True,
+            None,
         ),
         "MinimumStellarBirthPressure": (
             "MinimumStellarBirthPressure",
@@ -1196,6 +1343,8 @@ class PropertyTable:
             "DMantissa9",
             False,
             ["PartType4/BirthTemperatures", "PartType4/BirthDensities"],
+            True,
+            None,
         ),
         "Mnu": (
             "RawNeutrinoMass",
@@ -1207,6 +1356,8 @@ class PropertyTable:
             "FMantissa9",
             True,
             ["PartType6/Masses"],
+            True,
+            0,
         ),
         "MnuNS": (
             "NoiseSuppressedNeutrinoMass",
@@ -1218,6 +1369,8 @@ class PropertyTable:
             "FMantissa9",
             True,
             ["PartType6/Masses", "PartType6/Weights"],
+            True,
+            0,
         ),
         "MolecularHydrogenMass": (
             "MolecularHydrogenMass",
@@ -1233,6 +1386,8 @@ class PropertyTable:
                 "PartType0/SpeciesFractions",
                 "PartType0/ElementMassFractions",
             ],
+            True,
+            0,
         ),
         "Mstar": (
             "StellarMass",
@@ -1244,6 +1399,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/Masses"],
+            True,
+            0,
         ),
         "Mstar_init": (
             "StellarInitialMass",
@@ -1255,6 +1412,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/InitialMasses"],
+            True,
+            0,
         ),
         "Mtot": (
             "TotalMass",
@@ -1271,6 +1430,8 @@ class PropertyTable:
                 "PartType4/Masses",
                 "PartType5/DynamicalMasses",
             ],
+            True,
+            0,
         ),
         "Nbh": (
             "NumberOfBlackHoleParticles",
@@ -1282,6 +1443,8 @@ class PropertyTable:
             "None",
             False,
             [],
+            True,
+            None,
         ),
         "Ndm": (
             "NumberOfDarkMatterParticles",
@@ -1293,6 +1456,8 @@ class PropertyTable:
             "None",
             True,
             [],
+            True,
+            None,
         ),
         "Ngas": (
             "NumberOfGasParticles",
@@ -1304,6 +1469,8 @@ class PropertyTable:
             "None",
             False,
             [],
+            True,
+            None,
         ),
         "Nnu": (
             "NumberOfNeutrinoParticles",
@@ -1315,6 +1482,8 @@ class PropertyTable:
             "None",
             False,
             [],
+            True,
+            None,
         ),
         "Nstar": (
             "NumberOfStarParticles",
@@ -1326,6 +1495,8 @@ class PropertyTable:
             "None",
             False,
             [],
+            True,
+            None,
         ),
         "ProjectedBaryonInertiaTensor": (
             "ProjectedBaryonInertiaTensor",
@@ -1342,6 +1513,8 @@ class PropertyTable:
                 "PartType4/Coordinates",
                 "PartType4/Masses",
             ],
+            True,
+            2,
         ),
         "ReducedProjectedBaryonInertiaTensor": (
             "ReducedProjectedBaryonInertiaTensor",
@@ -1358,6 +1531,8 @@ class PropertyTable:
                 "PartType4/Coordinates",
                 "PartType4/Masses",
             ],
+            True,
+            0,
         ),
         "ProjectedGasInertiaTensor": (
             "ProjectedGasInertiaTensor",
@@ -1369,6 +1544,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Coordinates", "PartType0/Masses"],
+            True,
+            2,
         ),
         "ReducedProjectedGasInertiaTensor": (
             "ReducedProjectedGasInertiaTensor",
@@ -1380,6 +1557,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Coordinates", "PartType0/Masses"],
+            True,
+            0,
         ),
         "ProjectedStellarInertiaTensor": (
             "ProjectedStellarInertiaTensor",
@@ -1391,6 +1570,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/Coordinates", "PartType4/Masses"],
+            True,
+            2,
         ),
         "ReducedProjectedStellarInertiaTensor": (
             "ReducedProjectedStellarInertiaTensor",
@@ -1402,12 +1583,14 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/Coordinates", "PartType4/Masses"],
+            True,
+            0,
         ),
         "R_vmax": (
             "MaximumCircularVelocityRadius",
             1,
             np.float32,
-            "a*snap_length",
+            "snap_length",
             "Radius at which Vmax is reached.",
             "basic",
             "FMantissa9",
@@ -1422,6 +1605,8 @@ class PropertyTable:
                 "PartType5/Coordinates",
                 "PartType5/DynamicalMasses",
             ],
+            False,
+            1,
         ),
         "SFR": (
             "StarFormationRate",
@@ -1433,6 +1618,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/StarFormationRates"],
+            True,
+            None,
         ),
         "StellarInertiaTensor": (
             "StellarInertiaTensor",
@@ -1444,6 +1631,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/Coordinates", "PartType4/Masses"],
+            True,
+            2,
         ),
         "ReducedStellarInertiaTensor": (
             "ReducedStellarInertiaTensor",
@@ -1455,6 +1644,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/Coordinates", "PartType4/Masses"],
+            True,
+            0,
         ),
         "StellarLuminosity": (
             "StellarLuminosity",
@@ -1466,6 +1657,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/Luminosities"],
+            True,
+            None,
         ),
         "Tgas": (
             "GasTemperature",
@@ -1477,6 +1670,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Temperatures"],
+            True,
+            0,
         ),
         "Tgas_no_agn": (
             "GasTemperatureWithoutRecentAGNHeating",
@@ -1488,6 +1683,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Temperatures", "PartType0/LastAGNFeedbackScaleFactors"],
+            True,
+            0,
         ),
         "Tgas_no_cool": (
             "GasTemperatureWithoutCoolGas",
@@ -1499,6 +1696,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Temperatures"],
+            True,
+            0,
         ),
         "Tgas_no_cool_no_agn": (
             "GasTemperatureWithoutCoolGasAndRecentAGNHeating",
@@ -1510,6 +1709,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Temperatures", "PartType0/LastAGNFeedbackScaleFactors"],
+            True,
+            0,
         ),
         "Tgas_cy_weighted": (
             "GasComptonYTemperature",
@@ -1521,6 +1722,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Temperatures", "PartType0/ComptonYParameters"],
+            True,
+            0,
         ),
         "Tgas_cy_weighted_no_agn": (
             "GasComptonYTemperatureWithoutRecentAGNHeating",
@@ -1536,6 +1739,8 @@ class PropertyTable:
                 "PartType0/ComptonYParameters",
                 "PartType0/LastAGNFeedbackScaleFactors",
             ],
+            True,
+            0,
         ),
         "Tgas_cy_weighted_core_excision": (
             "GasComptonYTemperatureCoreExcision",
@@ -1551,6 +1756,8 @@ class PropertyTable:
                 "PartType0/ComptonYParameters",
                 "PartType0/Coordinates",
             ],
+            True,
+            0,
         ),
         "Tgas_cy_weighted_core_excision_no_agn": (
             "GasComptonYTemperatureWithoutRecentAGNHeatingCoreExcision",
@@ -1567,6 +1774,8 @@ class PropertyTable:
                 "PartType0/Coordinates",
                 "PartType0/LastAGNFeedbackScaleFactors",
             ],
+            True,
+            0,
         ),
         "Tgas_core_excision": (
             "GasTemperatureCoreExcision",
@@ -1578,6 +1787,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Temperatures", "PartType0/Masses", "PartType0/Coordinates"],
+            True,
+            0,
         ),
         "Tgas_no_cool_core_excision": (
             "GasTemperatureWithoutCoolGasCoreExcision",
@@ -1589,6 +1800,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Temperatures", "PartType0/Masses", "PartType0/Coordinates"],
+            True,
+            0,
         ),
         "Tgas_no_agn_core_excision": (
             "GasTemperatureWithoutRecentAGNHeatingCoreExcision",
@@ -1605,6 +1818,8 @@ class PropertyTable:
                 "PartType0/Coordinates",
                 "PartType0/LastAGNFeedbackScaleFactors",
             ],
+            True,
+            0,
         ),
         "Tgas_no_cool_no_agn_core_excision": (
             "GasTemperatureWithoutCoolGasAndRecentAGNHeatingCoreExcision",
@@ -1621,6 +1836,8 @@ class PropertyTable:
                 "PartType0/Coordinates",
                 "PartType0/LastAGNFeedbackScaleFactors",
             ],
+            True,
+            0,
         ),
         "TotalInertiaTensor": (
             "TotalInertiaTensor",
@@ -1641,6 +1858,8 @@ class PropertyTable:
                 "PartType5/Coordinates",
                 "PartType5/DynamicalMasses",
             ],
+            True,
+            2,
         ),
         "TotalSNIaRate": (
             "TotalSNIaRate",
@@ -1652,6 +1871,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/SNIaRates"],
+            True,
+            None,
         ),
         "ReducedTotalInertiaTensor": (
             "ReducedTotalInertiaTensor",
@@ -1672,6 +1893,8 @@ class PropertyTable:
                 "PartType5/Coordinates",
                 "PartType5/DynamicalMasses",
             ],
+            True,
+            0,
         ),
         "Vmax": (
             "MaximumCircularVelocity",
@@ -1692,6 +1915,8 @@ class PropertyTable:
                 "PartType5/Coordinates",
                 "PartType5/DynamicalMasses",
             ],
+            True,
+            0,
         ),
         "Vmax_soft": (
             "MaximumCircularVelocitySoft",
@@ -1712,6 +1937,8 @@ class PropertyTable:
                 "PartType5/Coordinates",
                 "PartType5/DynamicalMasses",
             ],
+            True,
+            0,
         ),
         "DM_Vmax": (
             "MaximumDarkMatterCircularVelocity",
@@ -1726,6 +1953,8 @@ class PropertyTable:
                 "PartType1/Coordinates",
                 "PartType1/Masses",
             ],
+            True,
+            0,
         ),
         "Xraylum": (
             "XRayLuminosity",
@@ -1737,6 +1966,8 @@ class PropertyTable:
             "DMantissa9",
             False,
             ["PartType0/XrayLuminosities"],
+            True,
+            None,
         ),
         "Xraylum_restframe": (
             "XRayLuminosityInRestframe",
@@ -1756,6 +1987,8 @@ class PropertyTable:
                 "PartType0/Temperatures",
                 "PartType0/ElementMassFractions",
             ],
+            True,
+            0,
         ),
         "Xraylum_no_agn": (
             "XRayLuminosityWithoutRecentAGNHeating",
@@ -1771,6 +2004,8 @@ class PropertyTable:
                 "PartType0/LastAGNFeedbackScaleFactors",
                 "PartType0/Temperatures",
             ],
+            True,
+            None,
         ),
         "Xraylum_restframe_no_agn": (
             "XRayLuminosityInRestframeWithoutRecentAGNHeating",
@@ -1789,6 +2024,8 @@ class PropertyTable:
                 "PartType0/LastAGNFeedbackScaleFactors",
                 "PartType0/Temperatures",
             ],
+            True,
+            0,
         ),
         "Xraylum_core_excision": (
             "XRayLuminosityCoreExcision",
@@ -1800,6 +2037,8 @@ class PropertyTable:
             "DMantissa9",
             False,
             ["PartType0/XrayLuminosities", "PartType0/Coordinates"],
+            True,
+            None,
         ),
         "Xraylum_restframe_core_excision": (
             "XRayLuminosityInRestframeCoreExcision",
@@ -1816,6 +2055,8 @@ class PropertyTable:
                 "PartType0/ElementMassFractions",
                 "PartType0/Coordinates",
             ],
+            True,
+            0,
         ),
         "Xraylum_no_agn_core_excision": (
             "XRayLuminosityWithoutRecentAGNHeatingCoreExcision",
@@ -1832,6 +2073,8 @@ class PropertyTable:
                 "PartType0/Temperatures",
                 "PartType0/Coordinates",
             ],
+            True,
+            None,
         ),
         "Xraylum_restframe_no_agn_core_excision": (
             "XRayLuminosityInRestframeWithoutRecentAGNHeatingCoreExcision",
@@ -1849,6 +2092,8 @@ class PropertyTable:
                 "PartType0/LastAGNFeedbackScaleFactors",
                 "PartType0/Coordinates",
             ],
+            True,
+            0,
         ),
         "Xrayphlum": (
             "XRayPhotonLuminosity",
@@ -1860,6 +2105,8 @@ class PropertyTable:
             "DMantissa9",
             False,
             ["PartType0/XrayPhotonLuminosities"],
+            True,
+            None,
         ),
         "Xrayphlum_restframe": (
             "XRayPhotonLuminosityInRestframe",
@@ -1876,6 +2123,8 @@ class PropertyTable:
                 "PartType0/Temperatures",
                 "PartType0/ElementMassFractions",
             ],
+            True,
+            0,
         ),
         "Xrayphlum_no_agn": (
             "XRayPhotonLuminosityWithoutRecentAGNHeating",
@@ -1891,6 +2140,8 @@ class PropertyTable:
                 "PartType0/LastAGNFeedbackScaleFactors",
                 "PartType0/Temperatures",
             ],
+            True,
+            None,
         ),
         "Xrayphlum_restframe_no_agn": (
             "XRayPhotonLuminosityInRestframeWithoutRecentAGNHeating",
@@ -1908,6 +2159,8 @@ class PropertyTable:
                 "PartType0/ElementMassFractions",
                 "PartType0/LastAGNFeedbackScaleFactors",
             ],
+            True,
+            0,
         ),
         "Xrayphlum_core_excision": (
             "XRayPhotonLuminosityCoreExcision",
@@ -1924,6 +2177,8 @@ class PropertyTable:
                 "PartType0/Temperatures",
                 "PartType0/Coordinates",
             ],
+            True,
+            None,
         ),
         "Xrayphlum_restframe_core_excision": (
             "XRayPhotonLuminosityInRestframeCoreExcision",
@@ -1940,6 +2195,8 @@ class PropertyTable:
                 "PartType0/ElementMassFractions",
                 "PartType0/Coordinates",
             ],
+            True,
+            0,
         ),
         "Xrayphlum_no_agn_core_excision": (
             "XRayPhotonLuminosityWithoutRecentAGNHeatingCoreExcision",
@@ -1956,6 +2213,8 @@ class PropertyTable:
                 "PartType0/LastAGNFeedbackScaleFactors",
                 "PartType0/Coordinates",
             ],
+            True,
+            None,
         ),
         "Xrayphlum_restframe_no_agn_core_excision": (
             "XRayPhotonLuminosityInRestframeWithoutRecentAGNHeatingCoreExcision",
@@ -1973,6 +2232,8 @@ class PropertyTable:
                 "PartType0/LastAGNFeedbackScaleFactors",
                 "PartType0/Coordinates",
             ],
+            True,
+            0,
         ),
         "SpectroscopicLikeTemperature": (
             "SpectroscopicLikeTemperature",
@@ -1984,6 +2245,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Temperatures", "PartType0/Densities", "PartType0/Masses"],
+            True,
+            0,
         ),
         "SpectroscopicLikeTemperature_no_agn": (
             "SpectroscopicLikeTemperatureWithoutRecentAGNHeating",
@@ -2000,6 +2263,8 @@ class PropertyTable:
                 "PartType0/LastAGNFeedbackScaleFactors",
                 "PartType0/Masses",
             ],
+            True,
+            0,
         ),
         "SpectroscopicLikeTemperature_core_excision": (
             "SpectroscopicLikeTemperatureCoreExcision",
@@ -2017,6 +2282,8 @@ class PropertyTable:
                 "PartType0/Masses",
                 "PartType0/Coordinates",
             ],
+            True,
+            0,
         ),
         "SpectroscopicLikeTemperature_no_agn_core_excision": (
             "SpectroscopicLikeTemperatureWithoutRecentAGNHeatingCoreExcision",
@@ -2035,6 +2302,8 @@ class PropertyTable:
                 "PartType0/Coordinates",
                 "PartType0/LastAGNFeedbackScaleFactors",
             ],
+            True,
+            0,
         ),
         "concentration": (
             "Concentration",
@@ -2055,6 +2324,8 @@ class PropertyTable:
                 "PartType5/Coordinates",
                 "PartType5/DynamicalMasses",
             ],
+            True,
+            0,
         ),
         "concentration_soft": (
             "ConcentrationSoft",
@@ -2075,6 +2346,8 @@ class PropertyTable:
                 "PartType5/Coordinates",
                 "PartType5/DynamicalMasses",
             ],
+            True,
+            0,
         ),
         "concentration_dmo": (
             "DarkMatterConcentration",
@@ -2089,6 +2362,8 @@ class PropertyTable:
                 "PartType1/Coordinates",
                 "PartType1/Masses",
             ],
+            True,
+            0,
         ),
         "concentration_dmo_soft": (
             "DarkMatterConcentrationSoft",
@@ -2103,12 +2378,14 @@ class PropertyTable:
                 "PartType1/Coordinates",
                 "PartType1/Masses",
             ],
+            True,
+            0,
         ),
         "com": (
             "CentreOfMass",
             3,
             np.float64,
-            "a*snap_length",
+            "snap_length",
             "Centre of mass.",
             "basic",
             "DScale5",
@@ -2123,28 +2400,34 @@ class PropertyTable:
                 "PartType5/Coordinates",
                 "PartType5/DynamicalMasses",
             ],
+            False,
+            1,
         ),
         "com_gas": (
             "GasCentreOfMass",
             3,
             np.float64,
-            "a*snap_length",
+            "snap_length",
             "Centre of mass of gas.",
             "gas",
             "DScale5",
             False,
             ["PartType0/Coordinates", "PartType0/Masses"],
+            False,
+            1,
         ),
         "com_star": (
             "StellarCentreOfMass",
             3,
             np.float64,
-            "a*snap_length",
+            "snap_length",
             "Centre of mass of stars.",
             "star",
             "DScale5",
             False,
             ["PartType4/Coordinates", "PartType4/Masses"],
+            False,
+            1,
         ),
         "compY": (
             "ComptonY",
@@ -2156,6 +2439,8 @@ class PropertyTable:
             "DMantissa9",
             False,
             ["PartType0/ComptonYParameters"],
+            True,
+            0,
         ),
         "compY_no_agn": (
             "ComptonYWithoutRecentAGNHeating",
@@ -2171,6 +2456,8 @@ class PropertyTable:
                 "PartType0/LastAGNFeedbackScaleFactors",
                 "PartType0/Temperatures",
             ],
+            True,
+            0,
         ),
         "gasFefrac": (
             "GasMassFractionInIron",
@@ -2182,6 +2469,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Masses", "PartType0/ElementMassFractions"],
+            True,
+            0,
         ),
         "gasFefrac_SF": (
             "StarFormingGasMassFractionInIron",
@@ -2197,6 +2486,8 @@ class PropertyTable:
                 "PartType0/ElementMassFractions",
                 "PartType0/StarFormationRates",
             ],
+            True,
+            0,
         ),
         "gasOfrac": (
             "GasMassFractionInOxygen",
@@ -2208,6 +2499,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Masses", "PartType0/ElementMassFractions"],
+            True,
+            0,
         ),
         "gasOfrac_SF": (
             "StarFormingGasMassFractionInOxygen",
@@ -2223,6 +2516,8 @@ class PropertyTable:
                 "PartType0/ElementMassFractions",
                 "PartType0/StarFormationRates",
             ],
+            True,
+            0,
         ),
         "gasmetalfrac": (
             "GasMassFractionInMetals",
@@ -2234,6 +2529,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Masses", "PartType0/MetalMassFractions"],
+            True,
+            0,
         ),
         "gasmetalfrac_SF": (
             "StarFormingGasMassFractionInMetals",
@@ -2249,6 +2546,8 @@ class PropertyTable:
                 "PartType0/MetalMassFractions",
                 "PartType0/StarFormationRates",
             ],
+            True,
+            0,
         ),
         "kappa_corot_baryons": (
             "KappaCorotBaryons",
@@ -2267,6 +2566,8 @@ class PropertyTable:
                 "PartType4/Masses",
                 "PartType4/Velocities",
             ],
+            True,
+            0,
         ),
         "kappa_corot_gas": (
             "KappaCorotGas",
@@ -2278,6 +2579,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Coordinates", "PartType0/Masses", "PartType0/Velocities"],
+            True,
+            0,
         ),
         "kappa_corot_star": (
             "KappaCorotStars",
@@ -2289,6 +2592,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/Coordinates", "PartType4/Masses", "PartType4/Velocities"],
+            True,
+            0,
         ),
         "proj_veldisp_dm": (
             "DarkMatterProjectedVelocityDispersion",
@@ -2300,6 +2605,8 @@ class PropertyTable:
             "FMantissa9",
             True,
             ["PartType1/Velocities"],
+            True,
+            1,
         ),
         "proj_veldisp_gas": (
             "GasProjectedVelocityDispersion",
@@ -2311,6 +2618,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Velocities"],
+            True,
+            1,
         ),
         "proj_veldisp_star": (
             "StellarProjectedVelocityDispersion",
@@ -2322,12 +2631,14 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/Velocities"],
+            True,
+            1,
         ),
         "r": (
             "SORadius",
             1,
             np.float32,
-            "a*snap_length",
+            "snap_length",
             "Radius of a sphere {label}",
             "basic",
             "FMantissa9",
@@ -2345,6 +2656,8 @@ class PropertyTable:
                 "PartType6/Masses",
                 "PartType6/Weights",
             ],
+            False,
+            1,
         ),
         "spin_parameter": (
             "SpinParameter",
@@ -2369,6 +2682,8 @@ class PropertyTable:
                 "PartType5/DynamicalMasses",
                 "PartType5/Velocities",
             ],
+            True,
+            0,
         ),
         "starFefrac": (
             "StellarMassFractionInIron",
@@ -2380,6 +2695,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/Masses", "PartType4/ElementMassFractions"],
+            True,
+            0,
         ),
         "starMgfrac": (
             "StellarMassFractionInMagnesium",
@@ -2391,6 +2708,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/Masses", "PartType4/ElementMassFractions"],
+            True,
+            0,
         ),
         "starOfrac": (
             "StellarMassFractionInOxygen",
@@ -2402,6 +2721,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/Masses", "PartType4/ElementMassFractions"],
+            True,
+            0,
         ),
         "starmetalfrac": (
             "StellarMassFractionInMetals",
@@ -2413,6 +2734,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/Masses", "PartType4/MetalMassFractions"],
+            True,
+            0,
         ),
         "stellar_age_lw": (
             "LuminosityWeightedMeanStellarAge",
@@ -2424,6 +2747,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/Luminosities", "PartType4/BirthScaleFactors"],
+            True,
+            None,
         ),
         "stellar_age_mw": (
             "MassWeightedMeanStellarAge",
@@ -2435,6 +2760,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/Masses", "PartType4/BirthScaleFactors"],
+            True,
+            None,
         ),
         "vcom": (
             "CentreOfMassVelocity",
@@ -2455,6 +2782,8 @@ class PropertyTable:
                 "PartType5/DynamicalMasses",
                 "PartType5/Velocities",
             ],
+            False,
+            1,
         ),
         "vcom_gas": (
             "GasCentreOfMassVelocity",
@@ -2466,6 +2795,8 @@ class PropertyTable:
             "DScale1",
             False,
             ["PartType0/Masses", "PartType0/Velocities"],
+            False,
+            1,
         ),
         "vcom_star": (
             "StellarCentreOfMassVelocity",
@@ -2477,6 +2808,8 @@ class PropertyTable:
             "DScale1",
             False,
             ["PartType4/Masses", "PartType4/Velocities"],
+            False,
+            1,
         ),
         "veldisp_matrix_dm": (
             "DarkMatterVelocityDispersionMatrix",
@@ -2488,6 +2821,8 @@ class PropertyTable:
             "FMantissa9",
             True,
             ["PartType1/Masses", "PartType1/Velocities"],
+            True,
+            2,
         ),
         "veldisp_matrix_gas": (
             "GasVelocityDispersionMatrix",
@@ -2499,6 +2834,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType0/Masses", "PartType0/Velocities"],
+            True,
+            2,
         ),
         "veldisp_matrix_star": (
             "StellarVelocityDispersionMatrix",
@@ -2510,6 +2847,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/Masses", "PartType4/Velocities"],
+            True,
+            2,
         ),
         "LinearMassWeightedOxygenOverHydrogenOfGas": (
             "LinearMassWeightedOxygenOverHydrogenOfGas",
@@ -2526,6 +2865,8 @@ class PropertyTable:
                 "PartType0/Temperatures",
                 "PartType0/Densities",
             ],
+            True,
+            0,
         ),
         "LinearMassWeightedNitrogenOverOxygenOfGas": (
             "LinearMassWeightedNitrogenOverOxygenOfGas",
@@ -2542,6 +2883,8 @@ class PropertyTable:
                 "PartType0/Temperatures",
                 "PartType0/Densities",
             ],
+            True,
+            0,
         ),
         "LinearMassWeightedCarbonOverOxygenOfGas": (
             "LinearMassWeightedCarbonOverOxygenOfGas",
@@ -2558,6 +2901,8 @@ class PropertyTable:
                 "PartType0/Temperatures",
                 "PartType0/Densities",
             ],
+            True,
+            0,
         ),
         "LinearMassWeightedDiffuseNitrogenOverOxygenOfGas": (
             "LinearMassWeightedDiffuseNitrogenOverOxygenOfGas",
@@ -2574,6 +2919,8 @@ class PropertyTable:
                 "PartType0/Temperatures",
                 "PartType0/Densities",
             ],
+            True,
+            0,
         ),
         "LinearMassWeightedDiffuseCarbonOverOxygenOfGas": (
             "LinearMassWeightedDiffuseCarbonOverOxygenOfGas",
@@ -2590,6 +2937,8 @@ class PropertyTable:
                 "PartType0/Temperatures",
                 "PartType0/Densities",
             ],
+            True,
+            0,
         ),
         "LinearMassWeightedDiffuseOxygenOverHydrogenOfGas": (
             "LinearMassWeightedDiffuseOxygenOverHydrogenOfGas",
@@ -2606,6 +2955,8 @@ class PropertyTable:
                 "PartType0/Temperatures",
                 "PartType0/Densities",
             ],
+            True,
+            0,
         ),
         "LogarithmicMassWeightedDiffuseNitrogenOverOxygenOfGasLowLimit": (
             "LogarithmicMassWeightedDiffuseNitrogenOverOxygenOfGasLowLimit",
@@ -2622,6 +2973,8 @@ class PropertyTable:
                 "PartType0/Temperatures",
                 "PartType0/Densities",
             ],
+            True,
+            0,
         ),
         "LogarithmicMassWeightedDiffuseNitrogenOverOxygenOfGasHighLimit": (
             "LogarithmicMassWeightedDiffuseNitrogenOverOxygenOfGasHighLimit",
@@ -2638,6 +2991,8 @@ class PropertyTable:
                 "PartType0/Temperatures",
                 "PartType0/Densities",
             ],
+            True,
+            0,
         ),
         "LogarithmicMassWeightedDiffuseCarbonOverOxygenOfGasLowLimit": (
             "LogarithmicMassWeightedDiffuseCarbonOverOxygenOfGasLowLimit",
@@ -2654,6 +3009,8 @@ class PropertyTable:
                 "PartType0/Temperatures",
                 "PartType0/Densities",
             ],
+            True,
+            0,
         ),
         "LogarithmicMassWeightedDiffuseCarbonOverOxygenOfGasHighLimit": (
             "LogarithmicMassWeightedDiffuseCarbonOverOxygenOfGasHighLimit",
@@ -2670,6 +3027,8 @@ class PropertyTable:
                 "PartType0/Temperatures",
                 "PartType0/Densities",
             ],
+            True,
+            0,
         ),
         "LogarithmicMassWeightedDiffuseOxygenOverHydrogenOfGasLowLimit": (
             "LogarithmicMassWeightedDiffuseOxygenOverHydrogenOfGasLowLimit",
@@ -2686,6 +3045,8 @@ class PropertyTable:
                 "PartType0/Temperatures",
                 "PartType0/Densities",
             ],
+            True,
+            0,
         ),
         "LogarithmicMassWeightedDiffuseOxygenOverHydrogenOfGasHighLimit": (
             "LogarithmicMassWeightedDiffuseOxygenOverHydrogenOfGasHighLimit",
@@ -2702,6 +3063,8 @@ class PropertyTable:
                 "PartType0/Temperatures",
                 "PartType0/Densities",
             ],
+            True,
+            0,
         ),
         "LogarithmicMassWeightedDiffuseOxygenOverHydrogenOfAtomicGasLowLimit": (
             "LogarithmicMassWeightedDiffuseOxygenOverHydrogenOfAtomicGasLowLimit",
@@ -2720,6 +3083,8 @@ class PropertyTable:
                 "PartType0/Temperatures",
                 "PartType0/Densities",
             ],
+            True,
+            0,
         ),
         "LogarithmicMassWeightedDiffuseOxygenOverHydrogenOfAtomicGasHighLimit": (
             "LogarithmicMassWeightedDiffuseOxygenOverHydrogenOfAtomicGasHighLimit",
@@ -2738,6 +3103,8 @@ class PropertyTable:
                 "PartType0/Temperatures",
                 "PartType0/Densities",
             ],
+            True,
+            0,
         ),
         "LogarithmicMassWeightedDiffuseOxygenOverHydrogenOfMolecularGasLowLimit": (
             "LogarithmicMassWeightedDiffuseOxygenOverHydrogenOfMolecularGasLowLimit",
@@ -2756,6 +3123,8 @@ class PropertyTable:
                 "PartType0/Temperatures",
                 "PartType0/Densities",
             ],
+            True,
+            0,
         ),
         "LogarithmicMassWeightedDiffuseOxygenOverHydrogenOfMolecularGasHighLimit": (
             "LogarithmicMassWeightedDiffuseOxygenOverHydrogenOfMolecularGasHighLimit",
@@ -2774,6 +3143,8 @@ class PropertyTable:
                 "PartType0/Temperatures",
                 "PartType0/Densities",
             ],
+            True,
+            0,
         ),
         "LinearMassWeightedIronOverHydrogenOfStars": (
             "LinearMassWeightedIronOverHydrogenOfStars",
@@ -2785,6 +3156,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/Masses", "PartType4/ElementMassFractions"],
+            True,
+            0,
         ),
         "LogarithmicMassWeightedIronOverHydrogenOfStarsLowLimit": (
             "LogarithmicMassWeightedIronOverHydrogenOfStarsLowLimit",
@@ -2796,6 +3169,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/Masses", "PartType4/ElementMassFractions"],
+            True,
+            0,
         ),
         "LogarithmicMassWeightedIronOverHydrogenOfStarsHighLimit": (
             "LogarithmicMassWeightedIronOverHydrogenOfStarsHighLimit",
@@ -2807,6 +3182,8 @@ class PropertyTable:
             "FMantissa9",
             False,
             ["PartType4/Masses", "PartType4/ElementMassFractions"],
+            True,
+            0,
         ),
         "GasMassInColdDenseDiffuseMetals": (
             "GasMassInColdDenseDiffuseMetals",
@@ -2824,6 +3201,8 @@ class PropertyTable:
                 "PartType0/Temperatures",
                 "PartType0/Densities",
             ],
+            True,
+            0,
         ),
         "LogarithmicMassWeightedIronFromSNIaOverHydrogenOfStarsLowLimit": (
             "LogarithmicMassWeightedIronFromSNIaOverHydrogenOfStarsLowLimit",
@@ -2839,6 +3218,8 @@ class PropertyTable:
                 "PartType4/ElementMassFractions",
                 "PartType4/IronMassFractionsFromSNIa",
             ],
+            True,
+            0,
         ),
         "LinearMassWeightedIronFromSNIaOverHydrogenOfStars": (
             "LinearMassWeightedIronFromSNIaOverHydrogenOfStars",
@@ -2854,18 +3235,22 @@ class PropertyTable:
                 "PartType4/ElementMassFractions",
                 "PartType4/IronMassFractionsFromSNIa",
             ],
+            True,
+            0,
         ),
         # InputHalo properties
         "cofp": (
             "HaloCentre",
             3,
             np.float64,
-            "a*snap_length",
+            "snap_length",
             "The centre of the subhalo as given by the halo finder. Used as reference for all relative positions. For VR and HBTplus this is equal to the position of the most bound particle in the subhalo.",
             "Input",
             "DScale5",
             True,
             [],
+            False,
+            1,
         ),
         "index": (
             "HaloCatalogueIndex",
@@ -2877,6 +3262,8 @@ class PropertyTable:
             "None",
             True,
             [],
+            True,
+            None,
         ),
         "is_central": (
             "IsCentral",
@@ -2888,6 +3275,8 @@ class PropertyTable:
             "None",
             True,
             [],
+            True,
+            None,
         ),
         "nr_bound_part": (
             "NumberOfBoundParticles",
@@ -2899,6 +3288,8 @@ class PropertyTable:
             "None",
             True,
             [],
+            True,
+            None,
         ),
         # Velociraptor properties
         "VR/ID": (
@@ -2911,6 +3302,8 @@ class PropertyTable:
             "None",
             True,
             [],
+            True,
+            None,
         ),
         "VR/Parent_halo_ID": (
             "ParentHaloID",
@@ -2922,6 +3315,8 @@ class PropertyTable:
             "None",
             True,
             [],
+            True,
+            None,
         ),
         "VR/Structuretype": (
             "StructureType",
@@ -2933,6 +3328,8 @@ class PropertyTable:
             "None",
             True,
             [],
+            True,
+            None,
         ),
         "VR/hostHaloID": (
             "HostHaloID",
@@ -2944,6 +3341,8 @@ class PropertyTable:
             "None",
             True,
             [],
+            True,
+            None,
         ),
         "VR/numSubStruct": (
             "NumberOfSubstructures",
@@ -2955,6 +3354,8 @@ class PropertyTable:
             "None",
             True,
             [],
+            True,
+            None,
         ),
         # HBT properties
         "HBTplus/Depth": (
@@ -2967,6 +3368,8 @@ class PropertyTable:
             "None",
             True,
             [],
+            True,
+            None,
         ),
         "HBTplus/HostHaloId": (
             "HostFOFId",
@@ -2978,6 +3381,8 @@ class PropertyTable:
             "None",
             True,
             [],
+            True,
+            None,
         ),
         "HBTplus/TrackId": (
             "TrackId",
@@ -2989,6 +3394,8 @@ class PropertyTable:
             "None",
             True,
             [],
+            True,
+            None,
         ),
         "HBTplus/SnapshotIndexOfBirth": (
             "SnapshotIndexOfBirth",
@@ -3000,6 +3407,8 @@ class PropertyTable:
             "None",
             True,
             [],
+            True,
+            None,
         ),
         "HBTplus/NestedParentTrackId": (
             "NestedParentTrackId",
@@ -3011,6 +3420,8 @@ class PropertyTable:
             "None",
             True,
             [],
+            True,
+            None,
         ),
         "HBTplus/DescendantTrackId": (
             "DescendantTrackId",
@@ -3022,6 +3433,8 @@ class PropertyTable:
             "None",
             True,
             [],
+            True,
+            None,
         ),
         "HBTplus/LastMaxMass": (
             "LastMaxMass",
@@ -3033,6 +3446,8 @@ class PropertyTable:
             "FMantissa9",
             True,
             [],
+            True,
+            0,
         ),
         "HBTplus/SnapshotIndexOfLastMaxMass": (
             "SnapshotIndexOfLastMaxMass",
@@ -3044,6 +3459,8 @@ class PropertyTable:
             "None",
             True,
             [],
+            True,
+            None,
         ),
         "HBTplus/LastMaxVmaxPhysical": (
             "LastMaxVmaxPhysical",
@@ -3055,6 +3472,8 @@ class PropertyTable:
             "FMantissa9",
             True,
             [],
+            True,
+            None,
         ),
         "HBTplus/SnapshotIndexOfLastMaxVmax": (
             "SnapshotIndexOfLastMaxVmax",
@@ -3066,18 +3485,22 @@ class PropertyTable:
             "None",
             True,
             [],
+            True,
+            None,
         ),
         # FOF properties
         "FOF/Centres": (
             "Centres",
             3,
             np.float64,
-            "a*snap_length",
+            "snap_length",
             "Centre of mass of the host FOF halo of this subhalo. Zero for satellite and hostless subhalos.",
             "FOF",
             "DScale5",
             True,
             [],
+            False,
+            1,
         ),
         "FOF/Masses": (
             "Masses",
@@ -3089,6 +3512,8 @@ class PropertyTable:
             "FMantissa9",
             True,
             [],
+            True,
+            0,
         ),
         "FOF/Sizes": (
             "Sizes",
@@ -3100,6 +3525,8 @@ class PropertyTable:
             "None",
             True,
             [],
+            True,
+            None,
         ),
         # SOAP properties
         "SubhaloRankByBoundMass": (
@@ -3112,6 +3539,8 @@ class PropertyTable:
             "None",
             True,
             [],
+            True,
+            None,
         ),
         "HostHaloIndex": (
             "HostHaloIndex",
@@ -3123,6 +3552,8 @@ class PropertyTable:
             "None",
             True,
             [],
+            True,
+            None,
         ),
     }
 
@@ -3184,6 +3615,8 @@ class PropertyTable:
                 prop_comp,
                 prop_dmo,
                 prop_partprops,
+                prop_physical,
+                prop_a_exponent,
             ),
         ) in enumerate(props):
             # Don't include property if it's set to false in parameter file
@@ -3200,8 +3633,11 @@ class PropertyTable:
             except KeyError:
                 pass
 
+            units = unyt.unyt_quantity(1, units=prop_units)
+            if not prop_physical:
+                units = units * unyt.Unit('a') ** prop_a_exponent
             prop_units = (
-                unyt.unyt_quantity(1, units=prop_units)
+                units
                 .units.latex_repr.replace(
                     "\\rm{km} \\cdot \\rm{kpc}", "\\rm{kpc} \\cdot \\rm{km}"
                 )

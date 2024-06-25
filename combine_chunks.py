@@ -86,7 +86,9 @@ def combine_chunks(
         dtype = props[2]
         unit = cellgrid.get_unit(props[3])
         description = props[4]
-        soap_metadata.append((name, size, unit, dtype, description))
+        physical = props[9]
+        a_exponent = props[10]
+        soap_metadata.append((name, size, unit, dtype, description, physical, a_exponent))
 
     # Add metadata for FOF properties
     fof_metadata = []
@@ -104,7 +106,9 @@ def combine_chunks(
             dtype = props[2]
             unit = cellgrid.get_unit(props[3])
             description = props[4]
-            fof_metadata.append((name, size, unit, dtype, description))
+            physical = props[9]
+            a_exponent = props[10]
+            fof_metadata.append((name, size, unit, dtype, description, physical, a_exponent))
 
     # First MPI rank sets up the output file
     with MPITimer("Creating output file", comm_world):
@@ -196,7 +200,8 @@ def combine_chunks(
             cells.create_dataset('OffsetsInFile/Subhalos', data=cell_offsets)
 
             # Create datasets for all halo properties
-            for name, size, unit, dtype, description in ref_metadata + soap_metadata + fof_metadata:
+            for metadata in ref_metadata + soap_metadata + fof_metadata:
+                name, size, unit, dtype, description, physical, a_exponent = metadata
                 if description == 'No description available':
                     print(f'{name} not found in property table')
                 shape = (total_nr_halos,) + size
@@ -204,7 +209,7 @@ def combine_chunks(
                     name, shape=shape, dtype=dtype, fillvalue=None
                 )
                 # Add units and description
-                attrs = swift_units.attributes_from_units(unit)
+                attrs = swift_units.attributes_from_units(unit, physical, a_exponent)
                 attrs["Description"] = description
                 mask_metadata = category_filter.get_filter_metadata(name)
                 attrs.update(mask_metadata)
@@ -215,8 +220,10 @@ def combine_chunks(
 
             # Save the names of the groups containing the data
             subhalo_types = set()
-            for name, size, unit, dtype, description in ref_metadata + soap_metadata + fof_metadata:
-                subhalo_types.add('/'.join(name.split('/')[:-1]))
+            for metadata in ref_metadata + soap_metadata + fof_metadata:
+                # Remove property name from full hdf5 path
+                group_name = '/'.join(metadata[0].split('/')[:-1])
+                subhalo_types.add(group_name)
             header.attrs['SubhaloTypes'] = list(subhalo_types)
             outfile.close()
     comm_world.barrier()
@@ -249,7 +256,7 @@ def combine_chunks(
             i2 = min(i1 + props_per_iteration, total_nr_props)
 
             # Find the properties to reorder on this iteration
-            names, sizes, units, dtypes, descriptions = zip(*ref_metadata[i1:i2])
+            names = [metadata[0] for metadata in ref_metadata[i1:i2]]
 
             # Read in and reorder the properties
             data = scratch_file.read(names)
@@ -262,7 +269,7 @@ def combine_chunks(
                     props_kept[name] = data[name]
 
             # Write these properties to the output file
-            for name, size, unit, description in zip(names, sizes, units, descriptions):
+            for name in names:
                 phdf5.collective_write(
                     outfile, name, data[name], create_dataset=False, comm=comm_world
                 )
@@ -275,8 +282,8 @@ def combine_chunks(
         if comm_world.Get_rank() == 0:
             with h5py.File(args.fof_group_filename.format(file_nr=0, snap_nr= args.snapshot_nr), "r") as fof_file:
                 fof_reg = swift_units.unit_registry_from_snapshot(fof_file)
-                fof_com_unit = swift_units.units_from_attributes(fof_file['Groups/Centres'].attrs, fof_reg)
-                fof_mass_unit = swift_units.units_from_attributes(fof_file['Groups/Masses'].attrs, fof_reg)
+                fof_com_unit = swift_units.units_from_attributes(dict(fof_file['Groups/Centres'].attrs), fof_reg)
+                fof_mass_unit = swift_units.units_from_attributes(dict(fof_file['Groups/Masses'].attrs), fof_reg)
         else:
             fof_reg = None
             fof_com_unit = None
