@@ -88,6 +88,8 @@ def combine_chunks(
         description = props[4]
         physical = props[9]
         a_exponent = props[10]
+        if not physical:
+            unit = unit * cellgrid.get_unit('a') ** a_exponent
         soap_metadata.append((name, size, unit, dtype, description, physical, a_exponent))
 
     # Add metadata for FOF properties
@@ -108,6 +110,8 @@ def combine_chunks(
             description = props[4]
             physical = props[9]
             a_exponent = props[10]
+            if not physical:
+                unit = unit * cellgrid.get_unit('a') ** a_exponent
             fof_metadata.append((name, size, unit, dtype, description, physical, a_exponent))
 
     # First MPI rank sets up the output file
