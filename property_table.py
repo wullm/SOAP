@@ -3430,7 +3430,7 @@ Name & Shape & Type & Units & SH & ES & IS & EP & SO & Category & Compression\\\
         # Create table of variations of each halo type, always add BoundSubhalo
         tablestr = """\\begin{longtable}{llcl}
  & Name & Inclusive? & Filter \\\\
- \\hline{}SH & \\verb+BoundSubhalo+ & \ding{53} & - \\\\*\n"""
+ \\hline{}SH & \\verb+BoundSubhalo+ & \\ding{53} & - \\\\*\n"""
 
         # Add SO apertures to table
         apertures = parameters.get('SOProperties', {})

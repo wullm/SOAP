@@ -3267,6 +3267,7 @@ def test_aperture_properties():
     are present, and have the right units, size and dtype
     """
 
+    import pytest
     from dummy_halo_generator import DummyHaloGenerator
 
     # initialise the DummyHaloGenerator with a random seed
@@ -3470,7 +3471,6 @@ if __name__ == "__main__":
 
     Note that this can also be achieved by running "pytest *.py" in the folder.
     """
-    import pytest
 
     print("Running test_aperture_properties()...")
     test_aperture_properties()

@@ -1347,6 +1347,7 @@ def test_projected_aperture_properties():
     dtype and units.
     """
 
+    import pytest
     from dummy_halo_generator import DummyHaloGenerator
 
     dummy_halos = DummyHaloGenerator(127)
@@ -1500,7 +1501,6 @@ if __name__ == "__main__":
     python3 -m pytest *.py
     in the main folder.
     """
-    import pytest
 
     print("Calling test_projected_aperture_properties()...")
     test_projected_aperture_properties()
