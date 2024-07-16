@@ -1845,13 +1845,17 @@ def test_subhalo_properties():
                 size = prop[2]
                 dtype = prop[3]
                 unit_string = prop[4]
+                physical = prop[10]
+                a_exponent = prop[11]
                 full_name = f"{subhalo_name}/{outputname}"
                 assert full_name in halo_result
                 result = halo_result[full_name][0]
                 assert (len(result.shape) == 0 and size == 1) or result.shape[0] == size
                 assert result.dtype == dtype
                 unit = unyt.Unit(unit_string, registry=dummy_halos.unit_registry)
-                assert result.units.same_dimensions_as(unit.units)
+                if not physical:
+                    unit = unit * unyt.Unit('a', registry=dummy_halos.unit_registry) ** a_exponent
+                assert result.units == unit.units
 
     # Now test the calculation for each property individually, to make sure that
     # all properties read all the datasets they require

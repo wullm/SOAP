@@ -229,6 +229,10 @@ class PropertyTable:
     compression_description = {
         "FMantissa9": "$1.36693{\\rm{}e}10 \\rightarrow{} 1.367{\\rm{}e}10$",
         "DMantissa9": "$1.36693{\\rm{}e}10 \\rightarrow{} 1.367{\\rm{}e}10$",
+        # TODO: This filter was introduced because of a hdf5 check on file integrity
+        # We should switch back to DMantissa9 when possible
+        # See https://docs.hdfgroup.org/hdf5/v1_14/group___f_a_p_l.html#gafa8e677af3200e155e9208522f8e05c0
+        "DMantissa21": "$1.3669381{\\rm{}e}10 \\rightarrow{} 1.366938{\\rm{}e}10$",
         "DScale5": "10 pc accurate",
         "DScale1": "0.1 km/s accurate",
         "Nbit40": "Store less bits",
@@ -813,7 +817,7 @@ class PropertyTable:
             "snap_mass*snap_length**2/snap_time**2",
             "Total kinetic energy of the gas, relative to the gas centre of mass velocity.",
             "gas",
-            "DMantissa9",
+            "DMantissa21",
             False,
             ["PartType0/Masses", "PartType0/Velocities"],
             True,
@@ -826,7 +830,7 @@ class PropertyTable:
             "snap_mass*snap_length**2/snap_time**2",
             "Total kinetic energy of the stars, relative to the stellar centre of mass velocity.",
             "star",
-            "DMantissa9",
+            "DMantissa21",
             False,
             ["PartType4/Masses", "PartType4/Velocities"],
             True,
@@ -839,7 +843,7 @@ class PropertyTable:
             "snap_mass*snap_length**2/snap_time**2",
             "Total thermal energy of the gas.",
             "general",
-            "DMantissa9",
+            "DMantissa21",
             False,
             ["PartType0/Densities", "PartType0/Pressures", "PartType0/Masses"],
             True,
@@ -1106,7 +1110,7 @@ class PropertyTable:
             "snap_temperature/snap_length**3",
             "Median pressure of gas particles that were converted into a star particle.",
             "star",
-            "DMantissa9",
+            "DMantissa21",
             False,
             ["PartType4/BirthTemperatures", "PartType4/BirthDensities"],
             True,
@@ -1158,7 +1162,7 @@ class PropertyTable:
             "snap_temperature/snap_length**3",
             "Maximum pressure of gas that was converted into a star particle.",
             "star",
-            "DMantissa9",
+            "DMantissa21",
             False,
             ["PartType4/BirthTemperatures", "PartType4/BirthDensities"],
             True,
@@ -1340,7 +1344,7 @@ class PropertyTable:
             "snap_temperature/snap_length**3",
             "Minimum pressure of gas that was converted into a star particle.",
             "star",
-            "DMantissa9",
+            "DMantissa21",
             False,
             ["PartType4/BirthTemperatures", "PartType4/BirthDensities"],
             True,
@@ -1963,7 +1967,7 @@ class PropertyTable:
             "snap_mass*snap_length**2/snap_time**3",
             "Total observer-frame Xray luminosity in three bands.",
             "general",
-            "DMantissa9",
+            "DMantissa21",
             False,
             ["PartType0/XrayLuminosities"],
             True,
@@ -1976,7 +1980,7 @@ class PropertyTable:
             "snap_mass*snap_length**2/snap_time**3",
             "Total rest-frame Xray luminosity in three bands.",
             "general",
-            "DMantissa9",
+            "DMantissa21",
             False,
             # Can't include PartType0/XrayLuminositiesRestframe as it is
             # calculated by SOAP. The following properties are required
@@ -1997,7 +2001,7 @@ class PropertyTable:
             "snap_mass*snap_length**2/snap_time**3",
             "Total observer-frame Xray luminosity in three bands. Excludes gas that was recently heated by AGN.",
             "general",
-            "DMantissa9",
+            "DMantissa21",
             False,
             [
                 "PartType0/XrayLuminosities",
@@ -2014,7 +2018,7 @@ class PropertyTable:
             "snap_mass*snap_length**2/snap_time**3",
             "Total rest-frame Xray luminosity in three bands. Excludes gas that was recently heated by AGN.",
             "general",
-            "DMantissa9",
+            "DMantissa21",
             False,
             [
                 "PartType0/XrayLuminosities",
@@ -2034,7 +2038,7 @@ class PropertyTable:
             "snap_mass*snap_length**2/snap_time**3",
             "Total observer-frame Xray luminosity in three bands. Excludes gas in the inner {core_excision}",
             "general",
-            "DMantissa9",
+            "DMantissa21",
             False,
             ["PartType0/XrayLuminosities", "PartType0/Coordinates"],
             True,
@@ -2047,7 +2051,7 @@ class PropertyTable:
             "snap_mass*snap_length**2/snap_time**3",
             "Total rest-frame Xray luminosity in three bands. Excludes gas in the inner {core_excision}",
             "general",
-            "DMantissa9",
+            "DMantissa21",
             False,
             [
                 "PartType0/Densities",
@@ -2065,7 +2069,7 @@ class PropertyTable:
             "snap_mass*snap_length**2/snap_time**3",
             "Total observer-frame Xray luminosity in three bands. Excludes gas that was recently heated by AGN. Excludes gas in the inner {core_excision}",
             "general",
-            "DMantissa9",
+            "DMantissa21",
             False,
             [
                 "PartType0/XrayLuminosities",
@@ -2083,7 +2087,7 @@ class PropertyTable:
             "snap_mass*snap_length**2/snap_time**3",
             "Total rest-frame Xray luminosity in three bands. Excludes gas that was recently heated by AGN. Excludes gas in the inner {core_excision}",
             "general",
-            "DMantissa9",
+            "DMantissa21",
             False,
             [
                 "PartType0/Densities",
@@ -2102,7 +2106,7 @@ class PropertyTable:
             "1/snap_time",
             "Total observer-frame Xray photon luminosity in three bands.",
             "general",
-            "DMantissa9",
+            "DMantissa21",
             False,
             ["PartType0/XrayPhotonLuminosities"],
             True,
@@ -2115,7 +2119,7 @@ class PropertyTable:
             "1/snap_time",
             "Total rest-frame Xray photon luminosity in three bands.",
             "general",
-            "DMantissa9",
+            "DMantissa21",
             False,
             [
                 "PartType0/XrayPhotonLuminosities",
@@ -2133,7 +2137,7 @@ class PropertyTable:
             "1/snap_time",
             "Total observer-frame Xray photon luminosity in three bands. Exclude gas that was recently heated by AGN.",
             "general",
-            "DMantissa9",
+            "DMantissa21",
             False,
             [
                 "PartType0/XrayPhotonLuminosities",
@@ -2150,7 +2154,7 @@ class PropertyTable:
             "1/snap_time",
             "Total rest-frame Xray photon luminosity in three bands. Exclude gas that was recently heated by AGN.",
             "general",
-            "DMantissa9",
+            "DMantissa21",
             False,
             [
                 "PartType0/XrayPhotonLuminosities",
@@ -2169,7 +2173,7 @@ class PropertyTable:
             "1/snap_time",
             "Total observer-frame Xray photon luminosity in three bands. Excludes gas in the inner {core_excision}",
             "general",
-            "DMantissa9",
+            "DMantissa21",
             False,
             [
                 "PartType0/Densities",  # To compute X-rays
@@ -2187,7 +2191,7 @@ class PropertyTable:
             "1/snap_time",
             "Total rest-frame Xray photon luminosity in three bands. Excludes gas in the inner {core_excision}",
             "general",
-            "DMantissa9",
+            "DMantissa21",
             False,
             [
                 "PartType0/Densities",
@@ -2205,7 +2209,7 @@ class PropertyTable:
             "1/snap_time",
             "Total observer-frame Xray photon luminosity in three bands. Exclude gas that was recently heated by AGN. Excludes gas in the inner {core_excision}",
             "general",
-            "DMantissa9",
+            "DMantissa21",
             False,
             [
                 "PartType0/XrayPhotonLuminosities",
@@ -2223,7 +2227,7 @@ class PropertyTable:
             "1/snap_time",
             "Total rest-frame Xray photon luminosity in three bands. Exclude gas that was recently heated by AGN. Excludes gas in the inner {core_excision}",
             "general",
-            "DMantissa9",
+            "DMantissa21",
             False,
             [
                 "PartType0/Densities",
@@ -2436,7 +2440,7 @@ class PropertyTable:
             "snap_length**2",
             "Total Compton y parameter.",
             "general",
-            "DMantissa9",
+            "DMantissa21",
             False,
             ["PartType0/ComptonYParameters"],
             True,
@@ -2449,7 +2453,7 @@ class PropertyTable:
             "snap_length**2",
             "Total Compton y parameter. Excludes gas that was recently heated by AGN.",
             "general",
-            "DMantissa9",
+            "DMantissa21",
             False,
             [
                 "PartType0/ComptonYParameters",
@@ -3506,7 +3510,7 @@ class PropertyTable:
             "Masses",
             1,
             np.float32,
-            "Msun",
+            "snap_mass",
             "Mass of the host FOF halo of this subhalo. Zero for satellite and hostless subhalos.",
             "FOF",
             "FMantissa9",
@@ -3565,6 +3569,8 @@ class PropertyTable:
             "None",
             True,
             [],
+            True,
+            None,
         ),
     }
 

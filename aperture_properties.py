@@ -3056,7 +3056,6 @@ class ApertureProperties(HaloProperty):
             shape = prop[2]
             dtype = prop[3]
             unit = unyt.Unit(prop[4], registry=registry)
-            category = prop[6]
             physical = prop[10]
             a_exponent = prop[11]
             if shape > 1:

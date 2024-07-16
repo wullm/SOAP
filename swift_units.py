@@ -119,7 +119,9 @@ def units_from_attributes(attrs, registry):
     # Add expansion factor
     a_scale_exponent = attrs["a-scale exponent"][0]
     a_unit = unyt.Unit("a", registry=registry) ** a_scale_exponent
-    physical = attrs.get("Value stored as physical", [False])[0]
+    # Datasets in the FLAMINGO snapshots do not have a "Value stored as physical"
+    # attribute, so default to comoving in that case
+    physical = attrs.get("Value stored as physical", [0])[0] == 1
     if (a_scale_exponent != 0) and (not physical):
         if u is unyt.dimensionless:
             u = a_unit
@@ -192,7 +194,7 @@ def attributes_from_units(units, physical, a_exponent):
     # Note that "a-scale exponent" is set even if the output is physical,
     # or if the quantity can't be converted to comoving
     attrs["a-scale exponent"] = [0. if a_exponent is None else a_exponent]
-    attrs["Value stored as physical"] = [physical]
-    attrs["Property can be converted to comoving"] = [False if a_exponent is None else True]
+    attrs["Value stored as physical"] = [1 if physical else 0]
+    attrs["Property can be converted to comoving"] = [0 if a_exponent is None else 1]
 
     return attrs
