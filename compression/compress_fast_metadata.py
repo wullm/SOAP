@@ -13,10 +13,11 @@ with open(f"{script_folder}/filters.yml", "r") as ffile:
     filterdict = yaml.safe_load(ffile)
 
 with open(f"{script_folder}/wrong_compression.yml", "r") as cfile:
-    compression_fixes = yaml.safe_load(cfile)
+    # Load empty dictionary if wrong_compression.yml is empty
+    compression_fixes = yaml.safe_load(cfile) or {}
 
 chunksize = 1000
-compression_opts = {"compression": "gzip", "compression_opts": 9}
+compression_opts = {"compression": "gzip", "compression_opts": 4}
 
 
 class H5visiter:
@@ -92,7 +93,7 @@ def create_lossy_dataset(file, name, shape, filter):
     new_plist.set_chunk(chunk)
     for f in fprops["filters"]:
         new_plist.set_filter(f[0], f[1], tuple(f[2]))
-    new_plist.set_deflate(9)
+    new_plist.set_deflate(compression_opts["compression_opts"])
     space = h5py.h5s.create_simple(shape, shape)
     h5py.h5d.create(file.id, name.encode("utf-8"), type, space, new_plist, None).close()
 

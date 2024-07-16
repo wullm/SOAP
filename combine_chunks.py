@@ -4,6 +4,7 @@ import socket
 import time
 import numpy as np
 import h5py
+from mpi4py import MPI
 
 import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.parallel_sort as psort
@@ -215,7 +216,7 @@ def combine_chunks(
                 # Add units and description
                 attrs = swift_units.attributes_from_units(unit, physical, a_exponent)
                 attrs["Description"] = description
-                mask_metadata = category_filter.get_filter_metadata(name)
+                mask_metadata = category_filter.get_filter_metadata_for_property(name)
                 attrs.update(mask_metadata)
                 compression_metadata = category_filter.get_compression_metadata(name)
                 attrs.update(compression_metadata)
@@ -229,6 +230,12 @@ def combine_chunks(
                 group_name = '/'.join(metadata[0].split('/')[:-1])
                 subhalo_types.add(group_name)
             header.attrs['SubhaloTypes'] = list(subhalo_types)
+
+            # Save masks for each halo variation
+            for halo_prop in halo_prop_list:
+                for attr_name, attr_value in halo_prop.mask_metadata.items():
+                    outfile[halo_prop.group_name].attrs[attr_name] = attr_value
+
             outfile.close()
     comm_world.barrier()
 
@@ -248,6 +255,9 @@ def combine_chunks(
         'HBTplus': ("InputHalos/HBTplus/HostFOFId", "InputHalos/IsCentral"),
     }.get(args.halo_format, ())
     props_to_keep = set((*subhalo_rank_props, *host_halo_index_props, *fof_props))
+    # Also keep M200c for calculating reduced_snapshot flag
+    if 'reduced_snapshots' in args.calculations:
+        props_to_keep.add('SO/200_crit/TotalMass')
     props_kept = {}
 
     with MPITimer("Writing output properties", comm_world):
@@ -312,17 +322,17 @@ def combine_chunks(
         fof_com[keep] = psort.fetch_elements(fof_file.read('Groups/Centres'), indices, comm=comm_world)
         props = PropertyTable.full_property_list[f"FOF/Centres"]
         fof_com = (fof_com * fof_com_unit).to(cellgrid.get_unit(props[3]))
-        dataset = phdf5.collective_write(outfile, "InputHalos/FOF/Centres", fof_com, create_dataset=False, comm=comm_world)
+        phdf5.collective_write(outfile, "InputHalos/FOF/Centres", fof_com, create_dataset=False, comm=comm_world)
 
         fof_mass = np.zeros(keep.shape[0], dtype=np.float64)
         fof_mass[keep] = psort.fetch_elements(fof_file.read('Groups/Masses'), indices, comm=comm_world)
         props = PropertyTable.full_property_list[f"FOF/Masses"]
         fof_mass = (fof_mass * fof_mass_unit).to(cellgrid.get_unit(props[3]))
-        dataset = phdf5.collective_write(outfile, "InputHalos/FOF/Masses", fof_mass, create_dataset=False, comm=comm_world)
+        phdf5.collective_write(outfile, "InputHalos/FOF/Masses", fof_mass, create_dataset=False, comm=comm_world)
 
         fof_size = np.zeros(keep.shape[0], dtype=np.int64)
         fof_size[keep] = psort.fetch_elements(fof_file.read('Groups/Sizes'), indices, comm=comm_world)
-        dataset = phdf5.collective_write(outfile, "InputHalos/FOF/Sizes", fof_size, create_dataset=False, comm=comm_world)
+        phdf5.collective_write(outfile, "InputHalos/FOF/Sizes", fof_size, create_dataset=False, comm=comm_world)
 
     # Calculate the index in the SOAP output of the host field halo (VR) or the central subhalo of the host FOF group (HBTplus)
     if len(host_halo_index_props) > 0:
@@ -344,14 +354,18 @@ def combine_chunks(
                 indices = psort.parallel_match(host_ids, cen_fof_id, comm=comm_world)
                 host_halo_index = -1 * np.ones(sat_mask.shape[0], dtype=np.int64)
                 host_halo_index[sat_mask] = indices
-
-            dataset = phdf5.collective_write(
-                outfile,
-                "SOAP/HostHaloIndex",
-                host_halo_index,
-                create_dataset=False,
-                comm=comm_world,
-            )
+    else:
+        # Set default value
+        host_halo_index = -1 * np.ones(order.shape[0], dtype=np.int64)
+        if comm_world.Get_rank() == 0:
+            print('Not calculating host halo index')
+    phdf5.collective_write(
+        outfile,
+        "SOAP/HostHaloIndex",
+        host_halo_index,
+        create_dataset=False,
+        comm=comm_world,
+    )
 
     # Now write out subhalo ranking by mass within host halos, if we have all the required quantities.
     if len(subhalo_rank_props) > 0:
@@ -371,16 +385,81 @@ def combine_chunks(
                 props_kept["BoundSubhalo/TotalMass"],
                 comm_world,
             )
-            dataset = phdf5.collective_write(
-                outfile,
-                "SOAP/SubhaloRankByBoundMass",
-                subhalo_rank,
-                create_dataset=False,
-                comm=comm_world,
-            )
     else:
+        # Set default value
+        subhalo_rank = -1 * np.ones(order.shape[0], dtype=np.int32)
         if comm_world.Get_rank() == 0:
             print('Not calculating subhalo ranking by mass')
+    phdf5.collective_write(
+        outfile,
+        "SOAP/SubhaloRankByBoundMass",
+        subhalo_rank,
+        create_dataset=False,
+        comm=comm_world,
+    )
+
+    if ('reduced_snapshots' in args.calculations) and ('SO/200_crit/TotalMass' in props_kept):
+        with MPITimer("Calculate and write reduced snapshot membership", comm_world):
+            # Load parameters. We create mass bins with the lower limit of the smallest mass bin
+            # given by "min_halo_mass". The size of the bins is set by "halo_bin_size_dex".
+            # For each bin we keep at most "halos_per_bin" objects.
+            halos_per_bin = int(args.calculations['reduced_snapshots']['halos_per_bin'])
+            halo_bin_size = float(args.calculations['reduced_snapshots']['halo_bin_size_dex'])
+            min_mass = np.log10(float(args.calculations['reduced_snapshots']['min_halo_mass']))
+
+            # Load masses and convert to Msun
+            mass_metadata = [metadata for metadata in ref_metadata if metadata[0] == 'SO/200_crit/TotalMass']
+            mass_unit = cellgrid.get_unit(mass_metadata[0][2])
+            mass = (props_kept['SO/200_crit/TotalMass'] * mass_unit).to('Msun').value
+
+            # Determine mass bins
+            local_max_mass = np.max(mass) if mass.shape[0] else 0
+            max_mass = comm_world.allreduce(local_max_mass, MPI.MAX)
+            max_mass = np.log10(max_mass) + halo_bin_size
+            bins = 10**np.arange(min_mass, max_mass, halo_bin_size)
+
+            # Determine how many halos each rank should keep
+            np.random.seed(0)
+            n_halo_local, _ = np.histogram(mass, bins=bins)
+            n_halo = np.array(comm_world.gather(n_halo_local))
+            if comm_world.Get_rank() == 0:
+                n_keep = n_halo.copy()
+                n_halo_total = np.sum(n_halo, axis=0)
+                for i_bin in range(bins.shape[0]-1):
+                    # Keep all halos in this bin
+                    if n_halo_total[i_bin] <= halos_per_bin:
+                        continue
+                    # Add halos to a random rank until we have enough
+                    n_keep[:, i_bin] = 0
+                    p_keep = n_halo[:, i_bin] / n_halo_total[i_bin]
+                    while np.sum(n_keep[:, i_bin]) < halos_per_bin:
+                        i_rank = np.random.choice(comm_world.Get_size(), p=p_keep)
+                        if n_keep[i_rank, i_bin] < n_halo[i_rank, i_bin]:
+                            n_keep[i_rank, i_bin] += 1
+            else:
+                n_keep = None
+            n_keep = comm_world.bcast(n_keep)[comm_world.Get_rank()]
+
+            # Each rank determines which halos to keep
+            reduced_snapshot = np.zeros(order.shape[0], dtype=np.int32)
+            for i_bin in range(bins.shape[0]-1):
+                mask = (bins[i_bin] < mass) & (mass < bins[i_bin+1])
+                idx = np.where(mask)[0]
+                assert n_keep[i_bin] <= np.sum(mask)
+                keep_idx = np.random.choice(idx, size=n_keep[i_bin], replace=False)
+                reduced_snapshot[keep_idx] = 1
+    else:
+        # Set default value
+        reduced_snapshot = np.zeros(order.shape[0], dtype=np.int32)
+        if comm_world.Get_rank() == 0:
+            print('Not calculating reduced snapshot membership')
+    phdf5.collective_write(
+        outfile,
+        "SOAP/IncludedInReducedSnapshot",
+        reduced_snapshot,
+        create_dataset=False,
+        comm=comm_world,
+    )
 
     # Done.
     outfile.close()
