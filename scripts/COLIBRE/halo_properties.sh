@@ -32,7 +32,7 @@ snapnum=`printf '%04d' ${SLURM_ARRAY_TASK_ID}`
 dmo_flag=""
 
 #TODO: Set nodes and chunks
-mpirun python3 -u -m mpi4py ./compute_halo_properties.py \
+mpirun -- python3 -u -m mpi4py ./compute_halo_properties.py \
        parameter_files/COLIBRE.yml \
        --snap-nr=${snapnum} --chunks=1 ${dmo_flag}
 

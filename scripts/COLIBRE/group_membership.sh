@@ -28,7 +28,7 @@ source openmpi-5.0.3-hdf5-1.12.3-env/bin/activate
 snapnum=`printf '%04d' ${SLURM_ARRAY_TASK_ID}`
 
 # Run the code
-mpirun python3 -u -m mpi4py ./group_membership.py \
+mpirun -- python3 -u -m mpi4py ./group_membership.py \
        parameter_files/COLIBRE.yml \
        --snap-nr=${snapnum}
 
