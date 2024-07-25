@@ -25,13 +25,12 @@ import numpy as np
 import unyt
 from scipy.optimize import brentq
 
-from halo_properties import HaloProperty, ReadRadiusTooSmallError
+from halo_properties import HaloProperty, SearchRadiusTooSmallError
 from kinematic_properties import (
     get_angular_momentum,
     get_angular_momentum_and_kappa_corot,
     get_vmax,
     get_inertia_tensor,
-    get_reduced_inertia_tensor,
 )
 from recently_heated_gas_filter import RecentlyHeatedGasFilter
 from property_table import PropertyTable
@@ -127,7 +126,7 @@ def find_SO_radius_and_mass(
     Returns the radius, mass and volume of the sphere where the density
     reaches the target value.
 
-    Throws a ReadRadiusTooSmallError if the intersection point is outside
+    Throws a SearchRadiusTooSmallError if the intersection point is outside
     the range of the particles that were passed on.
 
     Throws a RuntimeError if the intersection point is outside the range and
@@ -150,7 +149,7 @@ def find_SO_radius_and_mass(
                 raise RuntimeError(
                     "Cannot find SO radius, but search radius is already larger than 20 Mpc!"
                 )
-            raise ReadRadiusTooSmallError("SO radius multiple estimate was too small!")
+            raise SearchRadiusTooSmallError("SO radius multiple estimate was too small!")
     else:
         # all non-zero radius particles are below the threshold
         # we linearly interpolate the mass from 0 to the particle radius
@@ -188,7 +187,7 @@ def find_SO_radius_and_mass(
                 raise RuntimeError(
                     "Cannot find SO radius, but search radius is already larger than 20 Mpc!"
                 )
-            raise ReadRadiusTooSmallError("SO radius multiple estimate was too small!")
+            raise SearchRadiusTooSmallError("SO radius multiple estimate was too small!")
         # take the next interval
         r1 = r2
         r2 = ordered_radius[i]
@@ -244,7 +243,8 @@ class SOParticleData:
         snapshot_datasets: SnapshotDatasets,
         core_excision_fraction: float,
         softening_of_parttype: unyt.unyt_array,
-        skip_concentration: bool
+        skip_concentration: bool,
+        search_radius: unyt.unyt_quantity,
     ):
         """
         Constructor.
@@ -289,6 +289,7 @@ class SOParticleData:
         self.core_excision_fraction = core_excision_fraction
         self.softening_of_parttype = softening_of_parttype
         self.skip_concentration = skip_concentration
+        self.search_radius = search_radius
         self.compute_basics()
 
     def get_dataset(self, name: str) -> unyt.unyt_array:
@@ -361,7 +362,7 @@ class SOParticleData:
         Returns True if an SO radius was found, i.e. when both SO_radius and
         SO_mass are non-zero.
 
-        Rethrows any ReadRadiusTooSmallError thrown by find_SO_radius_and_mass().
+        Rethrows any SearchRadiusTooSmallError thrown by find_SO_radius_and_mass().
         """
         # add neutrinos
         if self.has_neutrinos:
@@ -411,8 +412,8 @@ class SOParticleData:
                     self.SO_r, self.SO_mass, self.SO_volume = find_SO_radius_and_mass(
                         ordered_radius, density, cumulative_mass, reference_density
                     )
-                except ReadRadiusTooSmallError:
-                    raise ReadRadiusTooSmallError("SO radius multiple was too small!")
+                except SearchRadiusTooSmallError:
+                    raise SearchRadiusTooSmallError("SO radius multiple was too small!")
             else:
                 self.SO_volume = 0 * ordered_radius.units ** 3
         elif physical_radius > 0:
@@ -463,12 +464,17 @@ class SOParticleData:
                     self.dm_missed_mass = (self.SO_r - r1) / (r2 - r1) * dm_m[order][i]
 
             # Removing particles outside SO radius
+            self.all_selection = self.radius < self.SO_r
             self.gas_selection = self.radius[self.types == 0] < self.SO_r
             self.dm_selection = self.radius[self.types == 1] < self.SO_r
             self.star_selection = self.radius[self.types == 4] < self.SO_r
             self.bh_selection = self.radius[self.types == 5] < self.SO_r
 
-            self.all_selection = self.radius < self.SO_r
+            # Save particles outside SO radius for inertia tensor calculations
+            self.surrounding_mass = self.mass[np.logical_not(self.all_selection)]
+            self.surrounding_position = self.position[np.logical_not(self.all_selection)]
+            self.surrounding_types = self.types[np.logical_not(self.all_selection)]
+
             self.mass = self.mass[self.all_selection]
             self.radius = self.radius[self.all_selection]
             self.position = self.position[self.all_selection]
@@ -565,16 +571,47 @@ class SOParticleData:
     def TotalInertiaTensor(self) -> unyt.unyt_array:
         """
         Inertia tensor of the total mass distribution.
+        Computed iteratively using an ellipsoid with volume equal to that of
+        a sphere with radius SORadius.
         """
         if self.Mtotpart == 0:
             return None
-        return get_inertia_tensor(self.mass, self.position)
+        mass = np.concatenate([self.mass, self.surrounding_mass], axis=0)
+        position = np.concatenate([self.position, self.surrounding_position], axis=0)
+        return get_inertia_tensor(mass, position, self.SO_r, search_radius=self.search_radius)
 
     @lazy_property
-    def ReducedTotalInertiaTensor(self):
+    def TotalInertiaTensorReduced(self) -> unyt.unyt_array:
+        """
+        Reduced inertia tensor of the total mass distribution.
+        Computed iteratively using an ellipsoid with volume equal to that of
+        a sphere with radius SORadius.
+        """
         if self.Mtotpart == 0:
             return None
-        return get_reduced_inertia_tensor(self.mass, self.position)
+        mass = np.concatenate([self.mass, self.surrounding_mass], axis=0)
+        position = np.concatenate([self.position, self.surrounding_position], axis=0)
+        return get_inertia_tensor(mass, position, self.SO_r, search_radius=self.search_radius, reduced=True)
+
+    @lazy_property
+    def TotalInertiaTensorNoniterative(self) -> unyt.unyt_array:
+        """
+        Inertia tensor of the total mass distribution.
+        Computed using all particles within the SORadius.
+        """
+        if self.Mtotpart == 0:
+            return None
+        return get_inertia_tensor(self.mass, self.position, self.SO_r, max_iterations=1)
+
+    @lazy_property
+    def TotalInertiaTensorReducedNoniterative(self) -> unyt.unyt_array:
+        """
+        Reduced inertia tensor of the total mass distribution.
+        Computed using all particles within the SORadius.
+        """
+        if self.Mtotpart == 0:
+            return None
+        return get_inertia_tensor(self.mass, self.position, self.SO_r, reduced=True, max_iterations=1)
 
     @lazy_property
     def Mfrac_satellites(self) -> unyt.unyt_quantity:
@@ -700,20 +737,57 @@ class SOParticleData:
             self.compute_Lgas_props()
         return 1.0 - 2.0 * self.internal_Mcountrot_gas / self.Mgas
 
+    def gas_inertia_tensor(self, **kwargs) -> unyt.unyt_array:
+        """
+        Helper function for calculating gas inertia tensors
+        """
+        surrounding_mass = self.surrounding_mass[self.surrounding_types == 0]
+        surrounding_position = self.surrounding_position[self.surrounding_types == 0]
+        mass = np.concatenate([self.gas_masses, surrounding_mass], axis=0)
+        position = np.concatenate([self.gas_pos, surrounding_position], axis=0)
+        return get_inertia_tensor(mass, position, self.SO_r, search_radius=self.search_radius, **kwargs)
+
     @lazy_property
     def GasInertiaTensor(self) -> unyt.unyt_array:
         """
-        Inertia tensor of the gas particles.
+        Inertia tensor of the gas mass distribution.
+        Computed iteratively using an ellipsoid with volume equal to that of
+        a sphere with radius SORadius.
         """
         if self.Mgas == 0:
             return None
-        return get_inertia_tensor(self.gas_masses, self.gas_pos)
+        return self.gas_inertia_tensor()
 
     @lazy_property
-    def ReducedGasInertiaTensor(self):
+    def GasInertiaTensorReduced(self) -> unyt.unyt_array:
+        """
+        Reduced inertia tensor of the gas mass distribution.
+        Computed iteratively using an ellipsoid with volume equal to that of
+        a sphere with radius SORadius.
+        """
         if self.Mgas == 0:
             return None
-        return get_reduced_inertia_tensor(self.gas_masses, self.gas_pos)
+        return self.gas_inertia_tensor(reduced=True)
+
+    @lazy_property
+    def GasInertiaTensorNoniterative(self) -> unyt.unyt_array:
+        """
+        Inertia tensor of the gas mass distribution.
+        Computed using all particles within the SORadius.
+        """
+        if self.Mgas == 0:
+            return None
+        return get_inertia_tensor(self.gas_masses, self.gas_pos, self.SO_r, max_iterations=1)
+
+    @lazy_property
+    def GasInertiaTensorReducedNoniterative(self) -> unyt.unyt_array:
+        """
+        Reduced inertia tensor of the gas mass distribution.
+        Computed using all particles within the SORadius.
+        """
+        if self.Mgas == 0:
+            return None
+        return get_inertia_tensor(self.gas_masses, self.gas_pos, self.SO_r, reduced=True, max_iterations=1)
 
     @lazy_property
     def dm_masses(self) -> unyt.unyt_array:
@@ -774,20 +848,57 @@ class SOParticleData:
             self.dm_masses, self.dm_pos, self.dm_vel, ref_velocity=self.vcom_dm
         )
 
-    @lazy_property
-    def DMInertiaTensor(self) -> unyt.unyt_array:
+    def dm_inertia_tensor(self, **kwargs) -> unyt.unyt_array:
         """
-        Inertia tensor of the dark matter particle distribution.
+        Helper function for calculating dm inertia tensors
         """
-        if self.Mdm == 0:
-            return None
-        return get_inertia_tensor(self.dm_masses, self.dm_pos)
+        surrounding_mass = self.surrounding_mass[self.surrounding_types == 1]
+        surrounding_position = self.surrounding_position[self.surrounding_types == 1]
+        mass = np.concatenate([self.dm_masses, surrounding_mass], axis=0)
+        position = np.concatenate([self.dm_pos, surrounding_position], axis=0)
+        return get_inertia_tensor(mass, position, self.SO_r, search_radius=self.search_radius, **kwargs)
 
     @lazy_property
-    def ReducedDMInertiaTensor(self):
+    def DarkMatterInertiaTensor(self) -> unyt.unyt_array:
+        """
+        Inertia tensor of the dark matter mass distribution.
+        Computed iteratively using an ellipsoid with volume equal to that of
+        a sphere with radius SORadius.
+        """
         if self.Mdm == 0:
             return None
-        return get_reduced_inertia_tensor(self.dm_masses, self.dm_pos)
+        return self.dm_inertia_tensor()
+
+    @lazy_property
+    def DarkMatterInertiaTensorReduced(self) -> unyt.unyt_array:
+        """
+        Reduced inertia tensor of the dark matter mass distribution.
+        Computed iteratively using an ellipsoid with volume equal to that of
+        a sphere with radius SORadius.
+        """
+        if self.Mdm == 0:
+            return None
+        return self.dm_inertia_tensor(reduced=True)
+
+    @lazy_property
+    def DarkMatterInertiaTensorNoniterative(self) -> unyt.unyt_array:
+        """
+        Inertia tensor of the dark matter mass distribution.
+        Computed using all particles within the SORadius.
+        """
+        if self.Mdm == 0:
+            return None
+        return get_inertia_tensor(self.dm_masses, self.dm_pos, self.SO_r, max_iterations=1)
+
+    @lazy_property
+    def DarkMatterInertiaTensorReducedNoniterative(self) -> unyt.unyt_array:
+        """
+        Reduced inertia tensor of the dark matter mass distribution.
+        Computed using all particles within the SORadius.
+        """
+        if self.Mdm == 0:
+            return None
+        return get_inertia_tensor(self.dm_masses, self.dm_pos, self.SO_r, reduced=True, max_iterations=1)
 
     @lazy_property
     def star_masses(self) -> unyt.unyt_array:
@@ -892,20 +1003,57 @@ class SOParticleData:
             self.compute_Lstar_props()
         return 1.0 - 2.0 * self.internal_Mcountrot_star / self.Mstar
 
+    def stellar_inertia_tensor(self, **kwargs) -> unyt.unyt_array:
+        """
+        Helper function for calculating stellar inertia tensors
+        """
+        surrounding_mass = self.surrounding_mass[self.surrounding_types == 4]
+        surrounding_position = self.surrounding_position[self.surrounding_types == 4]
+        mass = np.concatenate([self.star_masses, surrounding_mass], axis=0)
+        position = np.concatenate([self.star_pos, surrounding_position], axis=0)
+        return get_inertia_tensor(mass, position, self.SO_r, search_radius=self.search_radius, **kwargs)
+
     @lazy_property
     def StellarInertiaTensor(self) -> unyt.unyt_array:
         """
         Inertia tensor of the stellar mass distribution.
+        Computed iteratively using an ellipsoid with volume equal to that of
+        a sphere with radius SORadius.
         """
         if self.Mstar == 0:
             return None
-        return get_inertia_tensor(self.star_masses, self.star_pos)
+        return self.stellar_inertia_tensor()
 
     @lazy_property
-    def ReducedStellarInertiaTensor(self):
+    def StellarInertiaTensorReduced(self) -> unyt.unyt_array:
+        """
+        Reduced inertia tensor of the stellar mass distribution.
+        Computed iteratively using an ellipsoid with volume equal to that of
+        a sphere with radius SORadius.
+        """
         if self.Mstar == 0:
             return None
-        return get_reduced_inertia_tensor(self.star_masses, self.star_pos)
+        return self.stellar_inertia_tensor(reduced=True)
+
+    @lazy_property
+    def StellarInertiaTensorNoniterative(self) -> unyt.unyt_array:
+        """
+        Inertia tensor of the stellar mass distribution.
+        Computed using all particles within the SORadius.
+        """
+        if self.Mstar == 0:
+            return None
+        return get_inertia_tensor(self.star_masses, self.star_pos, self.SO_r, max_iterations=1)
+
+    @lazy_property
+    def StellarInertiaTensorReducedNoniterative(self) -> unyt.unyt_array:
+        """
+        Reduced inertia tensor of the stellar mass distribution.
+        Computed using all particles within the SORadius.
+        """
+        if self.Mstar == 0:
+            return None
+        return get_inertia_tensor(self.star_masses, self.star_pos, self.SO_r, reduced=True, max_iterations=1)
 
     @lazy_property
     def baryon_masses(self) -> unyt.unyt_array:
@@ -966,21 +1114,6 @@ class SOParticleData:
         return (
             self.baryon_masses[:, None] * np.cross(self.baryon_pos, baryon_relvel)
         ).sum(axis=0)
-
-    @lazy_property
-    def BaryonInertiaTensor(self) -> unyt.unyt_array:
-        """
-        Inertia tensor of the baryon (gas + star) particle distribution.
-        """
-        if self.Mbaryons == 0:
-            return None
-        return get_inertia_tensor(self.baryon_masses, self.baryon_pos)
-
-    @lazy_property
-    def ReducedBaryonInertiaTensor(self):
-        if self.Mbaryons == 0:
-            return None
-        return get_reduced_inertia_tensor(self.baryon_masses, self.baryon_pos)
 
     @lazy_property
     def Mbh_dynamical(self) -> unyt.unyt_quantity:
@@ -1957,7 +2090,7 @@ class SOParticleData:
         fac = unyt.sigma_thompson / unyt.c
         volumes = self.gas_masses / self.gas_densities
         area = np.pi * self.SO_r ** 2
-        return (fac * ne * vr * (volumes / area)).sum()
+        return (fac * ne * vr * (volumes / area)).sum().to('dimensionless')
 
     @lazy_property
     def Ndm(self) -> int:
@@ -2307,6 +2440,23 @@ class SOProperties(HaloProperty):
             "Nstar",
             "Nbh",
             "Nnu",
+            # Calculate inertia tensors first as they can throw SearchRadiusTooSmallError
+            "GasInertiaTensor",
+            "DarkMatterInertiaTensor",
+            "StellarInertiaTensor",
+            "TotalInertiaTensor",
+            "GasInertiaTensorReduced",
+            "DarkMatterInertiaTensorReduced",
+            "StellarInertiaTensorReduced",
+            "TotalInertiaTensorReduced",
+            "GasInertiaTensorNoniterative",
+            "DarkMatterInertiaTensorNoniterative",
+            "StellarInertiaTensorNoniterative",
+            "TotalInertiaTensorNoniterative",
+            "GasInertiaTensorReducedNoniterative",
+            "DarkMatterInertiaTensorReducedNoniterative",
+            "StellarInertiaTensorReducedNoniterative",
+            "TotalInertiaTensorReducedNoniterative",
             "com",
             "vcom",
             "Mfrac_satellites",
@@ -2364,16 +2514,6 @@ class SOProperties(HaloProperty):
             "Mnu",
             "spin_parameter",
             "SFR",
-            "TotalInertiaTensor",
-            "GasInertiaTensor",
-            "DMInertiaTensor",
-            "StellarInertiaTensor",
-            "BaryonInertiaTensor",
-            "ReducedTotalInertiaTensor",
-            "ReducedGasInertiaTensor",
-            "ReducedDMInertiaTensor",
-            "ReducedStellarInertiaTensor",
-            "ReducedBaryonInertiaTensor",
             "DopplerB",
             "gasOfrac",
             "gasFefrac",
@@ -2631,6 +2771,7 @@ class SOProperties(HaloProperty):
                 self.core_excision_fraction,
                 self.softening_of_parttype,
                 self.skip_concentration,
+                search_radius,
             )
 
             # we need to make sure the physical radius uses the correct unit
@@ -2642,8 +2783,8 @@ class SOProperties(HaloProperty):
                 SO_exists = part_props.compute_SO_radius_and_mass(
                     self.reference_density, physical_radius
                 )
-            except ReadRadiusTooSmallError:
-                raise ReadRadiusTooSmallError(
+            except SearchRadiusTooSmallError:
+                raise SearchRadiusTooSmallError(
                     f"Need more particles to determine SO radius and mass!"
                 )
 
@@ -2673,6 +2814,10 @@ class SOProperties(HaloProperty):
                                 SO[name].shape == val.shape
                             ), f"Attempting to store {name} with wrong dimensions"
                             if unit == unyt.Unit("dimensionless"):
+                                if hasattr(val, "units"):
+                                    assert (
+                                        val.units == unyt.dimensionless
+                                    ), f'{name} is not dimensionless'
                                 SO[name] = unyt.unyt_array(
                                     val.astype(dtype),
                                     dtype=dtype,
@@ -2875,7 +3020,7 @@ class RadiusMultipleSOProperties(SOProperties):
         Throws a RuntimeError if the "parent" SO radius cannot be obtained from
         halo_result.
 
-        Throws a ReadRadiusTooSmallError if the current search radius was too small
+        Throws a SearchRadiusTooSmallError if the current search radius was too small
         to guarantee a correct result.
         """
 
@@ -2889,7 +3034,7 @@ class RadiusMultipleSOProperties(SOProperties):
 
         # Check that we read in a large enough radius
         if self.multiple * halo_result[key][0] > search_radius:
-            raise ReadRadiusTooSmallError("SO radius multiple estimate was too small!")
+            raise SearchRadiusTooSmallError("SO radius multiple estimate was too small!")
 
         super().calculate(input_halo, search_radius, data, halo_result)
         return
@@ -2968,7 +3113,7 @@ def test_SO_properties_random_halo():
         rho_ref = Mtot / (4.0 / 3.0 * np.pi * rmax ** 3)
 
         # force the SO radius to be outside the search sphere and check that
-        # we get a ReadRadiusTooSmallError
+        # we get a SearchRadiusTooSmallError
         property_calculator_2500mean.reference_density = 0.01 * rho_ref
         property_calculator_2500crit.reference_density = 0.01 * rho_ref
         property_calculator_BN98.reference_density = 0.01 * rho_ref
@@ -2981,7 +3126,7 @@ def test_SO_properties_random_halo():
             try:
                 halo_result = dict(halo_result_template)
                 prop_calc.calculate(input_halo, rmax, data, halo_result)
-            except ReadRadiusTooSmallError:
+            except SearchRadiusTooSmallError:
                 fail = True
             # 1 particle halos don't fail, since we always assume that the first
             # particle is at the centre of potential (which means we exclude it
@@ -3017,7 +3162,7 @@ def test_SO_properties_random_halo():
             property_calculator_5x2500mean.calculate(
                 input_halo, 0.2 * rmax, data, halo_result
             )
-        except ReadRadiusTooSmallError:
+        except SearchRadiusTooSmallError:
             fail = True
         assert fail
 
