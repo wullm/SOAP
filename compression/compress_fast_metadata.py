@@ -127,8 +127,12 @@ def compress_dataset(arguments):
             if attr == "Is Compressed":
                 ofile["data"].attrs[attr] = True
             else:
+                # This is needed if we have used the compression_fixes dictionary
                 if attr == "Lossy compression filter":
                     ofile["data"].attrs[attr] = filter
+                # TODO: Remove, this was only the case for a small number of catalogues
+                if attr == "Conversion factor to CGS (including cosmological corrections)":
+                    ofile["data"].attrs["Conversion factor to physical CGS (including cosmological corrections)"] = filter
                 else:
                     ofile["data"].attrs[attr] = ifile[dset].attrs[attr]
 
