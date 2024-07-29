@@ -513,6 +513,7 @@ aliases:
   PartType0/LastSNIIThermalFeedbackDensities: PartType0/DensitiesAtLastSupernovaEvent
   PartType0/MetalMassFractionsDiffuse: PartType0/MetalMassFractions
 filters:
+  # TODO: The current plan is to set these all to 100 for the production runs, but I don't want to break the pipeline
   general:
     limit: 0
     properties:
