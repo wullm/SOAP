@@ -83,32 +83,26 @@ def find_matching_halos(
     a_unit = unyt.Unit("cm", registry=registry) ** 0
     boxsize = None    
 
-    # Load halo data from the two catalogues
+    # Load halo data from the second catalogue
     keep_orphans = True
-    halo_data1 = read_hbtplus.read_hbtplus_catalogue(
-        comm, base_name1, a_unit, registry, boxsize, keep_orphans
-    )
-    
     halo_data2 = read_hbtplus.read_hbtplus_catalogue(
         comm, base_name2, a_unit, registry, boxsize, keep_orphans
     )
-    
-    # The host halo IDs (-1 for field halos)
-    host_index1 = halo_data1["HostHaloId"]
-    host_index2 = halo_data2["HostHaloId"]
-    
+
+    # Catalogue 2 properties
+    track_ids2 = halo_data2["TrackId"]
+    host_ids2 = halo_data2["HostHaloId"]
+    is_central2 = halo_data2["is_central"]
+
+    # Find the track ID of the central halo that has the same hostHaloID
+    central_index2 = psort.parallel_match(host_ids2, host_ids2[is_central2 == 1], comm=comm)
+    host_track_ids2 = psort.fetch_elements(track_ids2[is_central2 == 1], central_index2, comm=comm)
+
+    # Find the index of that central halo (which may differ from the track ID)
+    host_index2 = psort.parallel_match(host_track_ids2, track_ids2, comm=comm)
+
     # Free the other halo data
-    del halo_data1
     del halo_data2
-    
-    # Decide range of halos in cat1 which we'll store on each rank:
-    # This is used to partition the result between MPI ranks.
-    nr_cat1_tot = comm.allreduce(len(host_index1))
-    nr_cat1_per_rank = nr_cat1_tot // comm_size
-    if comm_rank < comm_size - 1:
-        nr_cat1_local = nr_cat1_per_rank
-    else:
-        nr_cat1_local = nr_cat1_tot - (comm_size - 1) * nr_cat1_per_rank
 
     # Find group membership for particles in the first catalogue:
     total_nr_halos1, cat1_ids, cat1_grnr_in_cat1, rank_bound1 = read_hbtplus.read_hbtplus_groupnr(
@@ -119,6 +113,15 @@ def find_matching_halos(
     total_nr_halos2, cat2_ids, cat2_grnr_in_cat2, rank_bound2 = read_hbtplus.read_hbtplus_groupnr(
         base_name2
     )
+
+    # Decide range of halos in cat1 which we'll store on each rank:
+    # This is used to partition the result between MPI ranks.
+    nr_cat1_tot = total_nr_halos1
+    nr_cat1_per_rank = nr_cat1_tot // comm_size
+    if comm_rank < comm_size - 1:
+        nr_cat1_local = nr_cat1_per_rank
+    else:
+        nr_cat1_local = nr_cat1_tot - (comm_size - 1) * nr_cat1_per_rank
 
     # Clear group membership for particles with invalid IDs
     if (min_particle_id != None):
