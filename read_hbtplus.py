@@ -113,7 +113,7 @@ def read_hbtplus_groupnr(basename):
     return total_nr_halos, ids_bound, grnr_bound, rank_bound
 
 
-def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize):
+def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize, keep_orphans=False):
     """
     Read in the HBTplus halo catalogue, distributed over communicator comm.
 
@@ -201,7 +201,10 @@ def read_hbtplus_catalogue(comm, basename, a_unit, registry, boxsize):
     )
 
     # Only process resolved subhalos (HBTplus also outputs unresolved "orphan" subhalos)
-    keep = nr_bound_part > 1
+    if not keep_orphans:
+        keep = nr_bound_part > 0
+    else:
+        keep = np.ones_like(nr_bound_part, dtype=bool)
 
     # Assign indexes to halos: for each halo we're going to process we store the
     # position in the input catalogue.
